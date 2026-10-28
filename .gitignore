@@ -1,0 +1,7 @@
+docs/design/
+.superpowers/
+artifacts/
+.cache/
+inventories/e2e/.ssh/
+*.retry
+.vault-pass
