@@ -11,4 +11,5 @@ rules:
 ignore: |
   .cache/
   artifacts/
+  brag-output*/
   inventories/*/group_vars/*/vault.yml
