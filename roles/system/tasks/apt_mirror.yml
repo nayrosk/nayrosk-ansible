@@ -1,7 +1,7 @@
 ---
 - name: Use the configured APT mirror
   ansible.builtin.set_fact:
-    system_apt_mirror: "{{ system_apt_mirror_url | regex_replace('/?$', '/') }}"
+    system_apt_mirror: "{{ (system_apt_mirror_url | trim | regex_replace('/+$', '')) ~ '/' }}"
   when: system_apt_mirror_url | length > 0
 
 - name: Measure the APT mirrors
@@ -40,7 +40,7 @@
           - --output
           - /dev/null
           - --write-out
-          - "%{time_total}"
+          - "%{http_code} %{time_total}"
           - --max-time
           - "5"
           - "{{ item }}dists/{{ ansible_distribution_release }}/Release"
@@ -49,11 +49,17 @@
       failed_when: false
       loop: >-
         {{ (system_mirror_list.content | default('')).split() | select('match', '^https?://')
-        | map('regex_replace', '/?$', '/') | list }}
+        | map('trim') | map('regex_replace', '/+$', '') | map('regex_replace', '$', '/') | list }}
 
-    - name: Keep the fastest mirror or fall back to the default
+    - name: Keep the fastest mirror answering HTTP 200 or fall back to the default
       ansible.builtin.set_fact:
         system_apt_mirror: >-
-          {{ (system_mirror_times.results | default([]) | selectattr('rc', 'equalto', 0)
-          | sort(attribute='stdout', case_sensitive=false) | map(attribute='item') | list
-          | first | default(system_apt_mirror_default)) }}
+          {%- set ns = namespace(best=none, best_time=none) -%}
+          {%- for r in system_mirror_times.results | default([]) if r.rc == 0 and (r.stdout.split() | length) == 2
+              and r.stdout.split()[0] == '200' -%}
+          {%- set t = r.stdout.split()[1] | float -%}
+          {%- if ns.best_time is none or t < ns.best_time -%}
+          {%- set ns.best = r.item -%}{%- set ns.best_time = t -%}
+          {%- endif -%}
+          {%- endfor -%}
+          {{ ns.best if ns.best is not none else (system_apt_mirror_default | trim | regex_replace('/+$', '')) ~ '/' }}

@@ -57,7 +57,7 @@
 
 - name: Use the default APT mirror
   ansible.builtin.set_fact:
-    system_apt_mirror: "{{ system_apt_mirror_default }}"
+    system_apt_mirror: "{{ (system_apt_mirror_default | trim | regex_replace('/+$', '')) ~ '/' }}"
   when: system_apt_mirror is not defined
 
 - name: Install the APT sources
