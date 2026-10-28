@@ -5,30 +5,71 @@
     state: present
     update_cache: true
     cache_valid_time: 3600
+    lock_timeout: 600
 
-- name: Detect the public IP from the target
+# IPv6-only hosts have no default_ipv4: their default IPv6 address is the local IP then.
+- name: Set the local IP fact
+  ansible.builtin.set_fact:
+    local_ca_local_ip: >-
+      {{ ansible_facts.default_ipv4.address
+         if ansible_facts.default_ipv4.address is defined
+         else ansible_facts.default_ipv6.address | default('') }}
+
+- name: Check whether a server certificate exists
+  ansible.builtin.stat:
+    path: "{{ local_ca_directory }}/server.crt"
+  register: local_ca_server_stat
+
+- name: Read the existing server certificate
+  community.crypto.x509_certificate_info:
+    path: "{{ local_ca_directory }}/server.crt"
+    valid_at:
+      soon: +30d
+  register: local_ca_server_info
+  when: local_ca_server_stat.stat.exists
+
+- name: Detect the public IPv4 address from the target
   ansible.builtin.uri:
-    url: https://ifconfig.co/ip
+    url: "{{ local_ca_public_ip_probe_url }}"
     return_content: true
     timeout: 10
   register: local_ca_public_ip_probe
   changed_when: false
   failed_when: false
+  when: local_ca_public_ip_override | length == 0
 
-- name: Set the local and public IP facts
+# Order: the inventory override, then a valid IPv4 answer of the probe, then the first IP address already in
+# the server certificate other than the local IP, so a failed probe does not reissue the certificate,
+# then ansible_host when it is an IP literal, else no public IP.
+- name: Set the public IP fact
+  vars:
+    local_ca_ipv4_regex: >-
+      ^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$
+    local_ca_probe_answer: "{{ local_ca_public_ip_probe.content | default('') | trim }}"
+    local_ca_existing_ips: >-
+      {{ local_ca_server_info.subject_alt_name | default([]) | select('match', '^IP:')
+         | map('regex_replace', '^IP:', '') | reject('equalto', local_ca_local_ip) | list }}
+    local_ca_host: "{{ ansible_host | default('') | string }}"
+    local_ca_host_is_ip: >-
+      {{ local_ca_host is match(local_ca_ipv4_regex) or local_ca_host is match('^[0-9a-fA-F:]*:[0-9a-fA-F:.]*$') }}
   ansible.builtin.set_fact:
-    local_ca_local_ip: "{{ ansible_facts.default_ipv4.address }}"
     local_ca_public_ip: >-
-      {{ (local_ca_public_ip_probe.content | trim)
-         if (local_ca_public_ip_probe.status | default(0)) == 200
-            and (local_ca_public_ip_probe.content | default('') | trim) is match('^[0-9a-fA-F:.]+$')
-         else ansible_host }}
+      {%- if local_ca_public_ip_override | length > 0 -%}
+      {{ local_ca_public_ip_override }}
+      {%- elif (local_ca_public_ip_probe.status | default(0)) == 200
+               and local_ca_probe_answer is match(local_ca_ipv4_regex) -%}
+      {{ local_ca_probe_answer }}
+      {%- elif local_ca_existing_ips | length > 0 -%}
+      {{ local_ca_existing_ips | first }}
+      {%- elif local_ca_host_is_ip | bool -%}
+      {{ local_ca_host }}
+      {%- endif -%}
 
 - name: Build the subject alternative names
   ansible.builtin.set_fact:
     local_ca_san: >-
       {{ (['DNS:' ~ hostname]
-          + (([local_ca_local_ip, local_ca_public_ip] | unique)
+          + (([local_ca_local_ip, local_ca_public_ip] | select | unique)
              | map('regex_replace', '^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[0-9a-fA-F:]*:[0-9a-fA-F:]*)$', 'IP:\1')
              | map('regex_replace', '^([^:]*[^0-9A-Fa-f:.][^:]*)$', 'DNS:\1')
              | list)) | unique }}
@@ -49,7 +90,7 @@
     mode: "0600"
     owner: root
     group: root
-    force: "{{ local_ca_force_regenerate }}"
+    force: "{{ local_ca_force_regenerate | bool }}"
   no_log: true
 
 - name: Generate the CA certificate signing request
@@ -92,19 +133,6 @@
     common_name: "{{ hostname }}"
     subject_alt_name: "{{ local_ca_san }}"
     mode: "0644"
-
-- name: Check whether a server certificate exists
-  ansible.builtin.stat:
-    path: "{{ local_ca_directory }}/server.crt"
-  register: local_ca_server_stat
-
-- name: Read the server certificate validity
-  community.crypto.x509_certificate_info:
-    path: "{{ local_ca_directory }}/server.crt"
-    valid_at:
-      soon: +30d
-  register: local_ca_server_info
-  when: local_ca_server_stat.stat.exists
 
 - name: Issue the server certificate
   community.crypto.x509_certificate:

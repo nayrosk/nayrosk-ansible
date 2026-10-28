@@ -3,3 +3,7 @@
 local_ca_force_regenerate: false
 # Directory holding the CA and server key material.
 local_ca_directory: /etc/ssl/local-ca
+# Public IP added to the server certificate. When set, the public IP is not probed.
+local_ca_public_ip_override: ""
+# URL answering the public IPv4 address of the target as plain text.
+local_ca_public_ip_probe_url: https://ipv4.icanhazip.com
