@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  author: nayrosk
+  description: Create the operator account with key-only SSH and passwordless sudo.
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - resolute
+  galaxy_tags: []
+dependencies: []

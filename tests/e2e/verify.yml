@@ -264,3 +264,70 @@
           - verify_origins.stdout is not search('-updates')
           - verify_origins_pattern.stdout | trim == ''
         quiet: true
+
+    - name: Read the operator uid
+      ansible.builtin.command: id -u operator
+      register: verify_operator_uid
+      changed_when: false
+
+    - name: Read the operator gid
+      ansible.builtin.command: id -g operator
+      register: verify_operator_gid
+      changed_when: false
+
+    - name: Read the operator home
+      ansible.builtin.command: getent passwd operator
+      register: verify_operator_passwd
+      changed_when: false
+
+    - name: Check the operator account
+      ansible.builtin.assert:
+        that:
+          - verify_operator_uid.stdout | trim == '10000'
+          - verify_operator_gid.stdout | trim == '10000'
+          - verify_operator_passwd.stdout.split(':')[5] == '/home/operator'
+        quiet: true
+
+    - name: Stat the operator sudoers drop-in
+      ansible.builtin.stat:
+        path: /etc/sudoers.d/90-operator
+      register: verify_operator_sudoers
+
+    - name: Check the sudoers drop-in mode
+      ansible.builtin.assert:
+        that:
+          - verify_operator_sudoers.stat.exists
+          - verify_operator_sudoers.stat.mode == '0440'
+        quiet: true
+
+    - name: Check the operator has passwordless sudo
+      ansible.builtin.command: sudo -n -u operator sudo -n true
+      changed_when: false
+
+    - name: Read the operator linger state
+      ansible.builtin.command: loginctl show-user operator -p Linger
+      register: verify_operator_linger
+      changed_when: false
+
+    - name: Check lingering is enabled
+      ansible.builtin.assert:
+        that: verify_operator_linger.stdout | trim == 'Linger=yes'
+        quiet: true
+
+    - name: Read the vimrc files
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      register: verify_vimrc
+      loop:
+        - /root/.vimrc
+        - /home/operator/.vimrc
+
+    - name: Check the vimrc files hold the default content
+      ansible.builtin.assert:
+        that:
+          - "'syntax on' in (item.content | b64decode)"
+          - "'set shiftwidth=2' in (item.content | b64decode)"
+        quiet: true
+      loop: "{{ verify_vimrc.results }}"
+      loop_control:
+        label: "{{ item.item }}"

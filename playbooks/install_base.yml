@@ -21,3 +21,7 @@
       tags: [unattended_upgrades]
     - role: firmware
       tags: [firmware]
+    - role: operator_user
+      tags: [operator_user]
+    - role: user_customization
+      tags: [user_customization]

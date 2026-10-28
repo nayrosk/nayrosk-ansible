@@ -138,10 +138,10 @@ wait_for_vm() {
   ssh_probe login "cloud-init status --wait"
 }
 
-# Expected bootstrap_connection_mode per run. The operator account does not exist until the users role
-# lands, so both runs connect as root. Switch RUN_2_MODE to operator when that role is added.
+# Expected bootstrap_connection_mode per run. Run 1 finds no operator account yet and connects as root;
+# the operator_user role creates it, so run 2 connects as the operator.
 RUN_1_MODE=root
-RUN_2_MODE=root
+RUN_2_MODE=operator
 
 # Assertions on a playbook run log ($1: run number, $2: log file, $3: expected bootstrap_connection_mode).
 assert_run_log() {

@@ -1,0 +1,38 @@
+---
+- name: Create the operator group
+  ansible.builtin.group:
+    name: "{{ operator_user_name }}"
+    gid: "{{ operator_user_gid }}"
+    state: present
+
+- name: Create the operator user
+  ansible.builtin.user:
+    name: "{{ operator_user_name }}"
+    uid: "{{ operator_user_uid }}"
+    group: "{{ operator_user_name }}"
+    home: "{{ operator_user_home }}"
+    shell: "{{ operator_user_shell }}"
+    create_home: true
+    password_lock: true
+    state: present
+
+- name: Allow the operator passwordless sudo
+  ansible.builtin.copy:
+    content: "{{ operator_user_name }} ALL=(ALL) NOPASSWD:ALL\n"
+    dest: "/etc/sudoers.d/90-{{ operator_user_name }}"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: visudo -cf %s
+
+- name: Authorize the operator SSH key
+  ansible.posix.authorized_key:
+    user: "{{ operator_user_name }}"
+    key: "{{ operator_user_public_key }}"
+    exclusive: true
+    state: present
+
+- name: Enable systemd lingering for the operator
+  ansible.builtin.command: "loginctl enable-linger {{ operator_user_name }}"
+  args:
+    creates: "/var/lib/systemd/linger/{{ operator_user_name }}"
