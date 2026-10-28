@@ -1,0 +1,27 @@
+---
+repos:
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert]
+  - repo: local
+    hooks:
+      - id: yamllint
+        name: yamllint
+        entry: make yamllint
+        language: system
+        pass_filenames: false
+        types: [yaml]
+      - id: ansible-lint
+        name: ansible-lint
+        entry: make ansible-lint
+        language: system
+        pass_filenames: false
+        types: [yaml]
+      - id: no-ai-attribution
+        name: reject Co-Authored-By and claude.ai in commit messages
+        entry: bash -c '! grep -qiE "^co-authored-by:|claude\.ai" "$1"' --
+        language: system
+        stages: [commit-msg]

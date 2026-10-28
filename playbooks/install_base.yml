@@ -1,0 +1,5 @@
+---
+- name: Install base configuration on Ubuntu hosts
+  hosts: all
+  gather_facts: false
+  roles: []
