@@ -12,6 +12,9 @@ KEEP         ?= 0
 INVENTORY ?= inventories/example
 LIMIT     ?=
 TAGS      ?=
+ARGS      ?=
+VAULT_FILE ?= inventories/example/group_vars/all/vault.yml
+CHECK     ?=
 
 .DEFAULT_GOAL := help
 .PHONY: help controller e2e-vm-image lint yamllint ansible-lint shellcheck actionlint zizmor run vault-edit e2e e2e-clean docs \
@@ -53,11 +56,19 @@ actionlint: controller ## Lint GitHub workflows (no-op without .github/workflows
 zizmor: controller ## Audit GitHub workflows (no-op without .github/workflows)
 	@if [ -d .github/workflows ]; then $(CONTROLLER_RUN) zizmor --offline .github; else echo "zizmor: no .github/workflows, skipped"; fi
 
-run: ## Run the playbook (INVENTORY=, LIMIT=, TAGS=)
-	@echo "run: not implemented yet"; exit 1
+run: controller ## Run the playbook (INVENTORY=, LIMIT=, TAGS=)
+	@if [ -f .vault-pass ]; then vault_opt="--vault-password-file .vault-pass"; else vault_opt="--ask-vault-pass"; fi; \
+	podman run --rm -it --userns=keep-id --network host -e HOME=/tmp \
+		-v "$(CURDIR):/work:Z" -v "$$HOME/.ssh:/tmp/.ssh:ro,Z" -w /work $(CONTROLLER_IMAGE) \
+		ansible-playbook -i "$(INVENTORY)" $$vault_opt \
+		$(if $(LIMIT),--limit "$(LIMIT)") $(if $(TAGS),--tags "$(TAGS)") playbooks/install_base.yml $(ARGS)
 
-vault-edit: ## Edit the inventory vault
-	@echo "vault-edit: not implemented yet"; exit 1
+vault-edit: controller ## Edit the inventory vault, creating it when missing (VAULT_FILE=)
+	@if [ -f .vault-pass ]; then vault_opt="--vault-password-file .vault-pass"; else vault_opt="--ask-vault-pass"; fi; \
+	if [ -f "$(VAULT_FILE)" ]; then action=edit; else action=create; fi; \
+	podman run --rm -it --userns=keep-id -e HOME=/tmp -e EDITOR="$${EDITOR:-vi}" \
+		-v "$(CURDIR):/work:Z" -w /work $(CONTROLLER_IMAGE) \
+		ansible-vault $$action $$vault_opt "$(VAULT_FILE)"
 
 e2e: controller e2e-vm-image ## Run the end-to-end test in a VM (KEEP=1 keeps the VM)
 	CONTROLLER_IMAGE=$(CONTROLLER_IMAGE) VM_IMAGE=$(E2E_VM_IMAGE) KEEP=$(KEEP) tests/e2e/run.sh
@@ -65,11 +76,11 @@ e2e: controller e2e-vm-image ## Run the end-to-end test in a VM (KEEP=1 keeps th
 e2e-clean: ## Remove the end-to-end VM container and its overlay disk
 	tests/e2e/run.sh clean
 
-docs: ## Render role documentation from argument specs
-	@echo "docs: not implemented yet"; exit 1
+docs: controller ## Render role documentation from argument specs (CHECK=1 only verifies)
+	$(CONTROLLER_RUN) python3 scripts/gen-role-docs.py $(if $(CHECK),--check)
 
-changelog: ## Generate CHANGELOG.md with git-cliff
-	@echo "changelog: not implemented yet"; exit 1
+changelog: controller ## Generate CHANGELOG.md with git-cliff
+	$(CONTROLLER_RUN) git-cliff --output CHANGELOG.md
 
 github-rulesets: ## Apply .github/rulesets/*.json to the repository
 	@echo "github-rulesets: not implemented yet"; exit 1
