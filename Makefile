@@ -1,6 +1,7 @@
 # Every tool runs inside the controller image: the host needs only podman and make.
 CONTROLLER_IMAGE ?= localhost/nayrosk-ansible-controller:dev
-CONTROLLER_RUN   := podman run --rm -v $(CURDIR):/work:Z -w /work $(CONTROLLER_IMAGE)
+CONTROLLER_BASE  := docker.io/library/python:3.13-slim@sha256:aaf08c5490d52cd92bc27142a5215b1e47355a5eaf9adfad2a0fbc022d0b5490
+CONTROLLER_RUN   := podman run --rm --userns=keep-id -v "$(CURDIR):/work:Z" -w /work $(CONTROLLER_IMAGE)
 CONTROLLER_STAMP := .cache/controller.stamp
 
 INVENTORY ?= inventories/example
@@ -14,8 +15,10 @@ TAGS      ?=
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-$(CONTROLLER_STAMP): tests/e2e/controller/Containerfile requirements.txt requirements.yml
-	podman build -t $(CONTROLLER_IMAGE) -f tests/e2e/controller/Containerfile .
+$(CONTROLLER_STAMP): tests/e2e/controller/provision.sh scripts/build-image.sh requirements.txt requirements.yml
+	rm -rf .cache/controller-provision && mkdir -p .cache/controller-provision
+	cp tests/e2e/controller/provision.sh requirements.txt requirements.yml .cache/controller-provision/
+	scripts/build-image.sh $(CONTROLLER_BASE) "$(CURDIR)/.cache/controller-provision" $(CONTROLLER_IMAGE)
 	@mkdir -p $(dir $@)
 	@touch $@
 
