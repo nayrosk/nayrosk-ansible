@@ -1,0 +1,8 @@
+---
+fail2ban_bantime: 1h
+fail2ban_findtime: 10m
+fail2ban_maxretry: 3
+# Extra addresses or networks that are never banned, added to the loopback and detected LAN ranges.
+fail2ban_ignoreip_extra: []
+# Caddy JSON access log watched by the caddy-auth jail.
+fail2ban_caddy_log: "/home/{{ operator_user_name }}/.caddy/logs/access.log"

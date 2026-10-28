@@ -1,0 +1,8 @@
+---
+# Rules applied by community.general.ufw, in order. Each item takes the ufw module rule options
+# (rule, name or port, proto, comment, and so on).
+firewall_rules:
+  - {rule: allow, name: OpenSSH, comment: OpenSSH}
+  - {rule: allow, port: "80", proto: tcp, comment: Caddy HTTP}
+  - {rule: allow, port: "443", proto: tcp, comment: Caddy HTTPS}
+  - {rule: allow, port: "443", proto: udp, comment: Caddy HTTP/3}

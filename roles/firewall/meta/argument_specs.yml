@@ -1,0 +1,19 @@
+---
+argument_specs:
+  main:
+    short_description: Enable UFW with a default deny policy and the SSH and Caddy rules.
+    description:
+      - Sets the UFW default policies (deny incoming, allow outgoing), applies the rules of C(firewall_rules)
+        and enables UFW last, so the current SSH session is never cut.
+    options:
+      firewall_rules:
+        type: list
+        elements: dict
+        default:
+          - {rule: allow, name: OpenSSH, comment: OpenSSH}
+          - {rule: allow, port: "80", proto: tcp, comment: Caddy HTTP}
+          - {rule: allow, port: "443", proto: tcp, comment: Caddy HTTPS}
+          - {rule: allow, port: "443", proto: udp, comment: Caddy HTTP/3}
+        description:
+          - UFW rules, applied in order. Each item takes the options of C(community.general.ufw)
+            (C(rule), C(name) or C(port), C(proto), C(comment)).

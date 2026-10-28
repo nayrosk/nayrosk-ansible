@@ -1,0 +1,44 @@
+---
+# Caddy creates its access log on the first request. fail2ban refuses a jail whose log file is missing,
+# so make sure the file exists (a no-op once Caddy has written to it).
+- name: Make sure the Caddy access log exists
+  ansible.builtin.file:
+    path: "{{ fail2ban_caddy_log }}"
+    state: touch
+    owner: "{{ operator_user_name }}"
+    group: "{{ operator_user_name }}"
+    mode: "0640"
+    access_time: preserve
+    modification_time: preserve
+
+- name: Install the caddy-auth filter
+  ansible.builtin.template:
+    src: caddy-auth.conf.j2
+    dest: /etc/fail2ban/filter.d/caddy-auth.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Install the jail configuration
+  vars:
+    fail2ban_ignoreip_all: >-
+      {{ ['127.0.0.0/8', '::1']
+         + [ansible_facts.default_ipv4.network ~ '/' ~ ansible_facts.default_ipv4.prefix]
+         + ([ansible_facts.default_ipv6.address ~ '/' ~ ansible_facts.default_ipv6.prefix]
+            if ansible_facts.default_ipv6.address is defined else [])
+         + ['fe80::/10']
+         + fail2ban_ignoreip_extra }}
+  ansible.builtin.template:
+    src: 10-install-base.local.j2
+    dest: /etc/fail2ban/jail.d/10-install-base.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Start and enable fail2ban
+  ansible.builtin.systemd_service:
+    name: fail2ban
+    state: started
+    enabled: true

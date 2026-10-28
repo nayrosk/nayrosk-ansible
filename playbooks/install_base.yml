@@ -29,3 +29,7 @@
       tags: [podman_monitoring]
     - role: ssh_hardening
       tags: [ssh_hardening]
+    - role: firewall
+      tags: [firewall]
+    - role: fail2ban
+      tags: [fail2ban]

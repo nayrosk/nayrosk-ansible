@@ -624,3 +624,61 @@
           - verify_sshd.stdout_lines is contains('x11forwarding no')
           - verify_sshd.stdout_lines is contains('maxauthtries 3')
         quiet: true
+
+    - name: Read the firewall status
+      ansible.builtin.command: ufw status verbose
+      register: verify_ufw
+      changed_when: false
+
+    - name: Check the firewall is active with the expected defaults and commented rules
+      ansible.builtin.assert:
+        that:
+          - "verify_ufw.stdout is search('Status: active')"
+          - "verify_ufw.stdout is search('Default: deny \\(incoming\\), allow \\(outgoing\\)')"
+          - verify_ufw.stdout is search('# OpenSSH')
+          - verify_ufw.stdout is search('# Caddy HTTP\s*$', multiline=True)
+          - verify_ufw.stdout is search('# Caddy HTTPS')
+          - verify_ufw.stdout is search('# Caddy HTTP/3')
+        fail_msg: "{{ verify_ufw.stdout }}"
+        quiet: true
+
+    - name: Read the fail2ban status
+      ansible.builtin.command: fail2ban-client status
+      register: verify_f2b_status
+      changed_when: false
+
+    - name: Check fail2ban runs the sshd and caddy-auth jails
+      ansible.builtin.assert:
+        that: verify_f2b_status.stdout is search('Jail list:\s*caddy-auth,\s*sshd')
+        fail_msg: "{{ verify_f2b_status.stdout }}"
+        quiet: true
+
+    - name: Read the sshd jail settings
+      ansible.builtin.command: "fail2ban-client get sshd {{ item }}"
+      register: verify_f2b_sshd
+      changed_when: false
+      loop:
+        - maxretry
+        - ignoreip
+        - actions
+
+    - name: Check the sshd jail settings
+      ansible.builtin.assert:
+        that:
+          - verify_f2b_sshd.results[0].stdout | trim == '3'
+          - verify_f2b_sshd.results[1].stdout is search('10\.0\.2\.0/24')
+          - verify_f2b_sshd.results[2].stdout is search('ufw')
+        fail_msg: "{{ verify_f2b_sshd.results | map(attribute='stdout') | list }}"
+        quiet: true
+
+    - name: Run the caddy-auth filter against the access log
+      ansible.builtin.command: >-
+        fail2ban-regex /home/operator/.caddy/logs/access.log /etc/fail2ban/filter.d/caddy-auth.conf
+      register: verify_f2b_regex
+      changed_when: false
+
+    - name: Check the caddy-auth filter matches the 401 responses logged above
+      ansible.builtin.assert:
+        that: "verify_f2b_regex.stdout is search('Failregex: [1-9][0-9]* total')"
+        fail_msg: "{{ verify_f2b_regex.stdout }}"
+        quiet: true
