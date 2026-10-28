@@ -1,7 +1,26 @@
 ---
-# The block rolls everything back (our drop-in and the commented lines) when the syntax check or the
-# lockout guard fails, so a bad change never reaches a reload.
+# A list without the operator would lock the host out once the new configuration is active.
+- name: Check the operator is allowed to log in
+  ansible.builtin.assert:
+    that: operator_user_name in ssh_hardening_allow_users
+    fail_msg: "ssh_hardening_allow_users must contain the operator account {{ operator_user_name }}"
+    quiet: true
+
+# The block rolls everything back (our drop-in and the commented lines) when the syntax check or either
+# lockout guard fails. The second guard runs after the reload, over the still-open connection, so a
+# configuration that sshd -t accepts but that rejects the operator is reverted and reloaded.
 - name: Harden SSH
+  vars:
+    # The inventory SSH options (host key checking in the tests) are reused. They are split on whitespace,
+    # so they must not hold quoted values. The inventory must set ansible_ssh_private_key_file.
+    ssh_hardening_probe_argv: >-
+      {{ ['ssh', '-o', 'BatchMode=yes', '-o', 'PreferredAuthentications=publickey', '-o', 'IdentitiesOnly=yes',
+          '-o', 'ConnectTimeout=10']
+         + (hostvars[inventory_hostname].ansible_ssh_common_args | default('')).split()
+         + ['-i', hostvars[inventory_hostname].ansible_ssh_private_key_file,
+            '-p', hostvars[inventory_hostname].ansible_port | default(22) | string,
+            operator_user_name ~ '@' ~ hostvars[inventory_hostname].ansible_host | default(inventory_hostname),
+            'true'] }}
   block:
     - name: Install the SSH hardening drop-in
       ansible.builtin.template:
@@ -10,6 +29,8 @@
         owner: root
         group: root
         mode: "0600"
+        backup: true
+      register: ssh_hardening_dropin
       notify: Reload sshd
 
     - name: Find the other SSH drop-ins
@@ -23,7 +44,7 @@
     - name: Comment out conflicting settings in the other drop-ins
       ansible.builtin.replace:
         path: "{{ item.path }}"
-        regexp: '^(\s*(?i:PermitRootLogin|PasswordAuthentication)\s.*)$'
+        regexp: '^(\s*(?i:PermitRootLogin|PasswordAuthentication)(?:\s|=).*)$'
         replace: '# \1'
         backup: true
       register: ssh_hardening_neutralized
@@ -38,26 +59,45 @@
       changed_when: false
 
     # The running sshd still has the old configuration here: this proves that the operator account and key
-    # work from the controller before anything is reloaded. The SSH options of the inventory (host key
-    # checking in the tests) are reused. They are split on whitespace, so they must not hold quoted values.
+    # work from the controller before anything is reloaded.
     - name: Check operator key login from the controller
       ansible.builtin.command:
-        argv: >-
-          {{ ['ssh', '-o', 'BatchMode=yes', '-o', 'PreferredAuthentications=publickey', '-o', 'IdentitiesOnly=yes',
-              '-o', 'ConnectTimeout=10']
-             + (hostvars[inventory_hostname].ansible_ssh_common_args | default('')).split()
-             + ['-i', hostvars[inventory_hostname].ansible_ssh_private_key_file,
-                '-p', hostvars[inventory_hostname].ansible_port | default(22) | string,
-                operator_user_name ~ '@' ~ hostvars[inventory_hostname].ansible_host | default(inventory_hostname),
-                'true'] }}
+        argv: "{{ ssh_hardening_probe_argv }}"
       delegate_to: localhost
       become: false
       changed_when: false
+
+    # Reload now so that the checks and the connection switch below see the new configuration.
+    - name: Apply the SSH configuration
+      ansible.builtin.meta: flush_handlers
+
+    - name: Check operator key login against the new configuration
+      ansible.builtin.command:
+        argv: "{{ ssh_hardening_probe_argv }}"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      register: ssh_hardening_probe
+      retries: 3
+      delay: 2
+      until: ssh_hardening_probe.rc == 0
   rescue:
-    - name: Remove the SSH hardening drop-in
+    - name: Restore the previous SSH hardening drop-in
+      ansible.builtin.copy:
+        src: "{{ ssh_hardening_dropin.backup_file }}"
+        dest: /etc/ssh/sshd_config.d/00-hardening.conf
+        remote_src: true
+        mode: preserve
+      when: ssh_hardening_dropin.backup_file | default('') | length > 0
+
+    # Only a file created by this run is removed: an unchanged earlier drop-in stays.
+    - name: Remove the SSH hardening drop-in created by this run
       ansible.builtin.file:
         path: /etc/ssh/sshd_config.d/00-hardening.conf
         state: absent
+      when:
+        - ssh_hardening_dropin is changed
+        - ssh_hardening_dropin.backup_file | default('') | length == 0
 
     - name: Restore the drop-ins that were modified
       ansible.builtin.copy:
@@ -69,15 +109,18 @@
       loop_control:
         label: "{{ item.item.path }}"
 
+    - name: Reload the SSH daemon with the restored configuration
+      ansible.builtin.systemd_service:
+        name: ssh
+        state: reloaded
+      failed_when: false
+
     - name: Fail with the lockout guard message
       ansible.builtin.fail:
         msg: >-
           SSH hardening aborted and rolled back: either sshd -t rejected the configuration or the operator
-          could not log in with the key from the controller. The drop-in was removed and sshd was not reloaded.
-
-# Reload now so that the connection switch below happens after the new configuration is active.
-- name: Apply the SSH configuration
-  ansible.builtin.meta: flush_handlers
+          could not log in with the key from the controller.
+          The previous configuration was restored and sshd was reloaded.
 
 # After the reload, new root logins are refused. The root connection of this run survives (existing session)
 # but a reset or an expired ControlPersist master would break the roles that follow, so move the rest of
