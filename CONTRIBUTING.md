@@ -12,6 +12,7 @@ The host needs only `podman`, `make` and `/dev/kvm`. Every tool runs inside a co
 
 ```sh
 make lint            # yamllint, ansible-lint, shellcheck, actionlint, zizmor
+make unit            # unit checks on the controller, no VM
 make docs CHECK=1    # fails when the generated role documentation is stale
 make e2e             # boots an Ubuntu 26.04 VM and runs the playbook twice, about 5 minutes
 ```

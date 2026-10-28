@@ -29,6 +29,8 @@ jobs:
           persist-credentials: false
       - name: Lint
         run: make lint
+      - name: Unit checks
+        run: make unit
 
   docs:
     runs-on: ubuntu-latest

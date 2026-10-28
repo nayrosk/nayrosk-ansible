@@ -17,8 +17,8 @@ VAULT_FILE ?= inventories/example/group_vars/all/vault.yml
 CHECK     ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help controller e2e-vm-image lint yamllint ansible-lint shellcheck actionlint zizmor run vault-edit e2e e2e-clean docs \
-	changelog github-rulesets pre-commit-install
+.PHONY: help controller e2e-vm-image lint yamllint ansible-lint shellcheck actionlint zizmor run unit vault-edit e2e e2e-clean \
+	docs changelog github-rulesets pre-commit-install
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -56,12 +56,20 @@ actionlint: controller ## Lint GitHub workflows (no-op without .github/workflows
 zizmor: controller ## Audit GitHub workflows (no-op without .github/workflows)
 	@if [ -d .github/workflows ]; then $(CONTROLLER_RUN) zizmor --offline .github; else echo "zizmor: no .github/workflows, skipped"; fi
 
+# ~/.ssh is mounted read-only and never relabeled: a :Z or :z option would change the SELinux label of the
+# real ~/.ssh. label=disable lets the container read it, and connect to the SSH agent socket, on SELinux
+# hosts instead. The agent is forwarded when SSH_AUTH_SOCK points at a socket (needed for passphrase keys).
 run: controller ## Run the playbook (INVENTORY=, LIMIT=, TAGS=)
 	@if [ -f .vault-pass ]; then vault_opt="--vault-password-file .vault-pass"; else vault_opt="--ask-vault-pass"; fi; \
-	podman run --rm -it --userns=keep-id --network host -e HOME=/tmp \
-		-v "$(CURDIR):/work:Z" -v "$$HOME/.ssh:/tmp/.ssh:ro,Z" -w /work $(CONTROLLER_IMAGE) \
+	if [ -n "$${SSH_AUTH_SOCK:-}" ] && [ -S "$${SSH_AUTH_SOCK}" ]; then \
+		set -- -v "$${SSH_AUTH_SOCK}:/tmp/ssh-agent.sock" -e SSH_AUTH_SOCK=/tmp/ssh-agent.sock; else set --; fi; \
+	podman run --rm -it --userns=keep-id --network host --security-opt label=disable -e HOME=/tmp "$$@" \
+		-v "$(CURDIR):/work" -v "$$HOME/.ssh:/tmp/.ssh:ro" -w /work $(CONTROLLER_IMAGE) \
 		ansible-playbook -i "$(INVENTORY)" $$vault_opt \
 		$(if $(LIMIT),--limit "$(LIMIT)") $(if $(TAGS),--tags "$(TAGS)") playbooks/install_base.yml $(ARGS)
+
+unit: controller ## Run the unit checks on the controller (no VM)
+	$(CONTROLLER_RUN) ansible-playbook -i localhost, tests/unit/fail2ban_ignoreip.yml
 
 vault-edit: controller ## Edit the inventory vault, creating it when missing (VAULT_FILE=)
 	@if [ -f .vault-pass ]; then vault_opt="--vault-password-file .vault-pass"; else vault_opt="--ask-vault-pass"; fi; \
