@@ -1,0 +1,21 @@
+---
+argument_specs:
+  main:
+    short_description: Enforce DNS over TLS with systemd-resolved.
+    description:
+      - Writes a systemd-resolved drop-in with the given resolvers, DNS over TLS and a catch-all routing
+        domain so DHCP-provided servers never take precedence, then checks that DNS over TLS is active.
+    options:
+      dns_servers:
+        type: list
+        elements: str
+        default:
+          - 1.1.1.1
+          - 1.0.0.1
+          - 2606:4700:4700::1111
+          - 2606:4700:4700::1001
+        description: Resolvers used for every domain, queried over TLS.
+      dns_tls_server_name:
+        type: str
+        default: cloudflare-dns.com
+        description: TLS server name presented by the resolvers.

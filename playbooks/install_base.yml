@@ -9,3 +9,7 @@
       tags: [hostname]
     - role: local_ca
       tags: [local_ca]
+    - role: ubuntu_pro
+      tags: [ubuntu_pro]
+    - role: dns
+      tags: [dns]

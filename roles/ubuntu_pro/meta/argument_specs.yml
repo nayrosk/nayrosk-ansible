@@ -1,0 +1,20 @@
+---
+argument_specs:
+  main:
+    short_description: Attach the host to Ubuntu Pro and enable Livepatch.
+    description:
+      - Attaches the host with C(pro attach --no-auto-enable) on first install when a token is set and the
+        host is not attached yet, then enables Livepatch when requested.
+    options:
+      ubuntu_pro_token:
+        type: str
+        default: "{{ vault_ubuntu_pro_token | default('') }}"
+        description: Ubuntu Pro token, read from the vault. An empty token skips attaching.
+      ubuntu_pro_livepatch:
+        type: bool
+        default: true
+        description: Enable Livepatch once the machine is attached.
+      first_install:
+        type: bool
+        default: false
+        description: Attach only on the first install run.

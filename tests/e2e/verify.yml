@@ -75,3 +75,58 @@
       ansible.builtin.assert:
         that: verify_ca_fetched.stat.exists
         quiet: true
+
+    - name: Read the Ubuntu Pro status
+      ansible.builtin.command: pro status --format json
+      register: verify_pro_status
+      changed_when: false
+
+    - name: Check the machine is not attached to Ubuntu Pro (the e2e vault token is empty)
+      ansible.builtin.assert:
+        that: not (verify_pro_status.stdout | from_json).attached
+        quiet: true
+
+    - name: Read the run 1 log from the controller
+      ansible.builtin.slurp:
+        src: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/run1.log"
+      delegate_to: localhost
+      become: false
+      register: verify_run1_log
+
+    - name: Check the Ubuntu Pro attach task was skipped in run 1
+      ansible.builtin.assert:
+        that:
+          - >-
+            (verify_run1_log.content | b64decode)
+            is search('TASK \[ubuntu_pro : Attach Ubuntu Pro\][^\n]*\nskipping: \[' ~ inventory_hostname ~ '\]')
+        quiet: true
+
+    - name: Stat the DNS drop-in
+      ansible.builtin.stat:
+        path: /etc/systemd/resolved.conf.d/10-dns.conf
+      register: verify_dns_dropin
+
+    - name: Check the DNS drop-in exists
+      ansible.builtin.assert:
+        that: verify_dns_dropin.stat.exists
+        quiet: true
+
+    - name: Read the resolver status
+      ansible.builtin.command: resolvectl status
+      register: verify_resolvectl
+      changed_when: false
+
+    - name: Check DNS over TLS is active with the pinned Cloudflare servers
+      ansible.builtin.assert:
+        that:
+          - "'+DNSOverTLS' in verify_resolvectl.stdout"
+          - "'1.1.1.1#cloudflare-dns.com' in verify_resolvectl.stdout"
+        quiet: true
+
+    - name: Resolve a name through the system resolver
+      ansible.builtin.command: getent hosts ubuntu.com
+      register: verify_getent
+      changed_when: false
+      retries: 5
+      delay: 3
+      until: verify_getent.rc == 0

@@ -1,0 +1,41 @@
+---
+- name: Read the Ubuntu Pro status
+  ansible.builtin.command: pro status --format json
+  register: ubuntu_pro_status_raw
+  changed_when: false
+
+- name: Set the Ubuntu Pro attached fact
+  ansible.builtin.set_fact:
+    ubuntu_pro_attached: "{{ (ubuntu_pro_status_raw.stdout | from_json).attached | bool }}"
+
+- name: Attach Ubuntu Pro
+  ansible.builtin.command: pro attach --no-auto-enable {{ ubuntu_pro_token }}
+  changed_when: true
+  no_log: true
+  when:
+    - first_install | default(false) | bool
+    - ubuntu_pro_token | length > 0
+    - not ubuntu_pro_attached
+
+- name: Read the Ubuntu Pro status after attaching
+  ansible.builtin.command: pro status --format json
+  register: ubuntu_pro_status_after
+  changed_when: false
+  when: ubuntu_pro_livepatch
+
+- name: Set the Livepatch enabled fact
+  ansible.builtin.set_fact:
+    ubuntu_pro_livepatch_enabled: >-
+      {{ (ubuntu_pro_status_after.stdout | from_json).services
+         | selectattr('name', 'equalto', 'livepatch')
+         | selectattr('status', 'defined')
+         | selectattr('status', 'equalto', 'enabled') | list | length > 0 }}
+  when: ubuntu_pro_livepatch
+
+- name: Enable Livepatch
+  ansible.builtin.command: pro enable livepatch --assume-yes
+  changed_when: true
+  when:
+    - ubuntu_pro_livepatch
+    - (ubuntu_pro_status_after.stdout | from_json).attached | bool
+    - not ubuntu_pro_livepatch_enabled
