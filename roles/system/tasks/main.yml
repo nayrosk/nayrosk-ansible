@@ -19,6 +19,7 @@
   ansible.builtin.apt:
     name: chrony
     state: present
+    lock_timeout: 600
 
 - name: Start and enable chrony
   ansible.builtin.systemd:
@@ -51,13 +52,41 @@
     mode: "0644"
   notify: Restart systemd-journald
 
-- name: Select the APT mirror
-  ansible.builtin.include_tasks: apt_mirror.yml
-  when: (system_apt_mirror_url | length > 0) or not (e2e | default(false))
-
-- name: Use the default APT mirror
+- name: Use the configured APT mirror
   ansible.builtin.set_fact:
-    system_apt_mirror: "{{ (system_apt_mirror_default | trim | regex_replace('/+$', '')) ~ '/' }}"
+    system_apt_mirror: "{{ (system_apt_mirror_url | trim | regex_replace('/+$', '')) ~ '/' }}"
+  when: system_apt_mirror_url | length > 0
+
+# Measuring is not repeatable (the fastest mirror changes over time), so it only runs on the first install.
+- name: Measure the APT mirrors
+  ansible.builtin.include_tasks: apt_mirror.yml
+  when:
+    - system_apt_mirror_url | length == 0
+    - first_install | default(false) | bool
+    - not (e2e | default(false) | bool)
+
+- name: Read the current APT sources
+  ansible.builtin.slurp:
+    src: /etc/apt/sources.list.d/ubuntu.sources
+  register: system_apt_sources_current
+  failed_when: false
+  when: system_apt_mirror is not defined
+
+# Later runs keep the mirror of the stanza that serves the release itself (not -security), so the file does
+# not change between runs. Without such a stanza the default mirror is used.
+- name: Keep the current APT mirror or use the default
+  ansible.builtin.set_fact:
+    system_apt_mirror: >-
+      {%- set ns = namespace(uri='') -%}
+      {%- set content = (system_apt_sources_current.content | default('') | b64decode) -%}
+      {%- for stanza in content | regex_replace('\n[ \t]*\n', '\n\n') | split('\n\n') if ns.uri == '' -%}
+      {%- set suites = stanza | regex_search('(?m)^Suites:(.*)$', '\\1') -%}
+      {%- set uris = stanza | regex_search('(?m)^URIs:\\s*(\\S+)', '\\1') -%}
+      {%- if suites and uris and ansible_facts.distribution_release in suites[0].split() -%}
+      {%- set ns.uri = uris[0] -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ ((ns.uri if ns.uri | length > 0 else system_apt_mirror_default) | trim | regex_replace('/+$', '')) ~ '/' }}
   when: system_apt_mirror is not defined
 
 - name: Install the APT sources

@@ -22,9 +22,10 @@ system_sysctl:
   kernel.dmesg_restrict: 1
 # Additional sysctl settings merged over system_sysctl.
 system_sysctl_extra: {}
-# Mirror to use as is. When empty the fastest mirror of the country is measured (never done in e2e).
+# Mirror to use as is. When empty the fastest mirror of the country is measured on the first install
+# (never in e2e) and later runs keep the mirror already in the sources file.
 system_apt_mirror_url: ""
 # Two-letter country code used to pick the mirror list. When empty it is detected from the public IP.
 system_apt_mirror_country: ""
-# Mirror used in e2e and when no measured mirror answers.
+# Mirror used when no measured mirror answers and when the sources file holds no mirror for the release.
 system_apt_mirror_default: http://archive.ubuntu.com/ubuntu/

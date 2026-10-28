@@ -1,11 +1,5 @@
 ---
-- name: Use the configured APT mirror
-  ansible.builtin.set_fact:
-    system_apt_mirror: "{{ (system_apt_mirror_url | trim | regex_replace('/+$', '')) ~ '/' }}"
-  when: system_apt_mirror_url | length > 0
-
 - name: Measure the APT mirrors
-  when: system_apt_mirror_url | length == 0
   block:
     - name: Detect the country from the public IP
       ansible.builtin.uri:
@@ -43,7 +37,7 @@
           - "%{http_code} %{time_total}"
           - --max-time
           - "5"
-          - "{{ item }}dists/{{ ansible_distribution_release }}/Release"
+          - "{{ item }}dists/{{ ansible_facts.distribution_release }}/Release"
       register: system_mirror_times
       changed_when: false
       failed_when: false

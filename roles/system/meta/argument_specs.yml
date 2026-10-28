@@ -25,7 +25,9 @@ argument_specs:
       system_apt_mirror_url:
         type: str
         default: ""
-        description: Mirror to use as is. When empty the fastest mirror of the country is measured (never done in e2e).
+        description: >-
+          Mirror to use as is. When empty the fastest mirror of the country is measured on the first install
+          (never in e2e) and later runs keep the mirror already in the sources file.
       system_apt_mirror_country:
         type: str
         default: ""
@@ -33,4 +35,13 @@ argument_specs:
       system_apt_mirror_default:
         type: str
         default: http://archive.ubuntu.com/ubuntu/
-        description: Mirror used in e2e and when no measured mirror answers.
+        description: >-
+          Mirror used when no measured mirror answers and when the sources file holds no mirror for the release.
+      first_install:
+        type: bool
+        default: false
+        description: Measure the APT mirrors only on the first install run.
+      e2e:
+        type: bool
+        default: false
+        description: Never measure the APT mirrors in the end-to-end test VM.
