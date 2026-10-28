@@ -41,12 +41,14 @@ jobs:
           NUMBER: ${{ github.event.pull_request.number }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
           BRANCH: ${{ github.head_ref }}
+          OWNER: ${{ github.repository_owner }}
         run: |
           if [ "$AUTHOR" = "dependabot[bot]" ] || [ "$AUTHOR" = "renovate[bot]" ]; then
             echo "Dependency bot pull request, no issue needed."
             exit 0
           fi
-          if printf '%s\n' "$BRANCH" | grep -Eq '^chore/release-v[0-9]+\.[0-9]+\.[0-9]+$'; then
+          if [ "$AUTHOR" = "$OWNER" ] &&
+            printf '%s\n' "$BRANCH" | grep -Eq '^chore/release-v[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "Release pull request, no issue needed."
             exit 0
           fi
@@ -68,7 +70,9 @@ jobs:
       - name: Check the branch name
         env:
           BRANCH: ${{ github.head_ref }}
-        run: .github/scripts/check-branch.sh "$BRANCH"
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          OWNER: ${{ github.repository_owner }}
+        run: .github/scripts/check-branch.sh "$BRANCH" "$AUTHOR" "$OWNER"
 
   commits:
     runs-on: ubuntu-latest
@@ -85,4 +89,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.pull_request.number }}
-        run: gh api "repos/$REPO/pulls/$NUMBER/commits" --paginate | python3 .github/scripts/check_commits.py
+          TOTAL: ${{ github.event.pull_request.commits }}
+        run: |
+          gh api "repos/$REPO/pulls/$NUMBER/commits" --paginate |
+            python3 .github/scripts/check_commits.py --total "$TOTAL"
+      - name: Check the description for attribution
+        # The description can end up in the squash commit message.
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s\n' "$BODY" | python3 .github/scripts/check_commits.py --body
