@@ -25,7 +25,7 @@ Restricts SSH to key-based logins of the operator account.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `ssh_hardening_allow_users` | list of str | `["{{ operator_user_name }}"]` | Accounts allowed to log in over SSH (`AllowUsers`). Defaults to the operator account only. |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `ssh_hardening_allow_users` | list of str | `[{{ operator_user_name }}]` | no | Accounts allowed to log in over SSH (`AllowUsers`). Defaults to the operator account only. |
 <!-- END VARIABLES -->

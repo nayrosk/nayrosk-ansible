@@ -13,7 +13,7 @@ Enables UFW with a default deny policy and the SSH and Caddy rules.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `firewall_rules` | list of dict | OpenSSH, 80/tcp, 443/tcp, 443/udp | UFW rules, applied in order. Each item takes the options of `community.general.ufw` (`rule`, `name` or `port`, `proto`, `comment`). |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `firewall_rules` | list of dict | `[{rule: allow, name: OpenSSH, comment: OpenSSH}, {rule: a...` (4 entries, truncated, see `defaults/main.yml`) | no | UFW rules, applied in order. Each item takes the options of `community.general.ufw` (`rule`, `name` or `port`, `proto`, `comment`). |
 <!-- END VARIABLES -->

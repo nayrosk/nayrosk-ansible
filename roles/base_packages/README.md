@@ -13,8 +13,8 @@ Upgrades the system and installs the base packages on first install.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `base_packages_list` | list | ca-certificates, tree, vim, curl, fwupd, ufw, fail2ban, podman, unattended-upgrades | Packages installed on first install. |
-| `base_packages_reboot` | bool | `true` | Reboot when /var/run/reboot-required exists after the upgrade. |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `base_packages_list` | list of str | `[ca-certificates, tree, vim, curl, fwupd, ufw, fail2ban...` (9 entries, truncated, see `defaults/main.yml`) | no | Packages installed on first install. |
+| `base_packages_reboot` | bool | `true` | no | Reboot when /var/run/reboot-required exists after the upgrade. |
 <!-- END VARIABLES -->

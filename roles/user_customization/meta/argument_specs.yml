@@ -7,8 +7,7 @@ argument_specs:
     options:
       user_customization_vimrc:
         type: str
-        description: Content of the C(.vimrc) written for every listed user. See the role defaults.
-        default: "see defaults/main.yml"
+        description: Content of the C(.vimrc) written for every listed user. The default is a plain editing setup.
       user_customization_users:
         type: list
         elements: dict

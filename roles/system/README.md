@@ -33,13 +33,13 @@ idempotence holds there.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `system_unprivileged_port_start` | int | `80` | First unprivileged port (net.ipv4.ip_unprivileged_port_start). |
-| `system_journal_max_use` | str | `500M` | Maximum disk space used by the persistent journal (journald SystemMaxUse). |
-| `system_sysctl` | dict | the hardening set | Sysctl settings written to /etc/sysctl.d/60-install-base.conf. The default holds the hardening set. |
-| `system_sysctl_extra` | dict | `{}` | Additional sysctl settings merged over system_sysctl. |
-| `system_apt_mirror_url` | str | `""` | Mirror to use as is. When empty the fastest mirror of the country is measured (never done in e2e). |
-| `system_apt_mirror_country` | str | `""` | Two-letter country code used to pick the mirror list. When empty it is detected from the public IP. |
-| `system_apt_mirror_default` | str | `http://archive.ubuntu.com/ubuntu/` | Mirror used in e2e and when no measured mirror answers. |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `system_unprivileged_port_start` | int | `80` | no | First unprivileged port (net.ipv4.ip_unprivileged_port_start). |
+| `system_journal_max_use` | str | `500M` | no | Maximum disk space used by the persistent journal (journald SystemMaxUse). |
+| `system_sysctl` | dict | `{net.ipv4.ip_unprivileged_port_start: {{ system_unprivile...` (15 entries, truncated, see `defaults/main.yml`) | no | Sysctl settings written to /etc/sysctl.d/60-install-base.conf. The default holds the hardening set. |
+| `system_sysctl_extra` | dict | `{}` | no | Additional sysctl settings merged over system_sysctl. |
+| `system_apt_mirror_url` | str | `""` | no | Mirror to use as is. When empty the fastest mirror of the country is measured (never done in e2e). |
+| `system_apt_mirror_country` | str | `""` | no | Two-letter country code used to pick the mirror list. When empty it is detected from the public IP. |
+| `system_apt_mirror_default` | str | `http://archive.ubuntu.com/ubuntu/` | no | Mirror used in e2e and when no measured mirror answers. |
 <!-- END VARIABLES -->

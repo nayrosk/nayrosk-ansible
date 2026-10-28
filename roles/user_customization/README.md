@@ -11,8 +11,10 @@ Deploys user dotfiles.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `user_customization_vimrc` | str | see `defaults/main.yml` | Content of the `.vimrc` written for every listed user. See the role defaults. |
-| `user_customization_users` | list | `[{name: root, home: /root}, {name: operator, home: /home/operator}]` | Users receiving the `.vimrc`. The name is also the file owner and group. |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `user_customization_vimrc` | str | multi-line value, see `defaults/main.yml` | no | Content of the `.vimrc` written for every listed user. The default is a plain editing setup. |
+| `user_customization_users` | list of dict | `[{name: root, home: /root}, {name: operator, home: /home/...` (2 entries, truncated, see `defaults/main.yml`) | no | Users receiving the `.vimrc`. The name is also the file owner and group. |
+| `user_customization_users[].name` | str | none | yes | Account name, used as owner and group. |
+| `user_customization_users[].home` | str | none | yes | Home directory holding the `.vimrc`. |
 <!-- END VARIABLES -->

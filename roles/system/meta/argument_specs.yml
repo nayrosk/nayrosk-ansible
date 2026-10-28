@@ -16,8 +16,8 @@ argument_specs:
         description: Maximum disk space used by the persistent journal (journald SystemMaxUse).
       system_sysctl:
         type: dict
-        default: {}
-        description: Sysctl settings written to /etc/sysctl.d/60-install-base.conf.
+        description: >-
+          Sysctl settings written to /etc/sysctl.d/60-install-base.conf. The default holds the hardening set.
       system_sysctl_extra:
         type: dict
         default: {}

@@ -7,7 +7,7 @@ with `preserve_hostname: true`, so cloud-init does not reset the name on reboot.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `hostname` | str | none (required) | Hostname to set. Also used as a DNS name in the server certificate. |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `hostname` | str | none | yes | Hostname to set. Also used as a DNS name in the server certificate. |
 <!-- END VARIABLES -->

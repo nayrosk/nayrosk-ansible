@@ -1,0 +1,74 @@
+---
+# Variables shared by every host. Secrets are not set here: they come from vault.yml.
+# See docs/roles.md for the full list of variables and their defaults.
+
+# --- Connection -----------------------------------------------------------------------------
+# A fresh machine only accepts root with a password. The bootstrap_connection role tries the
+# operator account with the key first and falls back to this root login on the first run.
+ansible_user: root
+ansible_password: "{{ vault_root_password }}"
+ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+
+# --- Identity -------------------------------------------------------------------------------
+# Hostname of the machine. It is also a DNS name of the server certificate.
+hostname: server1
+
+# SSH public key of the operator account. It becomes the only authorized key.
+# REPLACE this placeholder with the content of your own ~/.ssh/id_ed25519.pub.
+operator_public_key: "ssh-ed25519 AAAAREPLACE_WITH_YOUR_PUBLIC_KEY you@example.org"
+
+# operator_user_name: operator
+# operator_user_uid: 10000
+# operator_user_gid: 10000
+
+# --- Monitoring front end -------------------------------------------------------------------
+# Basic auth user of Caddy. The password hash is vault_caddy_basic_auth_hash (see vault.yml.example).
+podman_monitoring_caddy_basic_auth_user: metrics
+# podman_monitoring_caddy_version: "2.11.7"
+# podman_monitoring_node_exporter_version: "1.12.1"
+# Extra names or addresses served by Caddy, for example a DNS name pointing at the machine.
+podman_monitoring_caddy_extra_site_addresses: []
+
+# --- DNS ------------------------------------------------------------------------------------
+# Resolvers queried over TLS, and the TLS server name they present.
+dns_servers:
+  - 1.1.1.1
+  - 1.0.0.1
+  - 2606:4700:4700::1111
+  - 2606:4700:4700::1001
+dns_tls_server_name: cloudflare-dns.com
+
+# --- System ---------------------------------------------------------------------------------
+# First unprivileged port. 80 lets the rootless Caddy bind ports 80 and 443.
+system_unprivileged_port_start: 80
+system_journal_max_use: 500M
+# Extra sysctl settings merged over the hardening set.
+system_sysctl_extra: {}
+# APT mirror. Leave empty to measure the fastest mirror of your country on the first run.
+system_apt_mirror_url: ""
+system_apt_mirror_country: ""
+
+# --- Packages and updates -------------------------------------------------------------------
+base_packages_reboot: true
+unattended_upgrades_automatic_reboot: false
+unattended_upgrades_automatic_reboot_time: "04:00"
+
+# --- Ubuntu Pro -----------------------------------------------------------------------------
+# The token comes from vault_ubuntu_pro_token. An empty token skips attaching.
+ubuntu_pro_livepatch: true
+
+# --- Firewall and fail2ban ------------------------------------------------------------------
+firewall_rules:
+  - {rule: allow, name: OpenSSH, comment: OpenSSH}
+  - {rule: allow, port: "80", proto: tcp, comment: Caddy HTTP}
+  - {rule: allow, port: "443", proto: tcp, comment: Caddy HTTPS}
+  - {rule: allow, port: "443", proto: udp, comment: Caddy HTTP/3}
+fail2ban_bantime: 1h
+fail2ban_findtime: 10m
+fail2ban_maxretry: 3
+# Networks that are never banned, in addition to loopback and the detected LAN.
+fail2ban_ignoreip_extra: []
+
+# --- Dotfiles -------------------------------------------------------------------------------
+# user_customization_users lists the accounts receiving the .vimrc.
+# user_customization_vimrc: see roles/user_customization/defaults/main.yml

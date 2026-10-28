@@ -105,18 +105,18 @@ it is harmless.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `podman_monitoring_caddy_version` | str | `2.11.7` | Caddy image tag (`docker.io/library/caddy:<version>-alpine`). |
-| `podman_monitoring_node_exporter_version` | str | `1.12.1` | node_exporter image tag (`quay.io/prometheus/node-exporter:v<version>`). |
-| `podman_monitoring_node_exporter_listen` | str | `127.0.0.1:9100` | Address and port node_exporter listens on. Must stay a loopback address. Caddy proxies to `host.containers.internal`, which pasta maps to the host loopback only. |
-| `podman_monitoring_caddy_basic_auth_user` | str | `admin` | Basic auth user protecting every Caddy route. |
-| `podman_monitoring_caddy_basic_auth_hash` | str | `{{ vault_caddy_basic_auth_hash }}` | Bcrypt hash of the basic auth password, as printed by `caddy hash-password`. Defaults to the vault variable `vault_caddy_basic_auth_hash`, which must then be set. |
-| `podman_monitoring_caddy_extra_site_addresses` | list of str | `[]` | Site addresses served by Caddy in addition to the hostname, the local IP and the public IP. |
-| `podman_monitoring_host_loopback_ip` | str | `169.254.1.3` | Link-local address that the pasta instance of the Caddy container maps to the host loopback. `host.containers.internal` resolves to it inside Caddy. It must differ from podman's own `169.254.1.2`. |
-| `podman_monitoring_user` | str | `{{ operator_user_name }}` | Rootless account running Caddy. Defaults to the operator_user role account. |
-| `podman_monitoring_user_uid` | int | `{{ operator_user_uid }}` | Numeric id of `podman_monitoring_user`. |
-| `podman_monitoring_user_home` | str | `{{ operator_user_home }}` | Home directory of `podman_monitoring_user`. |
-| `podman_monitoring_cert_source_directory` | path | `{{ local_ca_directory }}` | Directory holding `server.crt` and `server.key`. Defaults to the local_ca role directory. |
-| `hostname` | str | none (required) | Hostname served by Caddy, also the first name of the server certificate. |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `podman_monitoring_caddy_version` | str | `2.11.7` | no | Caddy image tag (`docker.io/library/caddy:<version>-alpine`). |
+| `podman_monitoring_node_exporter_version` | str | `1.12.1` | no | node_exporter image tag (`quay.io/prometheus/node-exporter:v<version>`). |
+| `podman_monitoring_node_exporter_listen` | str | `127.0.0.1:9100` | no | Address and port node_exporter listens on. Must stay a loopback address. Caddy proxies to `host.containers.internal`, which pasta maps to the host loopback only. |
+| `podman_monitoring_caddy_basic_auth_user` | str | `admin` | no | Basic auth user protecting every Caddy route. |
+| `podman_monitoring_caddy_basic_auth_hash` | str | secret | no | Bcrypt hash of the basic auth password, as printed by `caddy hash-password`. Defaults to the vault variable `vault_caddy_basic_auth_hash`, which must then be set. |
+| `podman_monitoring_caddy_extra_site_addresses` | list of str | `[]` | no | Site addresses served by Caddy in addition to the hostname, the local IP and the public IP. |
+| `podman_monitoring_host_loopback_ip` | str | `169.254.1.3` | no | Link-local address that the pasta instance of the Caddy container maps to the host loopback. `host.containers.internal` resolves to it inside Caddy. It must differ from podman's own `169.254.1.2`. |
+| `podman_monitoring_user` | str | `{{ operator_user_name }}` | no | Rootless account running Caddy. Defaults to the operator_user role account. |
+| `podman_monitoring_user_uid` | int | `{{ operator_user_uid }}` | no | Numeric id of `podman_monitoring_user`. |
+| `podman_monitoring_user_home` | str | `{{ operator_user_home }}` | no | Home directory of `podman_monitoring_user`. |
+| `podman_monitoring_cert_source_directory` | path | `{{ local_ca_directory }}` | no | Directory holding `server.crt` and `server.key`. Defaults to the local_ca role directory. |
+| `hostname` | str | none | yes | Hostname served by Caddy, also the first name of the server certificate. |
 <!-- END VARIABLES -->

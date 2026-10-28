@@ -15,8 +15,8 @@ Enforces DNS over TLS with systemd-resolved.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `dns_servers` | list of str | `1.1.1.1`, `1.0.0.1`, `2606:4700:4700::1111`, `2606:4700:4700::1001` | Resolvers used for every domain, queried over TLS. |
-| `dns_tls_server_name` | str | `cloudflare-dns.com` | TLS server name presented by the resolvers. |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `dns_servers` | list of str | `[1.1.1.1, 1.0.0.1, 2606:4700:4700::1111, 2606:4700:4700::...` (4 entries, truncated, see `defaults/main.yml`) | no | Resolvers used for every domain, queried over TLS. |
+| `dns_tls_server_name` | str | `cloudflare-dns.com` | no | TLS server name presented by the resolvers. |
 <!-- END VARIABLES -->

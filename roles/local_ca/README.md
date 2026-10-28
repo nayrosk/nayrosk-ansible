@@ -21,9 +21,9 @@ store and fetches it to the controller.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `local_ca_force_regenerate` | bool | `false` | Regenerate the CA key and certificate, and therefore the server certificate. |
-| `local_ca_directory` | path | `/etc/ssl/local-ca` | Directory holding the CA and server key material. |
-| `hostname` | str | none (required) | Hostname added to the server certificate as a DNS name. |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `local_ca_force_regenerate` | bool | `false` | no | Regenerate the CA key and certificate, and therefore the server certificate. |
+| `local_ca_directory` | path | `/etc/ssl/local-ca` | no | Directory holding the CA and server key material. |
+| `hostname` | str | none | yes | Hostname added to the server certificate as a DNS name. |
 <!-- END VARIABLES -->

@@ -17,11 +17,11 @@ Bans repeated SSH and Caddy authentication failures through UFW.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `fail2ban_bantime` | str | `1h` | Ban duration. |
-| `fail2ban_findtime` | str | `10m` | Window in which `fail2ban_maxretry` failures trigger a ban. |
-| `fail2ban_maxretry` | int | `3` | Failures allowed inside the find window before a ban. |
-| `fail2ban_ignoreip_extra` | list of str | `[]` | Extra addresses or networks never banned, added to the detected ones. |
-| `fail2ban_caddy_log` | str | `/home/{{ operator_user_name }}/.caddy/logs/access.log` | Caddy JSON access log watched by the `caddy-auth` jail. |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `fail2ban_bantime` | str | `1h` | no | Ban duration. |
+| `fail2ban_findtime` | str | `10m` | no | Window in which `fail2ban_maxretry` failures trigger a ban. |
+| `fail2ban_maxretry` | int | `3` | no | Failures allowed inside the find window before a ban. |
+| `fail2ban_ignoreip_extra` | list of str | `[]` | no | Extra addresses or networks never banned, added to the detected ones. |
+| `fail2ban_caddy_log` | str | `/home/{{ operator_user_name }}/.caddy/logs/access.log` | no | Caddy JSON access log watched by the `caddy-auth` jail. |
 <!-- END VARIABLES -->

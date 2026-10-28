@@ -14,8 +14,8 @@ Configures unattended security upgrades.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `unattended_upgrades_automatic_reboot` | bool | `false` | Let unattended-upgrades reboot the host when an update requires it. |
-| `unattended_upgrades_automatic_reboot_time` | str | `04:00` | Time of the automatic reboot (HH:MM). |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `unattended_upgrades_automatic_reboot` | bool | `false` | no | Let unattended-upgrades reboot the host when an update requires it. |
+| `unattended_upgrades_automatic_reboot_time` | str | `04:00` | no | Time of the automatic reboot (HH:MM). |
 <!-- END VARIABLES -->

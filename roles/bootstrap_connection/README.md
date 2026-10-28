@@ -17,9 +17,9 @@ The mode is printed as `bootstrap_connection_mode=<mode>`.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `bootstrap_connection_operator` | str | `{{ operator_user_name \| default('operator') }}` | Account probed with the SSH key. |
-| `bootstrap_connection_probe_timeout` | int | `10` | Seconds before the operator probe gives up. |
-| `vault_root_password` | str | none | Root password for the fallback. Required only when the probe fails. |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `bootstrap_connection_operator` | str | `{{ operator_user_name \| default('operator') }}` | no | Account probed with the SSH key. Follows `operator_user_name` when it is set. |
+| `bootstrap_connection_probe_timeout` | int | `10` | no | Seconds before the operator probe gives up. |
+| `vault_root_password` | str | secret | no | Root password used by the fallback. Required only when the operator probe fails. |
 <!-- END VARIABLES -->

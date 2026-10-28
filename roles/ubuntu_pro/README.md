@@ -14,9 +14,9 @@ Attaches the host to Ubuntu Pro and enables Livepatch.
 ## Variables
 
 <!-- BEGIN VARIABLES -->
-| Variable | Type | Default | Description |
-| --- | --- | --- | --- |
-| `ubuntu_pro_token` | str | `{{ vault_ubuntu_pro_token \| default('') }}` | Ubuntu Pro token, read from the vault. An empty token skips attaching. |
-| `ubuntu_pro_livepatch` | bool | `true` | Enable Livepatch once the machine is attached. |
-| `first_install` | bool | `false` | Attach only on the first install run. |
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `ubuntu_pro_token` | str | secret | no | Ubuntu Pro token, read from the vault. An empty token skips attaching. |
+| `ubuntu_pro_livepatch` | bool | `true` | no | Enable Livepatch once the machine is attached. |
+| `first_install` | bool | `false` | no | Attach only on the first install run. |
 <!-- END VARIABLES -->
