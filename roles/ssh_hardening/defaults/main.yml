@@ -1,0 +1,4 @@
+---
+# Accounts allowed to log in over SSH (AllowUsers). Defaults to the operator account only.
+ssh_hardening_allow_users:
+  - "{{ operator_user_name }}"

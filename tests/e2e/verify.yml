@@ -539,3 +539,88 @@
         fail_msg: "{{ verify_ps.stdout_lines | select('match', '^Z') | list | length }} zombie processes"
         quiet: true
       when: verify_zombie_check | bool
+
+    - name: Attempt a root login with the password from the controller
+      ansible.builtin.command:
+        argv:
+          - sshpass
+          - -e
+          - ssh
+          - -p
+          - "{{ ansible_port }}"
+          - -o
+          - PubkeyAuthentication=no
+          - -o
+          - ConnectTimeout=10
+          - -o
+          - StrictHostKeyChecking=no
+          - -o
+          - UserKnownHostsFile=/dev/null
+          - -o
+          - LogLevel=ERROR
+          - "root@{{ ansible_host }}"
+          - "true"
+      environment:
+        SSHPASS: "{{ vault_root_password }}"
+      delegate_to: localhost
+      become: false
+      no_log: true
+      register: verify_root_password_login
+      changed_when: false
+      failed_when: false
+
+    - name: Check the root password login is refused
+      ansible.builtin.assert:
+        that: verify_root_password_login.rc != 0
+        fail_msg: "root can still log in with a password"
+        quiet: true
+
+    - name: Attempt a root login with the operator key from the controller
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - -i
+          - "{{ ansible_ssh_private_key_file }}"
+          - -p
+          - "{{ ansible_port }}"
+          - -o
+          - BatchMode=yes
+          - -o
+          - ConnectTimeout=10
+          - -o
+          - StrictHostKeyChecking=no
+          - -o
+          - UserKnownHostsFile=/dev/null
+          - -o
+          - LogLevel=ERROR
+          - "root@{{ ansible_host }}"
+          - "true"
+      delegate_to: localhost
+      become: false
+      register: verify_root_key_login
+      changed_when: false
+      failed_when: false
+
+    - name: Check the root key login is refused
+      ansible.builtin.assert:
+        that: verify_root_key_login.rc != 0
+        fail_msg: "root can still log in with a key"
+        quiet: true
+
+    - name: Dump the effective sshd configuration
+      ansible.builtin.command: /usr/sbin/sshd -T
+      register: verify_sshd
+      changed_when: false
+
+    - name: Check the effective sshd configuration is hardened
+      ansible.builtin.assert:
+        that:
+          - verify_sshd.stdout_lines is contains('permitrootlogin no')
+          - verify_sshd.stdout_lines is contains('passwordauthentication no')
+          - verify_sshd.stdout_lines is contains('kbdinteractiveauthentication no')
+          - verify_sshd.stdout_lines is contains('pubkeyauthentication yes')
+          - verify_sshd.stdout_lines is contains('allowusers operator')
+          - verify_sshd.stdout_lines is contains('allowagentforwarding yes')
+          - verify_sshd.stdout_lines is contains('x11forwarding no')
+          - verify_sshd.stdout_lines is contains('maxauthtries 3')
+        quiet: true

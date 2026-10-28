@@ -1,0 +1,9 @@
+# Managed by Ansible (role ssh_hardening).
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AllowUsers {{ ssh_hardening_allow_users | join(' ') }}
+AllowAgentForwarding yes
+X11Forwarding no
+MaxAuthTries 3

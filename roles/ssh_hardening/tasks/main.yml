@@ -1,0 +1,94 @@
+---
+# The block rolls everything back (our drop-in and the commented lines) when the syntax check or the
+# lockout guard fails, so a bad change never reaches a reload.
+- name: Harden SSH
+  block:
+    - name: Install the SSH hardening drop-in
+      ansible.builtin.template:
+        src: 00-hardening.conf.j2
+        dest: /etc/ssh/sshd_config.d/00-hardening.conf
+        owner: root
+        group: root
+        mode: "0600"
+      notify: Reload sshd
+
+    - name: Find the other SSH drop-ins
+      ansible.builtin.find:
+        paths: /etc/ssh/sshd_config.d
+        patterns: "*.conf"
+      register: ssh_hardening_dropins
+
+    # sshd keeps the first value it reads, but the order across files is not guaranteed to stay ours: comment
+    # the conflicting settings out so that sshd -T reflects the hardening whatever the file names.
+    - name: Comment out conflicting settings in the other drop-ins
+      ansible.builtin.replace:
+        path: "{{ item.path }}"
+        regexp: '^(\s*(?i:PermitRootLogin|PasswordAuthentication)\s.*)$'
+        replace: '# \1'
+        backup: true
+      register: ssh_hardening_neutralized
+      loop: "{{ ssh_hardening_dropins.files }}"
+      loop_control:
+        label: "{{ item.path }}"
+      when: item.path != '/etc/ssh/sshd_config.d/00-hardening.conf'
+      notify: Reload sshd
+
+    - name: Check the sshd configuration syntax
+      ansible.builtin.command: /usr/sbin/sshd -t
+      changed_when: false
+
+    # The running sshd still has the old configuration here: this proves that the operator account and key
+    # work from the controller before anything is reloaded. The SSH options of the inventory (host key
+    # checking in the tests) are reused. They are split on whitespace, so they must not hold quoted values.
+    - name: Check operator key login from the controller
+      ansible.builtin.command:
+        argv: >-
+          {{ ['ssh', '-o', 'BatchMode=yes', '-o', 'PreferredAuthentications=publickey', '-o', 'IdentitiesOnly=yes',
+              '-o', 'ConnectTimeout=10']
+             + (hostvars[inventory_hostname].ansible_ssh_common_args | default('')).split()
+             + ['-i', hostvars[inventory_hostname].ansible_ssh_private_key_file,
+                '-p', hostvars[inventory_hostname].ansible_port | default(22) | string,
+                operator_user_name ~ '@' ~ hostvars[inventory_hostname].ansible_host | default(inventory_hostname),
+                'true'] }}
+      delegate_to: localhost
+      become: false
+      changed_when: false
+  rescue:
+    - name: Remove the SSH hardening drop-in
+      ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d/00-hardening.conf
+        state: absent
+
+    - name: Restore the drop-ins that were modified
+      ansible.builtin.copy:
+        src: "{{ item.backup_file }}"
+        dest: "{{ item.item.path }}"
+        remote_src: true
+        mode: preserve
+      loop: "{{ ssh_hardening_neutralized.results | default([]) | selectattr('backup_file', 'defined') | list }}"
+      loop_control:
+        label: "{{ item.item.path }}"
+
+    - name: Fail with the lockout guard message
+      ansible.builtin.fail:
+        msg: >-
+          SSH hardening aborted and rolled back: either sshd -t rejected the configuration or the operator
+          could not log in with the key from the controller. The drop-in was removed and sshd was not reloaded.
+
+# Reload now so that the connection switch below happens after the new configuration is active.
+- name: Apply the SSH configuration
+  ansible.builtin.meta: flush_handlers
+
+# After the reload, new root logins are refused. The root connection of this run survives (existing session)
+# but a reset or an expired ControlPersist master would break the roles that follow, so move the rest of
+# the play to the operator, as bootstrap_connection does when it finds the operator account. The reset
+# runs in every mode (meta tasks cannot be conditional) and is harmless when the connection is unchanged.
+- name: Switch the rest of the play to the operator account
+  ansible.builtin.set_fact:
+    ansible_user: "{{ operator_user_name }}"
+    ansible_password: ""
+    ansible_become: true
+  when: bootstrap_connection_mode | default('') == 'root'
+
+- name: Reset the connection to use the operator account
+  ansible.builtin.meta: reset_connection
