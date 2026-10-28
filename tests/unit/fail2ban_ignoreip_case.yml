@@ -1,0 +1,12 @@
+---
+- name: Compute ignoreip
+  ansible.builtin.include_tasks: ../../roles/fail2ban/tasks/ignoreip.yml
+  vars:
+    fail2ban_lan_ipv4: "{{ unit_case.ipv4 }}"
+    fail2ban_lan_ipv6: "{{ unit_case.ipv6 }}"
+
+- name: Check the result
+  ansible.builtin.assert:
+    that: fail2ban_ignoreip_all == unit_fixed + unit_case.expected + fail2ban_ignoreip_extra
+    fail_msg: "{{ unit_case.name }}: got {{ fail2ban_ignoreip_all }}"
+    success_msg: "{{ unit_case.name }}: {{ fail2ban_ignoreip_all }}"

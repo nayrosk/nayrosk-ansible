@@ -412,6 +412,56 @@
         that: verify_caddy_unknown.stdout == '404'
         quiet: true
 
+    # Two 401 answers for the caddy-auth filter checks below: one request without credentials (the basic auth
+    # challenge every browser gets first, must not count) and one with a wrong password (must count). One
+    # wrong password stays under fail2ban_maxretry, so the controller is not banned.
+    - name: Request a marked path through Caddy without credentials
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - "https://{{ hostname }}:8443/verify-no-credentials"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_nocreds
+      changed_when: false
+
+    - name: Request a marked path through Caddy with a wrong password
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - -u
+          - "{{ podman_monitoring_caddy_basic_auth_user }}:not-the-password"
+          - "https://{{ hostname }}:8443/verify-wrong-password"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_badcreds
+      changed_when: false
+
+    - name: Check both marked requests were refused with 401
+      ansible.builtin.assert:
+        that:
+          - verify_caddy_nocreds.stdout == '401'
+          - verify_caddy_badcreds.stdout == '401'
+        quiet: true
+
     - name: Request plain HTTP from the controller
       ansible.builtin.command:
         argv:
@@ -649,7 +699,9 @@
 
     - name: Check fail2ban runs the sshd and caddy-auth jails
       ansible.builtin.assert:
-        that: verify_f2b_status.stdout is search('Jail list:\s*caddy-auth,\s*sshd')
+        that:
+          - verify_f2b_status.stdout is search('Jail list:.*\\bsshd\\b')
+          - verify_f2b_status.stdout is search('Jail list:.*\\bcaddy-auth\\b')
         fail_msg: "{{ verify_f2b_status.stdout }}"
         quiet: true
 
@@ -671,14 +723,59 @@
         fail_msg: "{{ verify_f2b_sshd.results | map(attribute='stdout') | list }}"
         quiet: true
 
-    - name: Run the caddy-auth filter against the access log
+    - name: Check the sshd jail ignores the private e2e network and link-local addresses
+      ansible.builtin.assert:
+        that:
+          - verify_f2b_sshd.results[1].stdout is search('10\.0\.2\.0/24')
+          - verify_f2b_sshd.results[1].stdout is search('fe80::/10')
+        fail_msg: "{{ verify_f2b_sshd.results[1].stdout }}"
+        quiet: true
+
+    - name: Read the Caddy access log for the filter checks
+      ansible.builtin.slurp:
+        src: /home/operator/.caddy/logs/access.log
+      register: verify_caddy_log_f2b
+
+    - name: Pick the log lines of the marked requests
+      vars:
+        verify_log_lines: "{{ (verify_caddy_log_f2b.content | b64decode).splitlines() }}"
+      ansible.builtin.set_fact:
+        verify_line_nocreds: >-
+          {{ verify_log_lines | select('search', '"uri":"/verify-no-credentials"') | list | last }}
+        verify_line_badcreds: >-
+          {{ verify_log_lines | select('search', '"uri":"/verify-wrong-password"') | list | last }}
+        verify_badcreds_count: >-
+          {{ verify_log_lines | select('search', '"uri":"/verify-wrong-password"') | list | length }}
+
+    - name: Run the caddy-auth filter against the credential-less 401 line
+      ansible.builtin.command:
+        argv: [fail2ban-regex, "{{ verify_line_nocreds }}", /etc/fail2ban/filter.d/caddy-auth.conf]
+      register: verify_f2b_regex_nocreds
+      changed_when: false
+
+    - name: Run the caddy-auth filter against the wrong-password 401 line
+      ansible.builtin.command:
+        argv: [fail2ban-regex, "{{ verify_line_badcreds }}", /etc/fail2ban/filter.d/caddy-auth.conf]
+      register: verify_f2b_regex_badcreds
+      changed_when: false
+
+    - name: Run the caddy-auth filter against the whole access log
       ansible.builtin.command: >-
         fail2ban-regex /home/operator/.caddy/logs/access.log /etc/fail2ban/filter.d/caddy-auth.conf
       register: verify_f2b_regex
       changed_when: false
 
-    - name: Check the caddy-auth filter matches the 401 responses logged above
+    # The whole log also holds credential-less 401 lines (the first request above, the header read): only
+    # the wrong-password requests may match.
+    - name: Check the caddy-auth filter counts only 401 answers to requests with credentials
       ansible.builtin.assert:
-        that: "verify_f2b_regex.stdout is search('Failregex: [1-9][0-9]* total')"
-        fail_msg: "{{ verify_f2b_regex.stdout }}"
+        that:
+          - "verify_f2b_regex_nocreds.stdout is search('Failregex: 0 total')"
+          - "verify_f2b_regex_badcreds.stdout is search('Failregex: 1 total')"
+          - "verify_f2b_regex.stdout is search('Failregex: ' ~ verify_badcreds_count ~ ' total')"
+        fail_msg: >-
+          no credentials: {{ verify_f2b_regex_nocreds.stdout_lines | select('search', 'Failregex') | list }},
+          wrong password: {{ verify_f2b_regex_badcreds.stdout_lines | select('search', 'Failregex') | list }},
+          whole log: {{ verify_f2b_regex.stdout_lines | select('search', 'Failregex') | list }}
+          for {{ verify_badcreds_count }} wrong-password lines
         quiet: true

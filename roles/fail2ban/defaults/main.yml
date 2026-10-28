@@ -2,7 +2,12 @@
 fail2ban_bantime: 1h
 fail2ban_findtime: 10m
 fail2ban_maxretry: 3
-# Extra addresses or networks that are never banned, added to the loopback and detected LAN ranges.
+# Extra addresses or networks that are never banned, added to loopback, fe80::/10 and the detected LAN
+# networks (only the private ones: 10/8, 172.16/12, 192.168/16, 100.64/10, fc00::/7).
 fail2ban_ignoreip_extra: []
-# Caddy JSON access log watched by the caddy-auth jail.
-fail2ban_caddy_log: "/home/{{ operator_user_name }}/.caddy/logs/access.log"
+# Account running Caddy, owner of its access log. Follows the podman_monitoring role.
+fail2ban_caddy_log_owner: "{{ podman_monitoring_user | default(operator_user_name | default('operator')) }}"
+# Caddy JSON access log watched by the caddy-auth jail. Follows the podman_monitoring home directory.
+fail2ban_caddy_log: >-
+  {{ podman_monitoring_user_home
+     | default(operator_user_home | default('/home/' ~ fail2ban_caddy_log_owner)) }}/.caddy/logs/access.log

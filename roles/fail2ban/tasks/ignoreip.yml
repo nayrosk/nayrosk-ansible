@@ -1,0 +1,54 @@
+---
+# Inputs: fail2ban_lan_ipv4 (network, prefix) and fail2ban_lan_ipv6 (address, prefix), each an empty dict
+# when the host has no such default route. Output: the fact fail2ban_ignoreip_all.
+#
+# The detected networks are whitelisted only when they are private: 10.0.0.0/8, 172.16.0.0/12,
+# 192.168.0.0/16, 100.64.0.0/10 (carrier-grade NAT) and fc00::/7 (unique local). A provider's public subnet
+# is not a LAN. The tests use plain arithmetic (Jinja has no bitwise operators and ansible.utils is not a
+# dependency).
+- name: Build the list of networks never banned
+  vars:
+    fail2ban_v4_parts: "{{ (fail2ban_lan_ipv4.network | default('') | string).split('.') }}"
+    fail2ban_v4_prefix: "{{ fail2ban_lan_ipv4.prefix | default(0) | int }}"
+    fail2ban_v4_network: >-
+      {%- set o = fail2ban_v4_parts -%}
+      {%- set p = fail2ban_v4_prefix | int -%}
+      {%- if o | length == 4 and o | select('match', '^[0-9]{1,3}$') | list | length == 4 -%}
+      {%- set a = o[0] | int -%}
+      {%- set b = o[1] | int -%}
+      {%- if (a == 10 and p >= 8)
+             or (a == 172 and b >= 16 and b <= 31 and p >= 12)
+             or (a == 192 and b == 168 and p >= 16)
+             or (a == 100 and b >= 64 and b <= 127 and p >= 10) -%}
+      {{ o | join('.') }}/{{ p }}{%- endif -%}
+      {%- endif -%}
+    fail2ban_v6_prefix: "{{ fail2ban_lan_ipv6.prefix | default(0) | int }}"
+    # Expand the address to eight groups, then clear the host bits to get the network address.
+    fail2ban_v6_network: >-
+      {%- set addr = (fail2ban_lan_ipv6.address | default('') | string).split('%')[0] | lower -%}
+      {%- set p = fail2ban_v6_prefix | int -%}
+      {%- if addr is match('^[0-9a-f:]+$') and ':' in addr and p >= 7 and p <= 128 -%}
+      {%- if '::' in addr -%}
+      {%- set head = addr.split('::')[0].split(':') | select | list -%}
+      {%- set tail = addr.split('::')[1].split(':') | select | list -%}
+      {%- set groups = head + ['0'] * (8 - (head | length) - (tail | length)) + tail -%}
+      {%- else -%}
+      {%- set groups = addr.split(':') -%}
+      {%- endif -%}
+      {%- if groups | length == 8 -%}
+      {%- set ns = namespace(out=[]) -%}
+      {%- for g in groups -%}
+      {%- set v = g | int(base=16) -%}
+      {%- set bits = [[p - 16 * loop.index0, 0] | max, 16] | min -%}
+      {%- set ns.out = ns.out + ['%x' | format(v - (v % (2 ** (16 - bits))))] -%}
+      {%- endfor -%}
+      {%- if (ns.out[0] | int(base=16)) // 512 == 126 -%}
+      {{ ns.out | join(':') }}/{{ p }}{%- endif -%}
+      {%- endif -%}
+      {%- endif -%}
+  ansible.builtin.set_fact:
+    fail2ban_ignoreip_all: >-
+      {{ ['127.0.0.1/8', '::1', 'fe80::/10']
+         + ([fail2ban_v4_network] if fail2ban_v4_network else [])
+         + ([fail2ban_v6_network] if fail2ban_v6_network else [])
+         + fail2ban_ignoreip_extra }}

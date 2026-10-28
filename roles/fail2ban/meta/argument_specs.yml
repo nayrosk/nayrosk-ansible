@@ -5,7 +5,9 @@ argument_specs:
     description:
       - Writes the jail drop-in C(10-install-base.local) (jails C(sshd) and C(caddy-auth), ban action C(ufw)),
         the C(caddy-auth) filter, and keeps the service enabled and running.
-      - Loopback, the detected LAN networks, C(fe80::/10) and C(fail2ban_ignoreip_extra) are never banned.
+      - Loopback, C(fe80::/10), C(fail2ban_ignoreip_extra) and the detected LAN networks are never banned. A
+        detected network (default IPv4 network, default IPv6 network) counts only when it is private, inside
+        C(10.0.0.0/8), C(172.16.0.0/12), C(192.168.0.0/16), C(100.64.0.0/10) or C(fc00::/7).
     options:
       fail2ban_bantime:
         type: str
@@ -23,8 +25,14 @@ argument_specs:
         type: list
         elements: str
         default: []
-        description: Extra addresses or networks never banned, added to the detected ones.
+        description: Extra addresses or networks never banned, public ones included.
+      fail2ban_caddy_log_owner:
+        type: str
+        default: "{{ podman_monitoring_user | default(operator_user_name | default('operator')) }}"
+        description: Account running Caddy, owner and group of the access log created when missing.
       fail2ban_caddy_log:
         type: str
-        default: "/home/{{ operator_user_name }}/.caddy/logs/access.log"
+        default: >-
+          {{ podman_monitoring_user_home | default(operator_user_home | default('/home/' ~ fail2ban_caddy_log_owner))
+          }}/.caddy/logs/access.log
         description: Caddy JSON access log watched by the C(caddy-auth) jail.

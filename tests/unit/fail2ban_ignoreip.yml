@@ -1,0 +1,50 @@
+---
+# Checks the fail2ban ignoreip logic on the controller, without a target:
+#   make unit
+- name: Check the fail2ban ignoreip computation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    fail2ban_ignoreip_extra: [198.51.100.7]
+    unit_fixed: ['127.0.0.1/8', '::1', 'fe80::/10']
+    unit_cases:
+      - name: e2e VM network (private)
+        ipv4: {network: 10.0.2.0, prefix: "24"}
+        ipv6: {}
+        expected: [10.0.2.0/24]
+      - name: public IPv4 network excluded
+        ipv4: {network: 203.0.113.0, prefix: "24"}
+        ipv6: {}
+        expected: []
+      - name: carrier-grade NAT included
+        ipv4: {network: 100.64.1.0, prefix: "24"}
+        ipv6: {}
+        expected: [100.64.1.0/24]
+      - name: 172.32.0.0/16 is outside 172.16.0.0/12
+        ipv4: {network: 172.32.0.0, prefix: "16"}
+        ipv6: {}
+        expected: []
+      - name: 192.168.1.0/24 and unique local IPv6 included, host bits cleared
+        ipv4: {network: 192.168.1.0, prefix: "24"}
+        ipv6: {address: "fd00::1234:5678", prefix: "64"}
+        expected: [192.168.1.0/24, "fd00:0:0:0:0:0:0:0/64"]
+      - name: documentation IPv6 excluded (IPv6-only host)
+        ipv4: {}
+        ipv6: {address: "2001:db8::10", prefix: "64"}
+        expected: []
+      - name: unique local IPv6 only (IPv6-only host)
+        ipv4: {}
+        ipv6: {address: "fd12:3456:789a:1::42", prefix: "64"}
+        expected: ["fd12:3456:789a:1:0:0:0:0/64"]
+      - name: no default route at all
+        ipv4: {}
+        ipv6: {}
+        expected: []
+  tasks:
+    - name: Run each case
+      ansible.builtin.include_tasks: fail2ban_ignoreip_case.yml
+      loop: "{{ unit_cases }}"
+      loop_control:
+        loop_var: unit_case
+        label: "{{ unit_case.name }}"

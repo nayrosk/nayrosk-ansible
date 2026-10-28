@@ -1,7 +1,8 @@
 # Managed by Ansible (role fail2ban).
-# Caddy JSON access log: the client address is request.remote_ip, the status comes after it.
-# The second expression covers a log encoder that writes the status first.
+# Caddy JSON access log. Only a 401 answer to a request that carried credentials counts: Caddy logs the
+# Authorization request header as ["REDACTED"]. The anonymous first request of every browser also gets a
+# 401 (the basic auth challenge) and must not count, or legitimate users would be banned.
+# The client address is request.remote_ip, which Caddy writes before the headers and the status.
 [Definition]
-failregex = ^.*"remote_ip":"<HOST>".*"status":401\b
-            ^.*"status":401\b.*"remote_ip":"<HOST>"
+failregex = ^.*"remote_ip":"<HOST>".*"Authorization":\["REDACTED"\].*"status":401\b
 datepattern = "ts":{EPOCH}
