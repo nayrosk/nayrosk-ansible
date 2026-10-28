@@ -15,3 +15,9 @@
       tags: [dns]
     - role: system
       tags: [system]
+    - role: base_packages
+      tags: [base_packages]
+    - role: unattended_upgrades
+      tags: [unattended_upgrades]
+    - role: firmware
+      tags: [firmware]

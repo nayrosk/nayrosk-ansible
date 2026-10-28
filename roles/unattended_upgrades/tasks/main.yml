@@ -1,0 +1,37 @@
+---
+- name: Gather the package facts
+  ansible.builtin.package_facts:
+    manager: apt
+
+- name: Check the unattended-upgrades package is installed
+  ansible.builtin.assert:
+    that: "'unattended-upgrades' in ansible_facts.packages"
+    fail_msg: >-
+      The unattended-upgrades package is missing. Run the playbook once with -e first_install=true
+      (role base_packages installs it).
+    quiet: true
+
+- name: Write the unattended-upgrades configuration
+  ansible.builtin.template:
+    src: 52install-base.j2
+    dest: /etc/apt/apt.conf.d/52install-base
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Write the periodic APT configuration
+  ansible.builtin.template:
+    src: 20auto-upgrades.j2
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable and start the apt-daily timers
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - apt-daily.timer
+    - apt-daily-upgrade.timer

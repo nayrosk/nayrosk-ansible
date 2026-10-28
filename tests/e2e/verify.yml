@@ -189,3 +189,57 @@
           - "'http://archive.ubuntu.com/ubuntu/' in (verify_apt_sources.content | b64decode)"
           - "'security.ubuntu.com' in (verify_apt_sources.content | b64decode)"
         quiet: true
+
+    - name: Query the base packages
+      ansible.builtin.command: dpkg-query -W -f '${Package} ${db:Status-Status}\n' {{ item }}
+      register: verify_dpkg
+      changed_when: false
+      loop:
+        - ca-certificates
+        - tree
+        - vim
+        - curl
+        - fwupd
+        - ufw
+        - fail2ban
+        - podman
+        - unattended-upgrades
+
+    - name: Check every base package is installed
+      ansible.builtin.assert:
+        that: item.stdout | trim == item.item ~ ' installed'
+        quiet: true
+      loop: "{{ verify_dpkg.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read the unattended-upgrades drop-in
+      ansible.builtin.slurp:
+        src: /etc/apt/apt.conf.d/52install-base
+      register: verify_unattended
+
+    - name: Check the unattended-upgrades drop-in content
+      ansible.builtin.assert:
+        that:
+          - "'Automatic-Reboot \"false\"' in (verify_unattended.content | b64decode)"
+          - "'${distro_id}:${distro_codename}-security' in (verify_unattended.content | b64decode)"
+          - "'Remove-Unused-Dependencies \"true\"' in (verify_unattended.content | b64decode)"
+        quiet: true
+
+    - name: Check the apt-daily-upgrade timer is enabled
+      ansible.builtin.systemd:
+        name: apt-daily-upgrade.timer
+      register: verify_timer
+
+    - name: Check the timer state
+      ansible.builtin.assert:
+        that: verify_timer.status.UnitFileState == 'enabled'
+        quiet: true
+
+    - name: Check the firmware role was skipped in run 1 (e2e)
+      ansible.builtin.assert:
+        that:
+          - >-
+            (verify_run1_log.content | b64decode)
+            is search('TASK \[firmware : Refresh firmware metadata\][^\n]*\nskipping: \[' ~ inventory_hostname ~ '\]')
+        quiet: true

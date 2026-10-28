@@ -1,0 +1,5 @@
+---
+# Let unattended-upgrades reboot the host when an update requires it.
+unattended_upgrades_automatic_reboot: false
+# Time of the automatic reboot (HH:MM).
+unattended_upgrades_automatic_reboot_time: "04:00"

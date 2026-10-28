@@ -1,0 +1,46 @@
+---
+- name: Apply firmware updates
+  when:
+    - first_install | default(false) | bool
+    - not (e2e | default(false) | bool)
+  block:
+    # Exit code 2 means there is nothing to refresh (metadata already current).
+    - name: Refresh firmware metadata
+      ansible.builtin.command: fwupdmgr refresh --force
+      register: firmware_refresh
+      changed_when: false
+      failed_when: firmware_refresh.rc not in [0, 2]
+
+    # Exit code 2 or a "no supported devices" message means there is nothing to do (virtual machines).
+    - name: List firmware devices
+      ansible.builtin.command: fwupdmgr get-devices --json
+      register: firmware_devices
+      changed_when: false
+      failed_when: false
+
+    - name: List available firmware updates
+      ansible.builtin.command: fwupdmgr get-updates --json
+      register: firmware_updates
+      changed_when: false
+      failed_when: firmware_updates.rc not in [0, 2]
+
+    - name: Parse the available firmware updates
+      ansible.builtin.set_fact:
+        firmware_has_updates: >-
+          {{ firmware_updates.rc == 0
+             and ((firmware_updates.stdout | from_json).Devices | default([]) | length > 0) }}
+
+    - name: Apply firmware updates
+      ansible.builtin.command: fwupdmgr update -y --no-reboot-check
+      register: firmware_update
+      changed_when: true
+      failed_when: firmware_update.rc not in [0, 2]
+      when: firmware_has_updates
+
+    - name: Report that a reboot is needed to finish the firmware update
+      ansible.builtin.debug:
+        msg: >-
+          Firmware updates were staged. Reboot the host to apply them; this role never reboots.
+      when:
+        - firmware_has_updates
+        - firmware_update.stdout | default('') is search('(?i)reboot')

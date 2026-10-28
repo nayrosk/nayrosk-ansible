@@ -1,0 +1,28 @@
+---
+# Only the package install is gated: ufw is installed but never enabled here.
+- name: Upgrade the system and install the base packages
+  when: first_install | default(false) | bool
+  block:
+    - name: Refresh the APT cache and dist-upgrade
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+        lock_timeout: 600
+
+    - name: Install the base packages
+      ansible.builtin.apt:
+        name: "{{ base_packages_list }}"
+        state: present
+        lock_timeout: 600
+
+    - name: Check whether a reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: base_packages_reboot_required
+
+    - name: Reboot to finish the upgrade
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+      when:
+        - base_packages_reboot | bool
+        - base_packages_reboot_required.stat.exists

@@ -1,0 +1,16 @@
+---
+argument_specs:
+  main:
+    short_description: Configure unattended security upgrades.
+    description:
+      - Writes the unattended-upgrades configuration (security origins only) and enables the apt-daily timers.
+        The unattended-upgrades package must already be installed (see the base_packages role).
+    options:
+      unattended_upgrades_automatic_reboot:
+        type: bool
+        default: false
+        description: Let unattended-upgrades reboot the host when an update requires it.
+      unattended_upgrades_automatic_reboot_time:
+        type: str
+        default: "04:00"
+        description: Time of the automatic reboot (HH:MM).
