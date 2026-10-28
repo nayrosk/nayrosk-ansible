@@ -90,7 +90,7 @@
         remote_src: true
         mode: preserve
       register: ssh_hardening_rescue_restore
-      failed_when: false
+      ignore_errors: true
       when: ssh_hardening_dropin.backup_file | default('') | length > 0
 
     # Only a file created by this run is removed: an unchanged earlier drop-in stays.
@@ -99,7 +99,7 @@
         path: /etc/ssh/sshd_config.d/00-hardening.conf
         state: absent
       register: ssh_hardening_rescue_remove
-      failed_when: false
+      ignore_errors: true
       when:
         - ssh_hardening_dropin is changed
         - ssh_hardening_dropin.backup_file | default('') | length == 0
@@ -111,7 +111,7 @@
         remote_src: true
         mode: preserve
       register: ssh_hardening_rescue_dropins
-      failed_when: false
+      ignore_errors: true
       loop: "{{ ssh_hardening_neutralized.results | default([]) | selectattr('backup_file', 'defined') | list }}"
       loop_control:
         label: "{{ item.item.path }}"
@@ -121,13 +121,13 @@
         name: ssh
         state: reloaded
       register: ssh_hardening_rescue_reload
-      failed_when: false
+      ignore_errors: true
 
     - name: Fail with the lockout guard message
       vars:
         ssh_hardening_rescue_steps: >-
           {%- macro outcome(r) -%}
-          {{ (': FAILED ' ~ (r.msg | default(''))) if r.failed | default(false) else ': done' }}
+          {{ (': FAILED ' ~ (r.msg | default(''))) if r is failed else ': done' }}
           {%- endmacro -%}
           {%- set ns = namespace(steps=[]) -%}
           {%- set r = ssh_hardening_rescue_restore | default({}) -%}
