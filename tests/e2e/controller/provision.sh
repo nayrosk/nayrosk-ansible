@@ -10,7 +10,7 @@ export PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 DEBIAN_FRONTEND=nonint
 
 apt-get -o APT::Sandbox::User=root update
 apt-get -o APT::Sandbox::User=root install -y --no-install-recommends \
-  openssh-client sshpass curl git make ca-certificates
+  openssh-client sshpass curl git make ca-certificates shellcheck
 
 pip install -r /provision/requirements.txt
 ansible-galaxy collection install -r /provision/requirements.yml -p /usr/share/ansible/collections

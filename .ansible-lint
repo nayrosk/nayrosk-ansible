@@ -1,4 +1,4 @@
 ---
 profile: production
 offline: true
-exclude_paths: [.cache/, artifacts/, .github/]
+exclude_paths: [.cache/, artifacts/, .github/, inventories/*/group_vars/*/vault.yml]

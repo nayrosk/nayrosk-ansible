@@ -3,3 +3,4 @@ ansible-lint==26.10.1
 yamllint==1.38.0
 zizmor==1.31.1
 passlib==1.7.4
+bcrypt==4.3.0

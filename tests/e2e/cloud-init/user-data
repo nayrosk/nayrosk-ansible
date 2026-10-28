@@ -1,0 +1,10 @@
+#cloud-config
+hostname: e2e-fresh
+ssh_pwauth: true
+disable_root: false
+chpasswd:
+  expire: false
+  users:
+    - {name: root, password: e2e-root-password, type: text}
+runcmd:
+  - [sh, -c, "printf 'PermitRootLogin yes\nPasswordAuthentication yes\n' > /etc/ssh/sshd_config.d/01-e2e-root.conf && systemctl reload ssh"]

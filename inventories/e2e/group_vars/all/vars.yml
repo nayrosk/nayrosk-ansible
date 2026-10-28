@@ -1,0 +1,15 @@
+---
+# End-to-end test inventory: a throwaway qemu VM reached through port forwards on 127.0.0.1.
+e2e: true
+hostname: e2e-host
+operator_public_key: "{{ lookup('file', inventory_dir + '/.ssh/id_ed25519.pub') }}"
+ansible_ssh_private_key_file: "{{ inventory_dir }}/.ssh/id_ed25519"
+
+# The VM gets a new host key on every boot: host key checks are relaxed for this inventory only.
+ansible_host_key_checking: false
+ansible_ssh_common_args: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+
+# Fresh cloud images only accept root with a password. The bootstrap role takes over the connection
+# choice (root with password on first install, operator with key afterwards) once it exists.
+ansible_user: root
+ansible_password: "{{ vault_root_password }}"

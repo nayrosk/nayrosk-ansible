@@ -4,12 +4,17 @@ CONTROLLER_BASE  := docker.io/library/python:3.13-slim@sha256:aaf08c5490d52cd92b
 CONTROLLER_RUN   := podman run --rm --userns=keep-id -v "$(CURDIR):/work:Z" -w /work $(CONTROLLER_IMAGE)
 CONTROLLER_STAMP := .cache/controller.stamp
 
+E2E_VM_IMAGE ?= localhost/nayrosk-ansible-e2e-vm:dev
+E2E_VM_BASE  := docker.io/library/ubuntu:26.04@sha256:0e73b71479e7bc5f006bca872e25c3cd680dc052a0116f90d63ae363537db0dd
+E2E_VM_STAMP := .cache/e2e-vm-image.stamp
+KEEP         ?= 0
+
 INVENTORY ?= inventories/example
 LIMIT     ?=
 TAGS      ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help controller lint yamllint ansible-lint actionlint zizmor run vault-edit e2e e2e-clean docs \
+.PHONY: help controller e2e-vm-image lint yamllint ansible-lint shellcheck actionlint zizmor run vault-edit e2e e2e-clean docs \
 	changelog github-rulesets pre-commit-install
 
 help: ## Show this help
@@ -24,13 +29,23 @@ $(CONTROLLER_STAMP): tests/e2e/controller/provision.sh scripts/build-image.sh re
 
 controller: $(CONTROLLER_STAMP) ## Build the controller image (rebuilt when its inputs change)
 
-lint: yamllint ansible-lint actionlint zizmor ## Run all linters
+$(E2E_VM_STAMP): tests/e2e/vm/provision.sh scripts/build-image.sh
+	scripts/build-image.sh $(E2E_VM_BASE) "$(CURDIR)/tests/e2e/vm" $(E2E_VM_IMAGE)
+	@mkdir -p $(dir $@)
+	@touch $@
+
+e2e-vm-image: $(E2E_VM_STAMP) ## Build the e2e VM host image (qemu/KVM)
+
+lint: yamllint ansible-lint shellcheck actionlint zizmor ## Run all linters
 
 yamllint: controller ## Run yamllint in strict mode
 	$(CONTROLLER_RUN) yamllint --strict .
 
 ansible-lint: controller ## Run ansible-lint (production profile)
 	$(CONTROLLER_RUN) ansible-lint
+
+shellcheck: controller ## Lint shell scripts
+	$(CONTROLLER_RUN) shellcheck scripts/*.sh tests/e2e/*.sh tests/e2e/*/*.sh
 
 actionlint: controller ## Lint GitHub workflows (no-op without .github/workflows)
 	@if [ -d .github/workflows ]; then $(CONTROLLER_RUN) actionlint; else echo "actionlint: no .github/workflows, skipped"; fi
@@ -44,11 +59,11 @@ run: ## Run the playbook (INVENTORY=, LIMIT=, TAGS=)
 vault-edit: ## Edit the inventory vault
 	@echo "vault-edit: not implemented yet"; exit 1
 
-e2e: ## Run the end-to-end test in a VM
-	@echo "e2e: not implemented yet"; exit 1
+e2e: controller e2e-vm-image ## Run the end-to-end test in a VM (KEEP=1 keeps the VM)
+	CONTROLLER_IMAGE=$(CONTROLLER_IMAGE) VM_IMAGE=$(E2E_VM_IMAGE) KEEP=$(KEEP) tests/e2e/run.sh
 
-e2e-clean: ## Remove end-to-end test artifacts
-	@echo "e2e-clean: not implemented yet"; exit 1
+e2e-clean: ## Remove the end-to-end VM container and its overlay disk
+	tests/e2e/run.sh clean
 
 docs: ## Render role documentation from argument specs
 	@echo "docs: not implemented yet"; exit 1
