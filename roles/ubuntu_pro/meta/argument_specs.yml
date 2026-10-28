@@ -8,6 +8,7 @@ argument_specs:
     options:
       ubuntu_pro_token:
         type: str
+        no_log: true
         default: "{{ vault_ubuntu_pro_token | default('') }}"
         description: Ubuntu Pro token, read from the vault. An empty token skips attaching.
       ubuntu_pro_livepatch:
