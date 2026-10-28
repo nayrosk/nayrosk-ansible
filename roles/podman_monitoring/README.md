@@ -52,7 +52,7 @@ when filtering by tag.
 ### Networking: pasta for Caddy, monitoring network kept for later
 
 Caddy runs with `Network=pasta:--map-host-loopback,<podman_monitoring_host_loopback_ip>`, not on the
-`monitoring` bridge network of the design:
+`monitoring` bridge network:
 
 - Client source addresses. On a rootless bridge network, podman 5.7 publishes ports with `rootlessport`,
   a user-space proxy: Caddy logged `remote_ip` `10.89.0.2` (its own container address) for every client,
@@ -77,8 +77,8 @@ operator-wide in `~/.config/containers/containers.conf`; the role removes that f
 
 `podman_monitoring_node_exporter_listen` must therefore stay a loopback address.
 
-The fallback of the design (a dummy interface `nexp0` with `169.254.200.1/32` for node_exporter and an
-`AddHost` entry in Caddy) was not needed. It would have moved node_exporter off the loopback, relying on
+The rejected alternative (a dummy interface `nexp0` with `169.254.200.1/32` for node_exporter and an
+`AddHost` entry in Caddy) is not used. It would have moved node_exporter off the loopback, relying on
 UFW to filter it.
 
 ### AppArmor and the systemd collector

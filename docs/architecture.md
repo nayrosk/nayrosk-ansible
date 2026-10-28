@@ -5,7 +5,7 @@ Ansible connects to the host.
 
 ## Playbook flow
 
-`playbooks/install_base.yml` runs 14 roles in a fixed order. Each role has a tag equal to its name.
+`playbooks/install_base.yml` runs 15 roles in a fixed order. Each role has a tag equal to its name.
 `bootstrap_connection` always runs, so a tag filter still picks the right account.
 
 ```mermaid

@@ -13,7 +13,7 @@ One command works for the first run and every later run. The first run connects 
 
 ## What it does
 
-The playbook runs 14 roles in this order. Each role has a tag equal to its name.
+The playbook runs 15 roles in this order. Each role has a tag equal to its name.
 
 - `bootstrap_connection`: picks the operator key or the root password for the connection.
 - `hostname`: sets the hostname and its `/etc/hosts` entry.

@@ -38,8 +38,8 @@ def playbook_roles():
 
 def markup(text):
     """Turn the Ansible documentation markup of a description into Markdown."""
-    text = re.sub(r"[CVOE]\(([^)]*)\)", lambda m: f"`{m.group(1)}`", text)
-    text = re.sub(r"I\(([^)]*)\)", r"*\1*", text)
+    text = re.sub(r"\b[CVOE]\(([^)]*)\)", lambda m: f"`{m.group(1)}`", text)
+    text = re.sub(r"\bI\(([^)]*)\)", r"*\1*", text)
     return text
 
 
