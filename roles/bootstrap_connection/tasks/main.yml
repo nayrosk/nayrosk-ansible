@@ -16,7 +16,12 @@
   register: bootstrap_connection_probe
   changed_when: false
 
+# This task and the root password check clear ansible_password: the inventory may set it from
+# vault_root_password, and templating it while that variable is missing would fail before the check can
+# explain the problem.
 - name: Select connection mode
+  vars:
+    ansible_password: ""
   ansible.builtin.set_fact:
     bootstrap_connection_mode: "{{ 'root' if bootstrap_connection_probe.unreachable | default(false) else 'operator' }}"
 
@@ -28,6 +33,17 @@
     ansible_password: ""
     ansible_become: true
   when: bootstrap_connection_mode == 'operator'
+
+- name: Check the root password is available for the fallback
+  vars:
+    ansible_password: ""
+  ansible.builtin.assert:
+    that: vault_root_password is defined
+    fail_msg: >-
+      The operator key login failed and vault_root_password is not defined: set it in the inventory vault for
+      the first run, or fix the operator key.
+    quiet: true
+  when: bootstrap_connection_mode == 'root'
 
 - name: Use root with password
   ansible.builtin.set_fact:

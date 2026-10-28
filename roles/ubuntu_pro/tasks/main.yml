@@ -28,12 +28,12 @@
   ansible.builtin.command: pro status --format json
   register: ubuntu_pro_status_after
   changed_when: false
-  when: ubuntu_pro_livepatch
+  when: ubuntu_pro_livepatch | bool
 
 - name: Parse the Ubuntu Pro status after attaching
   ansible.builtin.set_fact:
     ubuntu_pro_status: "{{ ubuntu_pro_status_after.stdout | from_json }}"
-  when: ubuntu_pro_livepatch
+  when: ubuntu_pro_livepatch | bool
 
 - name: Set the Livepatch enabled fact
   ansible.builtin.set_fact:
@@ -42,12 +42,12 @@
          | selectattr('name', 'equalto', 'livepatch')
          | selectattr('status', 'defined')
          | selectattr('status', 'equalto', 'enabled') | list | length > 0 }}
-  when: ubuntu_pro_livepatch
+  when: ubuntu_pro_livepatch | bool
 
 - name: Enable Livepatch
   ansible.builtin.command: pro enable livepatch --assume-yes
   changed_when: true
   when:
-    - ubuntu_pro_livepatch
+    - ubuntu_pro_livepatch | bool
     - ubuntu_pro_status.attached | bool
-    - not ubuntu_pro_livepatch_enabled
+    - not (ubuntu_pro_livepatch_enabled | bool)

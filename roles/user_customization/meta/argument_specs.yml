@@ -14,9 +14,11 @@ argument_specs:
         default:
           - name: root
             home: /root
-          - name: operator
-            home: /home/operator
-        description: Users receiving the C(.vimrc). The name is also the file owner and group.
+          - name: "{{ operator_user_name | default('operator') }}"
+            home: "{{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}"
+        description:
+          - Users receiving the C(.vimrc). The name is also the file owner and group.
+          - The default holds root and the operator account of the C(operator_user) role.
         options:
           name:
             type: str

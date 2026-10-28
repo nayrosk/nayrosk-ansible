@@ -54,7 +54,7 @@ def problems(commit):
         found.append("subject is not a Conventional Commit")
     found.extend(text_problems(message))
     for role in ("author", "committer"):
-        if (detail.get(role) or {}).get("email", "").lower() == BOT_EMAIL:
+        if ((detail.get(role) or {}).get("email") or "").lower() == BOT_EMAIL:
             found.append(f"{role} email is {BOT_EMAIL}")
     return found
 

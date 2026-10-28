@@ -22,7 +22,7 @@ Creates the operator account used for every connection after the first run.
 | `operator_user_name` | str | `operator` | no | Name of the operator account. |
 | `operator_user_uid` | int | `10000` | no | Numeric user id. |
 | `operator_user_gid` | int | `10000` | no | Numeric id of the primary group, which has the same name as the user. |
-| `operator_user_home` | str | `/home/operator` | no | Home directory. |
+| `operator_user_home` | str | `/home/{{ operator_user_name }}` | no | Home directory. |
 | `operator_user_shell` | str | `/bin/bash` | no | Login shell. |
 | `operator_user_public_key` | str | `{{ operator_public_key }}` | no | SSH public key installed as the only authorized key. Defaults to the inventory variable `operator_public_key`, which must then be set. |
 <!-- END VARIABLES -->

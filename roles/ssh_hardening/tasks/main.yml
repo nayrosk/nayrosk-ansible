@@ -81,6 +81,7 @@
       retries: 3
       delay: 2
       until: ssh_hardening_probe.rc == 0
+  # Every rollback step runs even when an earlier one fails, and the final message says what happened.
   rescue:
     - name: Restore the previous SSH hardening drop-in
       ansible.builtin.copy:
@@ -88,6 +89,8 @@
         dest: /etc/ssh/sshd_config.d/00-hardening.conf
         remote_src: true
         mode: preserve
+      register: ssh_hardening_rescue_restore
+      failed_when: false
       when: ssh_hardening_dropin.backup_file | default('') | length > 0
 
     # Only a file created by this run is removed: an unchanged earlier drop-in stays.
@@ -95,6 +98,8 @@
       ansible.builtin.file:
         path: /etc/ssh/sshd_config.d/00-hardening.conf
         state: absent
+      register: ssh_hardening_rescue_remove
+      failed_when: false
       when:
         - ssh_hardening_dropin is changed
         - ssh_hardening_dropin.backup_file | default('') | length == 0
@@ -105,6 +110,8 @@
         dest: "{{ item.item.path }}"
         remote_src: true
         mode: preserve
+      register: ssh_hardening_rescue_dropins
+      failed_when: false
       loop: "{{ ssh_hardening_neutralized.results | default([]) | selectattr('backup_file', 'defined') | list }}"
       loop_control:
         label: "{{ item.item.path }}"
@@ -113,14 +120,34 @@
       ansible.builtin.systemd_service:
         name: ssh
         state: reloaded
+      register: ssh_hardening_rescue_reload
       failed_when: false
 
     - name: Fail with the lockout guard message
+      vars:
+        ssh_hardening_rescue_steps: >-
+          {%- macro outcome(r) -%}
+          {{ (': FAILED ' ~ (r.msg | default(''))) if r.failed | default(false) else ': done' }}
+          {%- endmacro -%}
+          {%- set ns = namespace(steps=[]) -%}
+          {%- set r = ssh_hardening_rescue_restore | default({}) -%}
+          {%- if r and r is not skipped -%}
+          {%- set ns.steps = ns.steps + ['restore 00-hardening.conf' ~ outcome(r)] -%}
+          {%- endif -%}
+          {%- set r = ssh_hardening_rescue_remove | default({}) -%}
+          {%- if r and r is not skipped -%}
+          {%- set ns.steps = ns.steps + ['remove 00-hardening.conf' ~ outcome(r)] -%}
+          {%- endif -%}
+          {%- for r in ssh_hardening_rescue_dropins.results | default([]) -%}
+          {%- set ns.steps = ns.steps + ['restore ' ~ r.item.item.path ~ outcome(r)] -%}
+          {%- endfor -%}
+          {%- set ns.steps = ns.steps + ['reload sshd' ~ outcome(ssh_hardening_rescue_reload)] -%}
+          {{ ns.steps | join('; ') }}
       ansible.builtin.fail:
         msg: >-
           SSH hardening aborted and rolled back: either sshd -t rejected the configuration or the operator
           could not log in with the key from the controller.
-          The previous configuration was restored and sshd was reloaded.
+          Rollback steps: {{ ssh_hardening_rescue_steps }}.
 
 # After the reload, new root logins are refused. The root connection of this run survives (existing session)
 # but a reset or an expired ControlPersist master would break the roles that follow, so move the rest of

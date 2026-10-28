@@ -32,7 +32,13 @@
     exclusive: true
     state: present
 
+- name: Check whether lingering is enabled for the operator
+  ansible.builtin.stat:
+    path: "/var/lib/systemd/linger/{{ operator_user_name }}"
+  register: operator_user_linger
+
+# Gated by the stat above rather than creates: so that changed_when can state the change explicitly.
 - name: Enable systemd lingering for the operator
   ansible.builtin.command: "loginctl enable-linger {{ operator_user_name }}"
-  args:
-    creates: "/var/lib/systemd/linger/{{ operator_user_name }}"
+  changed_when: true
+  when: not operator_user_linger.stat.exists

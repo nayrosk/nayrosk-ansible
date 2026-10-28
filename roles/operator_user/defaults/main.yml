@@ -6,7 +6,7 @@ operator_user_uid: 10000
 # Numeric id of the primary group, which has the same name as the user.
 operator_user_gid: 10000
 # Home directory.
-operator_user_home: /home/operator
+operator_user_home: "/home/{{ operator_user_name }}"
 # Login shell.
 operator_user_shell: /bin/bash
 # SSH public key installed as the only authorized key. Aliases the inventory variable operator_public_key.

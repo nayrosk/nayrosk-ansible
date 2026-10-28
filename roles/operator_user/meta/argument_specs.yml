@@ -20,7 +20,7 @@ argument_specs:
         description: Numeric id of the primary group, which has the same name as the user.
       operator_user_home:
         type: str
-        default: /home/operator
+        default: "/home/{{ operator_user_name }}"
         description: Home directory.
       operator_user_shell:
         type: str

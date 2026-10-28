@@ -6,6 +6,7 @@
       - catatonit
       - passt
     state: present
+    lock_timeout: 600
 
 - name: Check the local_ca facts are available
   ansible.builtin.assert:
