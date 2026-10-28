@@ -1,0 +1,21 @@
+---
+argument_specs:
+  main:
+    short_description: Create a local certificate authority and issue a server certificate.
+    description:
+      - Creates an EC P-384 CA valid for 10 years and a server certificate valid for 1 year, installs the
+        CA in the system trust store and fetches it to the controller.
+      - Sets the facts C(local_ca_local_ip) and C(local_ca_public_ip).
+    options:
+      local_ca_force_regenerate:
+        type: bool
+        default: false
+        description: Regenerate the CA key and certificate, and therefore the server certificate.
+      local_ca_directory:
+        type: path
+        default: /etc/ssl/local-ca
+        description: Directory holding the CA and server key material.
+      hostname:
+        type: str
+        required: true
+        description: Hostname added to the server certificate as a DNS name.

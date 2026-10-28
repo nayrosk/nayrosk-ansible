@@ -1,0 +1,12 @@
+---
+argument_specs:
+  main:
+    short_description: Set the system hostname and its /etc/hosts entry.
+    description:
+      - Sets the hostname with systemd, keeps exactly one C(127.0.1.1) line in C(/etc/hosts) and stops
+        cloud-init from resetting the hostname on reboot.
+    options:
+      hostname:
+        type: str
+        required: true
+        description: Hostname to set. Also used as a DNS name in the server certificate.

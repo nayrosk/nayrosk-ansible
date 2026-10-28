@@ -1,0 +1,5 @@
+---
+# Regenerate the CA key and certificate, and therefore the server certificate.
+local_ca_force_regenerate: false
+# Directory holding the CA and server key material.
+local_ca_directory: /etc/ssl/local-ca

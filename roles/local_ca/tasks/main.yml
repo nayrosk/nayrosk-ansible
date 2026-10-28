@@ -1,0 +1,137 @@
+---
+- name: Install the python cryptography library
+  ansible.builtin.apt:
+    name: python3-cryptography
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Detect the public IP from the target
+  ansible.builtin.uri:
+    url: https://ifconfig.co/ip
+    return_content: true
+    timeout: 10
+  register: local_ca_public_ip_probe
+  changed_when: false
+  failed_when: false
+
+- name: Set the local and public IP facts
+  ansible.builtin.set_fact:
+    local_ca_local_ip: "{{ ansible_facts.default_ipv4.address }}"
+    local_ca_public_ip: >-
+      {{ (local_ca_public_ip_probe.content | trim)
+         if (local_ca_public_ip_probe.status | default(0)) == 200
+            and (local_ca_public_ip_probe.content | default('') | trim) is match('^[0-9a-fA-F:.]+$')
+         else ansible_host }}
+
+- name: Build the subject alternative names
+  ansible.builtin.set_fact:
+    local_ca_san: >-
+      {{ (['DNS:' ~ hostname]
+          + (([local_ca_local_ip, local_ca_public_ip] | unique)
+             | map('regex_replace', '^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[0-9a-fA-F:]*:[0-9a-fA-F:]*)$', 'IP:\1')
+             | map('regex_replace', '^([^:]*[^0-9A-Fa-f:.][^:]*)$', 'DNS:\1')
+             | list)) | unique }}
+
+- name: Create the CA directory
+  ansible.builtin.file:
+    path: "{{ local_ca_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Generate the CA private key
+  community.crypto.openssl_privatekey:
+    path: "{{ local_ca_directory }}/ca.key"
+    type: ECC
+    curve: secp384r1
+    mode: "0600"
+    owner: root
+    group: root
+    force: "{{ local_ca_force_regenerate }}"
+  no_log: true
+
+- name: Generate the CA certificate signing request
+  community.crypto.openssl_csr:
+    path: "{{ local_ca_directory }}/ca.csr"
+    privatekey_path: "{{ local_ca_directory }}/ca.key"
+    common_name: "{{ hostname }} local CA"
+    basic_constraints: ["CA:TRUE"]
+    basic_constraints_critical: true
+    key_usage: [keyCertSign, cRLSign]
+    key_usage_critical: true
+    mode: "0644"
+
+- name: Generate the self-signed CA certificate
+  community.crypto.x509_certificate:
+    path: "{{ local_ca_directory }}/ca.crt"
+    csr_path: "{{ local_ca_directory }}/ca.csr"
+    privatekey_path: "{{ local_ca_directory }}/ca.key"
+    provider: selfsigned
+    selfsigned_not_after: +3650d
+    mode: "0644"
+    owner: root
+    group: root
+  no_log: true
+
+- name: Generate the server private key
+  community.crypto.openssl_privatekey:
+    path: "{{ local_ca_directory }}/server.key"
+    type: ECC
+    curve: secp384r1
+    mode: "0600"
+    owner: root
+    group: root
+  no_log: true
+
+- name: Generate the server certificate signing request
+  community.crypto.openssl_csr:
+    path: "{{ local_ca_directory }}/server.csr"
+    privatekey_path: "{{ local_ca_directory }}/server.key"
+    common_name: "{{ hostname }}"
+    subject_alt_name: "{{ local_ca_san }}"
+    mode: "0644"
+
+- name: Check whether a server certificate exists
+  ansible.builtin.stat:
+    path: "{{ local_ca_directory }}/server.crt"
+  register: local_ca_server_stat
+
+- name: Read the server certificate validity
+  community.crypto.x509_certificate_info:
+    path: "{{ local_ca_directory }}/server.crt"
+    valid_at:
+      soon: +30d
+  register: local_ca_server_info
+  when: local_ca_server_stat.stat.exists
+
+- name: Issue the server certificate
+  community.crypto.x509_certificate:
+    path: "{{ local_ca_directory }}/server.crt"
+    csr_path: "{{ local_ca_directory }}/server.csr"
+    provider: ownca
+    ownca_path: "{{ local_ca_directory }}/ca.crt"
+    ownca_privatekey_path: "{{ local_ca_directory }}/ca.key"
+    ownca_not_after: +365d
+    force: "{{ not (local_ca_server_info.valid_at.soon | default(true)) }}"
+    mode: "0644"
+    owner: root
+    group: root
+  no_log: true
+
+- name: Install the CA certificate in the system trust store
+  ansible.builtin.copy:
+    src: "{{ local_ca_directory }}/ca.crt"
+    dest: /usr/local/share/ca-certificates/local-ca.crt
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Update CA certificates
+
+- name: Fetch the CA certificate to the controller
+  ansible.builtin.fetch:
+    src: "{{ local_ca_directory }}/ca.crt"
+    dest: "{{ playbook_dir }}/../artifacts/{{ inventory_hostname }}/ca.crt"
+    flat: true

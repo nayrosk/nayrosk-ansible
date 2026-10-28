@@ -1,0 +1,27 @@
+---
+- name: Set the hostname
+  ansible.builtin.hostname:
+    name: "{{ hostname }}"
+    use: systemd
+
+- name: Map 127.0.1.1 to the hostname in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1\s'
+    line: "127.0.1.1 {{ hostname }}"
+    state: present
+
+- name: Check whether cloud-init is installed
+  ansible.builtin.stat:
+    path: /etc/cloud
+  register: hostname_cloud_dir
+
+- name: Keep cloud-init from resetting the hostname on reboot
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud.cfg.d/99-preserve-hostname.cfg
+    content: |
+      preserve_hostname: true
+    owner: root
+    group: root
+    mode: "0644"
+  when: hostname_cloud_dir.stat.exists

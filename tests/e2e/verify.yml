@@ -8,3 +8,70 @@
   tasks:
     - name: Check the host answers an Ansible ping
       ansible.builtin.ping:
+
+    - name: Read the hostname
+      ansible.builtin.command: hostname
+      register: verify_hostname
+      changed_when: false
+
+    - name: Check the hostname matches the inventory
+      ansible.builtin.assert:
+        that: verify_hostname.stdout == hostname
+        quiet: true
+
+    - name: Read /etc/hosts
+      ansible.builtin.slurp:
+        src: /etc/hosts
+      register: verify_etc_hosts
+
+    - name: Check /etc/hosts maps 127.0.1.1 to the hostname exactly once
+      ansible.builtin.assert:
+        that:
+          - >-
+            (verify_etc_hosts.content | b64decode).splitlines()
+            | select('match', '^127\\.0\\.1\\.1\\s') | list == ['127.0.1.1 ' ~ hostname]
+        quiet: true
+
+    - name: Verify the server certificate against the local CA
+      ansible.builtin.command: openssl verify -CAfile /etc/ssl/local-ca/ca.crt /etc/ssl/local-ca/server.crt
+      register: verify_openssl
+      changed_when: false
+
+    - name: Check openssl accepted the server certificate
+      ansible.builtin.assert:
+        that: "'OK' in verify_openssl.stdout"
+        quiet: true
+
+    - name: Read the server certificate SANs
+      ansible.builtin.command: openssl x509 -noout -ext subjectAltName -in /etc/ssl/local-ca/server.crt
+      register: verify_san
+      changed_when: false
+
+    - name: Check the SANs hold the hostname and the local IP
+      ansible.builtin.assert:
+        that:
+          - "'DNS:' ~ hostname in verify_san.stdout"
+          - "'IP Address:' ~ ansible_facts.default_ipv4.address in verify_san.stdout"
+        quiet: true
+
+    - name: Stat the installed CA certificate
+      ansible.builtin.stat:
+        path: /usr/local/share/ca-certificates/local-ca.crt
+      register: verify_ca_installed
+
+    - name: Check the CA certificate is installed in the system store source
+      ansible.builtin.assert:
+        that: verify_ca_installed.stat.exists
+        quiet: true
+
+    - name: Stat the CA certificate fetched to the controller
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
+      delegate_to: localhost
+      become: false
+      register: verify_ca_fetched
+
+    - name: Check the CA certificate reached the controller
+      ansible.builtin.assert:
+        that: verify_ca_fetched.stat.exists
+        quiet: true

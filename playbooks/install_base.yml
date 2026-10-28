@@ -5,3 +5,7 @@
   roles:
     - role: bootstrap_connection
       tags: [always, bootstrap_connection]
+    - role: hostname
+      tags: [hostname]
+    - role: local_ca
+      tags: [local_ca]
