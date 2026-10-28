@@ -1,0 +1,8 @@
+---
+# Rules always applied, before firewall_rules_extra. They are role variables, not defaults, so an inventory
+# cannot drop the SSH rule by accident and lock the host out.
+firewall_fixed_rules:
+  - {rule: allow, name: OpenSSH, comment: OpenSSH}
+  - {rule: allow, port: "80", proto: tcp, comment: Caddy HTTP}
+  - {rule: allow, port: "443", proto: tcp, comment: Caddy HTTPS}
+  - {rule: allow, port: "443", proto: udp, comment: Caddy HTTP/3}

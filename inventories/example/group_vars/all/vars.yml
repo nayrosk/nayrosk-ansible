@@ -17,6 +17,9 @@ hostname: server1
 # REPLACE this placeholder with the content of your own ~/.ssh/id_ed25519.pub.
 operator_public_key: "ssh-ed25519 AAAAREPLACE_WITH_YOUR_PUBLIC_KEY you@example.org"
 
+# Public IP put in the server certificate. Leave empty to detect it from the target (IPv4 only).
+# local_ca_public_ip_override: ""
+
 # operator_user_name: operator
 # operator_user_uid: 10000
 # operator_user_gid: 10000
@@ -44,7 +47,7 @@ system_unprivileged_port_start: 80
 system_journal_max_use: 500M
 # Extra sysctl settings merged over the hardening set.
 system_sysctl_extra: {}
-# APT mirror. Leave empty to measure the fastest mirror of your country on the first run.
+# APT mirror. Leave empty to measure the fastest mirror of your country on the first run; later runs keep it.
 system_apt_mirror_url: ""
 system_apt_mirror_country: ""
 
@@ -58,15 +61,13 @@ unattended_upgrades_automatic_reboot_time: "04:00"
 ubuntu_pro_livepatch: true
 
 # --- Firewall and fail2ban ------------------------------------------------------------------
-firewall_rules:
-  - {rule: allow, name: OpenSSH, comment: OpenSSH}
-  - {rule: allow, port: "80", proto: tcp, comment: Caddy HTTP}
-  - {rule: allow, port: "443", proto: tcp, comment: Caddy HTTPS}
-  - {rule: allow, port: "443", proto: udp, comment: Caddy HTTP/3}
+# OpenSSH, 80/tcp, 443/tcp and 443/udp are always allowed. Add other rules here, for example:
+#   - {rule: allow, port: "9100", proto: tcp, from_ip: 192.168.1.0/24, comment: node_exporter from the LAN}
+firewall_rules_extra: []
 fail2ban_bantime: 1h
 fail2ban_findtime: 10m
 fail2ban_maxretry: 3
-# Networks that are never banned, in addition to loopback and the detected LAN.
+# Networks that are never banned, in addition to loopback and the detected LAN (only when it is private).
 fail2ban_ignoreip_extra: []
 
 # --- Dotfiles -------------------------------------------------------------------------------

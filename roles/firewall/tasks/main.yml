@@ -10,16 +10,19 @@
     default: allow
     direction: outgoing
 
-- name: Allow the configured ports and applications
+- name: Apply the fixed SSH and Caddy rules, then the extra rules
   community.general.ufw:
     rule: "{{ item.rule | default('allow') }}"
     name: "{{ item.name | default(omit) }}"
     port: "{{ item.port | default(omit) }}"
     proto: "{{ item.proto | default(omit) }}"
+    from_ip: "{{ item.from_ip | default(omit) }}"
+    to_ip: "{{ item.to_ip | default(omit) }}"
+    direction: "{{ item.direction | default(omit) }}"
     comment: "{{ item.comment | default(omit) }}"
-  loop: "{{ firewall_rules }}"
+  loop: "{{ firewall_fixed_rules + firewall_rules_extra }}"
   loop_control:
-    label: "{{ item.comment | default(item.name | default(item.port)) }}"
+    label: "{{ item.comment | default(item.name | default(item.port | default(item.from_ip | default('rule')))) }}"
 
 # UFW applies /etc/ufw/sysctl.conf every time it starts and ships log_martians=0, which would silently undo
 # the value set by the system role (and make the next run report a change). Keep the two in agreement.
@@ -31,6 +34,18 @@
   loop:
     - net/ipv4/conf/all/log_martians
     - net/ipv4/conf/default/log_martians
+
+# Defensive: never enable UFW without the SSH rule, whatever happened above.
+- name: List the rules added to UFW
+  ansible.builtin.command: ufw show added
+  register: firewall_added
+  changed_when: false
+
+- name: Check the OpenSSH rule is present before enabling UFW
+  ansible.builtin.assert:
+    that: firewall_added.stdout is search('(?m)^ufw allow OpenSSH\\b')
+    fail_msg: "The OpenSSH rule is missing, UFW is not enabled: {{ firewall_added.stdout }}"
+    quiet: true
 
 - name: Enable the firewall
   community.general.ufw:
