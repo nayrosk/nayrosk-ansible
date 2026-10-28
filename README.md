@@ -5,9 +5,7 @@ Ansible playbooks that turn a fresh Ubuntu 26.04 LTS machine into a hardened hos
 [![CI](https://github.com/nayrosk/nayrosk-ansible/actions/workflows/ci.yml/badge.svg)](https://github.com/nayrosk/nayrosk-ansible/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-<!-- Hero image, added by the release visuals task:
 ![nayrosk-ansible](docs/images/hero.png)
--->
 
 One command works for the first run and every later run. The first run connects as root with a password. The playbook then creates the operator account and switches to its SSH key.
 
