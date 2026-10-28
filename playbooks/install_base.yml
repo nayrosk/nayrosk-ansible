@@ -13,3 +13,5 @@
       tags: [ubuntu_pro]
     - role: dns
       tags: [dns]
+    - role: system
+      tags: [system]

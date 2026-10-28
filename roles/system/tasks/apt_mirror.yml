@@ -1,0 +1,59 @@
+---
+- name: Use the configured APT mirror
+  ansible.builtin.set_fact:
+    system_apt_mirror: "{{ system_apt_mirror_url | regex_replace('/?$', '/') }}"
+  when: system_apt_mirror_url | length > 0
+
+- name: Measure the APT mirrors
+  when: system_apt_mirror_url | length == 0
+  block:
+    - name: Detect the country from the public IP
+      ansible.builtin.uri:
+        url: https://ifconfig.co/country-iso
+        return_content: true
+      register: system_country
+      changed_when: false
+      failed_when: false
+      when: system_apt_mirror_country | length == 0
+
+    - name: Set the mirror country code
+      ansible.builtin.set_fact:
+        system_country_code: >-
+          {{ (system_apt_mirror_country | length > 0) | ternary(system_apt_mirror_country,
+          (system_country.content | default('')) | trim | upper) }}
+
+    - name: Fetch the country mirror list
+      ansible.builtin.uri:
+        url: "http://mirrors.ubuntu.com/{{ system_country_code }}.txt"
+        return_content: true
+      register: system_mirror_list
+      changed_when: false
+      failed_when: false
+      when: system_country_code | regex_search('^[A-Z]{2}$') is not none
+
+    - name: Time the Release file of each mirror
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --fail
+          - --output
+          - /dev/null
+          - --write-out
+          - "%{time_total}"
+          - --max-time
+          - "5"
+          - "{{ item }}dists/{{ ansible_distribution_release }}/Release"
+      register: system_mirror_times
+      changed_when: false
+      failed_when: false
+      loop: >-
+        {{ (system_mirror_list.content | default('')).split() | select('match', '^https?://')
+        | map('regex_replace', '/?$', '/') | list }}
+
+    - name: Keep the fastest mirror or fall back to the default
+      ansible.builtin.set_fact:
+        system_apt_mirror: >-
+          {{ (system_mirror_times.results | default([]) | selectattr('rc', 'equalto', 0)
+          | sort(attribute='stdout', case_sensitive=false) | map(attribute='item') | list
+          | first | default(system_apt_mirror_default)) }}

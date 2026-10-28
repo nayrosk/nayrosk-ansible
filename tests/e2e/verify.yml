@@ -130,3 +130,62 @@
       retries: 5
       delay: 3
       until: verify_getent.rc == 0
+
+    - name: Read the unprivileged port start sysctl
+      ansible.builtin.command: sysctl -n net.ipv4.ip_unprivileged_port_start
+      register: verify_port_start
+      changed_when: false
+
+    - name: Read the kernel pointer restriction sysctl
+      ansible.builtin.command: sysctl -n kernel.kptr_restrict
+      register: verify_kptr
+      changed_when: false
+
+    - name: Check the sysctl values are applied
+      ansible.builtin.assert:
+        that:
+          - verify_port_start.stdout | trim == '80'
+          - verify_kptr.stdout | trim == '2'
+        quiet: true
+
+    - name: Read the time zone
+      ansible.builtin.command: timedatectl show -p Timezone --value
+      register: verify_timezone
+      changed_when: false
+
+    - name: Check the time zone is UTC
+      ansible.builtin.assert:
+        that: verify_timezone.stdout | trim == 'Etc/UTC'
+        quiet: true
+
+    - name: Read the chrony tracking status
+      ansible.builtin.command: chronyc tracking
+      register: verify_chrony
+      changed_when: false
+
+    - name: Check chrony is synchronised
+      ansible.builtin.assert:
+        that: verify_chrony.stdout is search('Leap status\s*:\s*Normal')
+        quiet: true
+
+    - name: Read the journald drop-in
+      ansible.builtin.slurp:
+        src: /etc/systemd/journald.conf.d/10-install-base.conf
+      register: verify_journald
+
+    - name: Check journald storage is persistent
+      ansible.builtin.assert:
+        that: "'Storage=persistent' in (verify_journald.content | b64decode)"
+        quiet: true
+
+    - name: Read the APT sources
+      ansible.builtin.slurp:
+        src: /etc/apt/sources.list.d/ubuntu.sources
+      register: verify_apt_sources
+
+    - name: Check the APT sources hold the default mirror and the security origin
+      ansible.builtin.assert:
+        that:
+          - "'http://archive.ubuntu.com/ubuntu/' in (verify_apt_sources.content | b64decode)"
+          - "'security.ubuntu.com' in (verify_apt_sources.content | b64decode)"
+        quiet: true
