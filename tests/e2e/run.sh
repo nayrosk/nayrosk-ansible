@@ -124,13 +124,43 @@ ssh_probe() {
   ' sh "$@"
 }
 
+# Read the SSH banner on 127.0.0.1:2222 from the current network namespace (prints it or "closed").
+# shellcheck disable=SC2016 # the script is expanded by the inner shell
+BANNER_PROBE='exec 3<>/dev/tcp/127.0.0.1/2222 && timeout 5 head -c 40 <&3 || echo closed'
+
+# Network diagnostics printed when the VM never answers on SSH. No secrets.
+ssh_diagnostics() {
+  set +e
+  echo "---- diagnostics: podman version" >&2
+  podman version >&2
+  echo "---- podman ps -a" >&2
+  podman ps -a >&2
+  echo "---- podman port $VM_NAME" >&2
+  podman port "$VM_NAME" >&2
+  echo "---- podman inspect network settings" >&2
+  podman container inspect -f '{{json .HostConfig.NetworkMode}} {{json .NetworkSettings.Ports}}' "$VM_NAME" >&2
+  echo "---- host listeners" >&2
+  ss -ltnup >&2
+  echo "---- banner from host" >&2
+  timeout 10 bash -c "$BANNER_PROBE" >&2
+  echo "---- banner from the controller (--network host)" >&2
+  timeout 20 podman run --rm --userns=keep-id --network host --entrypoint bash "$CONTROLLER_IMAGE" -c "$BANNER_PROBE" >&2
+  echo "---- banner from inside the VM container (qemu hostfwd)" >&2
+  timeout 10 podman exec "$VM_NAME" bash -c "$BANNER_PROBE" >&2
+  echo "---- processes in the VM container" >&2
+  podman top "$VM_NAME" >&2
+  echo "---- last console lines" >&2
+  podman logs --tail 30 "$VM_NAME" >&2
+  set -e
+}
+
 wait_for_vm() {
   log "wait for SSH (timeout ${SSH_TIMEOUT}s)"
   local deadline=$(($(date +%s) + SSH_TIMEOUT)) step
   for step in keyscan login; do
     until ssh_probe "$step" >/dev/null 2>&1; do
       vm_running || { echo "VM container stopped:" >&2; podman logs --tail 20 "$VM_NAME" >&2; return 1; }
-      [ "$(date +%s)" -lt "$deadline" ] || { echo "timed out waiting for SSH ($step)" >&2; return 1; }
+      [ "$(date +%s)" -lt "$deadline" ] || { echo "timed out waiting for SSH ($step)" >&2; ssh_diagnostics; return 1; }
       sleep 3
     done
     log "ssh $step ok"
