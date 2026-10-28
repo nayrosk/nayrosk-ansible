@@ -2,6 +2,9 @@
 - name: Verify the end-to-end host
   hosts: all
   gather_facts: false
+  roles:
+    - role: bootstrap_connection
+      tags: [always, bootstrap_connection]
   tasks:
     - name: Check the host answers an Ansible ping
       ansible.builtin.ping:

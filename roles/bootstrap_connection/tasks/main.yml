@@ -1,0 +1,45 @@
+---
+# The probe must never fall back to a password or prompt: it forces public key authentication in
+# batch mode and clears the password. The inventory SSH options are read through hostvars: a task var
+# named like the one it extends would recurse.
+- name: Probe operator key login
+  ansible.builtin.ping:
+  vars:
+    ansible_user: "{{ bootstrap_connection_operator }}"
+    ansible_password: ""
+    ansible_become: false
+    ansible_ssh_common_args: >-
+      {{ hostvars[inventory_hostname].ansible_ssh_common_args | default('') }}
+      -o PreferredAuthentications=publickey -o BatchMode=yes
+      -o ConnectTimeout={{ bootstrap_connection_probe_timeout }}
+  ignore_unreachable: true
+  register: bootstrap_connection_probe
+  changed_when: false
+
+- name: Select connection mode
+  ansible.builtin.set_fact:
+    bootstrap_connection_mode: "{{ 'root' if bootstrap_connection_probe.unreachable | default(false) else 'operator' }}"
+
+- name: Use operator with become
+  ansible.builtin.set_fact:
+    ansible_user: "{{ bootstrap_connection_operator }}"
+    ansible_become: true
+  when: bootstrap_connection_mode == 'operator'
+
+- name: Use root with password
+  ansible.builtin.set_fact:
+    ansible_user: root
+    ansible_password: "{{ vault_root_password }}"
+    ansible_become: false
+  when: bootstrap_connection_mode == 'root'
+  no_log: true
+
+- name: Report connection mode
+  ansible.builtin.debug:
+    msg: "bootstrap_connection_mode={{ bootstrap_connection_mode }}"
+
+- name: Reset connection
+  ansible.builtin.meta: reset_connection
+
+- name: Gather facts
+  ansible.builtin.setup:

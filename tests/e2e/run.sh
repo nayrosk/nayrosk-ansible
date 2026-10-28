@@ -138,23 +138,29 @@ wait_for_vm() {
   ssh_probe login "cloud-init status --wait"
 }
 
-# Hook for assertions on a playbook run log ($1: run number, $2: log file). Later tasks assert the
-# bootstrap connection mode here (for example bootstrap_connection_mode=operator on run 2).
+# Expected bootstrap_connection_mode per run. The operator account does not exist until the users role
+# lands, so both runs connect as root. Switch RUN_2_MODE to operator when that role is added.
+RUN_1_MODE=root
+RUN_2_MODE=root
+
+# Assertions on a playbook run log ($1: run number, $2: log file, $3: expected bootstrap_connection_mode).
 assert_run_log() {
-  local run=$1 file=$2
+  local run=$1 file=$2 mode=$3
   [ -s "$file" ] || { echo "run $run: empty log $file" >&2; return 1; }
+  grep -q "bootstrap_connection_mode=$mode" "$file" \
+    || { echo "run $run: expected bootstrap_connection_mode=$mode in $file" >&2; return 1; }
 }
 
 run_1() {
   log "run 1 (first_install=true)"
   playbook playbooks/install_base.yml -e first_install=true 2>&1 | tee "$LOG_DIR/run1.log"
-  assert_run_log 1 "$LOG_DIR/run1.log"
+  assert_run_log 1 "$LOG_DIR/run1.log" "$RUN_1_MODE"
 }
 
 run_2() {
   log "run 2 (idempotence)"
   playbook playbooks/install_base.yml 2>&1 | tee "$LOG_DIR/run2.log" | tests/e2e/check-idempotence.sh
-  assert_run_log 2 "$LOG_DIR/run2.log"
+  assert_run_log 2 "$LOG_DIR/run2.log" "$RUN_2_MODE"
 }
 
 verify() {
