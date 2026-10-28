@@ -34,6 +34,14 @@
     - .config
     - .config/containers
 
+# Earlier versions mapped the host loopback for every rootless container of the operator through
+# containers.conf. The mapping is now scoped to the Caddy container: remove the file so old hosts converge.
+- name: Remove the operator-wide pasta configuration
+  ansible.builtin.file:
+    path: "{{ podman_monitoring_user_home }}/.config/containers/containers.conf"
+    state: absent
+  notify: Restart caddy
+
 - name: Create the quadlet and Caddy directories
   ansible.builtin.file:
     path: "{{ podman_monitoring_user_home }}/{{ item.path }}"

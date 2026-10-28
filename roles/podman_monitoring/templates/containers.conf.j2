@@ -1,8 +1,0 @@
-# Managed by Ansible (role podman_monitoring).
-# pasta maps host.containers.internal to the host loopback, so rootless containers reach services that
-# listen on 127.0.0.1 only (node_exporter). Podman's default mapping targets the host's routable address.
-[containers]
-host_containers_internal_ip = "{{ podman_monitoring_host_loopback_ip }}"
-
-[network]
-pasta_options = ["--map-host-loopback", "{{ podman_monitoring_host_loopback_ip }}"]

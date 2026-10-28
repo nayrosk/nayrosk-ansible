@@ -1,8 +1,8 @@
 ---
-# Included from the Restart caddy handler with ansible_become and ansible_become_user set to the operator.
-- name: Restart the Caddy user unit
+# Included from the Restart handlers with ansible_become and ansible_become_user set to the operator.
+- name: Restart the user unit {{ podman_monitoring_restart_unit }}
   ansible.builtin.systemd_service:
-    name: caddy.service
+    name: "{{ podman_monitoring_restart_unit }}"
     scope: user
     state: restarted
     daemon_reload: true

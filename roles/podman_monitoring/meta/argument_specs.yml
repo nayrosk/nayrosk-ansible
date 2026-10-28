@@ -19,13 +19,17 @@ argument_specs:
       podman_monitoring_node_exporter_listen:
         type: str
         default: 127.0.0.1:9100
-        description: Address and port node_exporter listens on.
+        description:
+          - Address and port node_exporter listens on.
+          - Must stay a loopback address. Caddy proxies to C(host.containers.internal), which pasta maps to the
+            host loopback only.
       podman_monitoring_caddy_basic_auth_user:
         type: str
         default: admin
         description: Basic auth user protecting every Caddy route.
       podman_monitoring_caddy_basic_auth_hash:
         type: str
+        no_log: true
         default: "{{ vault_caddy_basic_auth_hash }}"
         description:
           - Bcrypt hash of the basic auth password, as printed by C(caddy hash-password).
@@ -39,8 +43,8 @@ argument_specs:
         type: str
         default: 169.254.1.3
         description:
-          - Link-local address that pasta maps to the host loopback in the operator's rootless containers.
-          - C(host.containers.internal) resolves to it. It must differ from podman's own C(169.254.1.2).
+          - Link-local address that the pasta instance of the Caddy container maps to the host loopback.
+          - C(host.containers.internal) resolves to it inside Caddy. It must differ from podman's own C(169.254.1.2).
       podman_monitoring_user:
         type: str
         default: "{{ operator_user_name }}"

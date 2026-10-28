@@ -386,6 +386,32 @@
         that: "'node_systemd_unit_state' in verify_caddy_metrics.stdout"
         quiet: true
 
+    - name: Request an unknown path through Caddy with credentials
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - -u
+          - "{{ podman_monitoring_caddy_basic_auth_user }}:{{ verify_caddy_password }}"
+          - "https://{{ hostname }}:8443/verify-unknown-path"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_unknown
+      changed_when: false
+
+    - name: Check an unknown path returns 404
+      ansible.builtin.assert:
+        that: verify_caddy_unknown.stdout == '404'
+        quiet: true
+
     - name: Request plain HTTP from the controller
       ansible.builtin.command:
         argv:
@@ -472,6 +498,29 @@
       ansible.builtin.assert:
         that: verify_caddy_access_log.stat.exists
         quiet: true
+
+    - name: Read the Caddy access log
+      ansible.builtin.slurp:
+        src: /home/operator/.caddy/logs/access.log
+      register: verify_caddy_access_log_content
+
+    # Caddy must see the client address (pasta), not a container address (rootlessport on a bridge). Only
+    # the unknown path request made above is checked, so older log lines do not matter. The address seen in
+    # e2e is the controller host's own address: the rootless port forward of the VM container and qemu user
+    # networking both keep non-loopback sources.
+    - name: Check the access log records client addresses, not container addresses
+      vars:
+        verify_remote_ips: >-
+          {{ (verify_caddy_access_log_content.content | b64decode).splitlines()
+             | map('from_json') | map(attribute='request')
+             | selectattr('uri', 'equalto', '/verify-unknown-path')
+             | map(attribute='remote_ip') | unique | list }}
+      ansible.builtin.assert:
+        that:
+          - verify_remote_ips | length > 0
+          - verify_remote_ips | select('match', '^10\\.8[89]\\.') | list | length == 0
+        fail_msg: "remote_ip values in the access log: {{ verify_remote_ips }}"
+        success_msg: "remote_ip values in the access log: {{ verify_remote_ips }}"
 
     - name: Wait five minutes for healthchecks to run before the zombie check
       ansible.builtin.pause:

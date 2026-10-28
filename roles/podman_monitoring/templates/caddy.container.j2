@@ -6,7 +6,11 @@ After=network-online.target
 
 [Container]
 Image=docker.io/library/caddy:{{ podman_monitoring_caddy_version }}-alpine
-Network=monitoring.network
+# pasta (not the monitoring bridge) so Caddy sees client source addresses: on a rootless bridge, podman 5
+# publishes ports with rootlessport, which hides them. --map-host-loopback lets this container only reach
+# node_exporter on the host loopback through host.containers.internal.
+Network=pasta:--map-host-loopback,{{ podman_monitoring_host_loopback_ip }}
+AddHost=host.containers.internal:{{ podman_monitoring_host_loopback_ip }}
 PublishPort=80:80
 PublishPort=443:443
 PublishPort=443:443/udp
