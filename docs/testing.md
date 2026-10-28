@@ -77,7 +77,14 @@ CI always sets it. The default run skips the wait to stay short.
 - The e2e inventory has its own vault, encrypted with a password stored in the repository
   (`tests/e2e/vault-pass`). It protects nothing. It only exercises the same code path as a real inventory.
 - Steps that cannot run in a VM are skipped when `e2e` is true: firmware updates and APT mirror timing.
-  Ubuntu Pro attaches only when a token is set.
+- Ubuntu Pro is never attached in the e2e run, in CI included: the e2e vault token is empty, because every
+  throwaway VM would take one machine slot of the Pro subscription. The attach task is checked to be
+  skipped. The attach path is therefore not tested automatically.
+
+## Unit checks
+
+`make unit` runs `tests/unit/` on the controller, without a VM. It checks the fail2ban `ignoreip` logic
+(which detected networks count as private) on fixed IPv4 and IPv6 cases.
 
 ## Lint
 

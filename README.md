@@ -65,7 +65,17 @@ The target machine runs a fresh Ubuntu 26.04 and accepts root with a password ov
    make vault-edit VAULT_FILE=inventories/prod/group_vars/all/vault.yml
    ```
 
-3. Run the playbook. The first run needs `first_install=true`:
+3. Connect once to record the host key: the playbook checks host keys and the container sees `~/.ssh`
+   read-only, so it cannot add the key itself.
+
+   ```bash
+   ssh-keyscan -H <host> >> ~/.ssh/known_hosts   # or: ssh root@<host>, accept the key, then exit
+   ```
+
+   A key with a passphrase must be loaded in your SSH agent (`ssh-add`): `make run` forwards the agent
+   when `SSH_AUTH_SOCK` is set.
+
+4. Run the playbook. The first run needs `first_install=true`:
 
    ```bash
    make run INVENTORY=inventories/prod LIMIT=server1 ARGS="-e first_install=true"
@@ -73,7 +83,7 @@ The target machine runs a fresh Ubuntu 26.04 and accepts root with a password ov
 
    Later runs do not need the flag.
 
-4. Trust the CA in your browser: import `artifacts/<host>/ca.crt`. Metrics are at `https://<host>/node_exporter`.
+5. Trust the CA in your browser: import `artifacts/<host>/ca.crt`. Metrics are at `https://<host>/node_exporter`.
 
 `make help` lists every target.
 

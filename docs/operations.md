@@ -5,13 +5,25 @@ How to run the playbook, keep it healthy and recover from mistakes.
 ## First install and later runs
 
 The same command covers both. The `first_install` variable gates the steps that must not repeat: the
-APT dist-upgrade and package install, the Ubuntu Pro attach and the firmware update.
+APT dist-upgrade and package install, the APT mirror measurement, the Ubuntu Pro attach and the firmware
+update.
+
+Before the first run, record the host key on your workstation. `make run` mounts `~/.ssh` read-only in the
+controller container, so SSH cannot add a new host key there:
+
+```bash
+ssh-keyscan -H 203.0.113.10 >> ~/.ssh/known_hosts   # or connect once: ssh root@203.0.113.10
+```
+
+When your key has a passphrase, load it in your SSH agent (`ssh-add ~/.ssh/id_ed25519`). `make run` forwards
+the agent socket into the container when `SSH_AUTH_SOCK` is set. Without an agent, only a key without a
+passphrase works.
 
 ```bash
 # First run on a fresh machine: root with the vault password, then the operator with the key.
 make run INVENTORY=inventories/prod ARGS="-e first_install=true"
 
-# Every later run: idempotent, runs as the operator.
+# Every later run: idempotent (the APT mirror chosen on the first run is kept), runs as the operator.
 make run INVENTORY=inventories/prod
 ```
 
@@ -51,6 +63,15 @@ podman run --rm docker.io/library/caddy:2.11.7-alpine caddy hash-password --plai
 `local_ca` creates one CA per host, valid for 10 years, and a server certificate valid for 1 year. The
 server certificate is issued again when its names change, when the CA changes or when less than 30 days
 remain, so a regular run renews it.
+
+The certificate names the hostname, the local IP and the public IP. The target asks
+`https://ipv4.icanhazip.com` for its public IPv4 address. When that fails, the public IP already in the
+certificate is kept, so a run without internet access does not reissue it. Set `local_ca_public_ip_override`
+in the inventory to choose the public IP yourself, for example behind NAT or on an IPv6-only host:
+
+```yaml
+local_ca_public_ip_override: 203.0.113.10
+```
 
 Fetch the CA certificate. Every run copies it to the controller:
 
@@ -97,14 +118,32 @@ operator_public_key: |
    sshd over the connection that is still open and stops.
 
 If you are locked out anyway (wrong key in `operator_public_key`, for example), use the console of your
-provider or hypervisor. As root on the console:
+provider or hypervisor and log in as root there. Two ways out:
 
-```bash
-rm /etc/ssh/sshd_config.d/00-hardening.conf
-systemctl reload ssh
-```
+1. Fix the operator key. This is the simplest and keeps the hardening:
 
-Root with a password works again until the next run. Fix `operator_public_key`, then run the playbook.
+   ```bash
+   echo 'ssh-ed25519 AAAA... you@laptop' > /home/operator/.ssh/authorized_keys
+   ```
+
+   Then put the same key in `operator_public_key` and run the playbook again.
+
+2. Restore the SSH configuration from before the hardening. Removing `00-hardening.conf` alone is not
+   enough: the role also commented out `PermitRootLogin` and `PasswordAuthentication` in the other files of
+   `/etc/ssh/sshd_config.d/`, so sshd falls back to its own defaults, which refuse a root password. The role
+   kept a copy of every file it changed, named `<file>.<number>.<date>~` next to it. Put the copies back,
+   then reload:
+
+   ```bash
+   cd /etc/ssh/sshd_config.d
+   ls -l                                   # find the backups, for example 50-cloud-init.conf.1234.2026-10-28@10:00:00~
+   cp -p 50-cloud-init.conf.1234.2026-10-28@10:00:00~ 50-cloud-init.conf
+   rm 00-hardening.conf                    # or restore its own backup if it had one
+   sshd -t && systemctl reload ssh
+   ```
+
+   Root can log in with its password again until the next run. Fix `operator_public_key`, then run the
+   playbook.
 
 Other quick checks on the host:
 
@@ -115,7 +154,11 @@ sudo fail2ban-client status caddy-auth
 sudo fail2ban-client unban <ip>    # unban a client
 ```
 
-fail2ban never bans loopback, the detected LAN networks, `fe80::/10` and `fail2ban_ignoreip_extra`.
+fail2ban never bans loopback, `fe80::/10`, `fail2ban_ignoreip_extra` and the detected LAN networks. A
+detected network counts only when it is private (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
+`100.64.0.0/10`, `fc00::/7`): a public subnet of a hosting provider is not whitelisted. Add your own
+addresses to `fail2ban_ignoreip_extra` when you need them. The `caddy-auth` jail counts only 401 answers to
+requests that carried a user and password, so the first anonymous request of a browser never counts.
 
 ## Unattended upgrades
 

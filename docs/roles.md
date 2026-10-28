@@ -29,6 +29,8 @@ Create a local certificate authority and issue a server certificate.
 | --- | --- | --- | --- | --- |
 | `local_ca_force_regenerate` | bool | `false` | no | Regenerate the CA key and certificate, and therefore the server certificate. |
 | `local_ca_directory` | path | `/etc/ssl/local-ca` | no | Directory holding the CA and server key material. |
+| `local_ca_public_ip_override` | str | `""` | no | Public IP added to the server certificate. When set, the public IP is not probed. When empty, the target asks `local_ca_public_ip_probe_url` for its public IPv4 address. If the probe fails or does not answer an IPv4 address, the public IP already in the server certificate is kept, else `ansible_host` is used when it is an IP address, else no public IP is added. |
+| `local_ca_public_ip_probe_url` | str | `https://ipv4.icanhazip.com` | no | URL answering the public IPv4 address of the target as plain text. |
 | `hostname` | str | none | yes | Hostname added to the server certificate as a DNS name. |
 
 ## ubuntu_pro
@@ -60,9 +62,11 @@ Apply sysctl hardening, UTC time with chrony, journald limits and the APT mirror
 | `system_journal_max_use` | str | `500M` | no | Maximum disk space used by the persistent journal (journald SystemMaxUse). |
 | `system_sysctl` | dict | `{net.ipv4.ip_unprivileged_port_start: {{ system_unprivile...` (15 entries, truncated, see `defaults/main.yml`) | no | Sysctl settings written to /etc/sysctl.d/60-install-base.conf. The default holds the hardening set. |
 | `system_sysctl_extra` | dict | `{}` | no | Additional sysctl settings merged over system_sysctl. |
-| `system_apt_mirror_url` | str | `""` | no | Mirror to use as is. When empty the fastest mirror of the country is measured (never done in e2e). |
+| `system_apt_mirror_url` | str | `""` | no | Mirror to use as is. When empty the fastest mirror of the country is measured on the first install (never in e2e) and later runs keep the mirror already in the sources file. |
 | `system_apt_mirror_country` | str | `""` | no | Two-letter country code used to pick the mirror list. When empty it is detected from the public IP. |
-| `system_apt_mirror_default` | str | `http://archive.ubuntu.com/ubuntu/` | no | Mirror used in e2e and when no measured mirror answers. |
+| `system_apt_mirror_default` | str | `http://archive.ubuntu.com/ubuntu/` | no | Mirror used when no measured mirror answers and when the sources file holds no mirror for the release. |
+| `first_install` | bool | `false` | no | Measure the APT mirrors only on the first install run. |
+| `e2e` | bool | `false` | no | Never measure the APT mirrors in the end-to-end test VM. |
 
 ## base_packages
 
@@ -97,7 +101,7 @@ Create the operator account with key-only SSH and passwordless sudo.
 | `operator_user_name` | str | `operator` | no | Name of the operator account. |
 | `operator_user_uid` | int | `10000` | no | Numeric user id. |
 | `operator_user_gid` | int | `10000` | no | Numeric id of the primary group, which has the same name as the user. |
-| `operator_user_home` | str | `/home/operator` | no | Home directory. |
+| `operator_user_home` | str | `/home/{{ operator_user_name }}` | no | Home directory. |
 | `operator_user_shell` | str | `/bin/bash` | no | Login shell. |
 | `operator_user_public_key` | str | `{{ operator_public_key }}` | no | SSH public key installed as the only authorized key. Defaults to the inventory variable `operator_public_key`, which must then be set. |
 
@@ -108,7 +112,7 @@ Deploy user dotfiles.
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
 | `user_customization_vimrc` | str | multi-line value, see `defaults/main.yml` | no | Content of the `.vimrc` written for every listed user. The default is a plain editing setup. |
-| `user_customization_users` | list of dict | `[{name: root, home: /root}, {name: operator, home: /home/...` (2 entries, truncated, see `defaults/main.yml`) | no | Users receiving the `.vimrc`. The name is also the file owner and group. |
+| `user_customization_users` | list of dict | `[{name: root, home: /root}, {name: {{ operator_user_name...` (2 entries, truncated, see `defaults/main.yml`) | no | Users receiving the `.vimrc`. The name is also the file owner and group. The default holds root and the operator account of the `operator_user` role. |
 | `user_customization_users[].name` | str | none | yes | Account name, used as owner and group. |
 | `user_customization_users[].home` | str | none | yes | Home directory holding the `.vimrc`. |
 
@@ -145,7 +149,7 @@ Enable UFW with a default deny policy and the SSH and Caddy rules.
 
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
-| `firewall_rules` | list of dict | `[{rule: allow, name: OpenSSH, comment: OpenSSH}, {rule: a...` (4 entries, truncated, see `defaults/main.yml`) | no | UFW rules, applied in order. Each item takes the options of `community.general.ufw` (`rule`, `name` or `port`, `proto`, `comment`). |
+| `firewall_rules_extra` | list of dict | `[]` | no | Additional UFW rules, applied in order after the fixed rules. Each item takes the options of `community.general.ufw` (`rule`, `name` or `port`, `proto`, `from_ip`, `to_ip`, `direction`, `comment`). |
 
 ## fail2ban
 
@@ -156,6 +160,7 @@ Ban repeated SSH and Caddy authentication failures through UFW.
 | `fail2ban_bantime` | str | `1h` | no | Ban duration. |
 | `fail2ban_findtime` | str | `10m` | no | Window in which `fail2ban_maxretry` failures trigger a ban. |
 | `fail2ban_maxretry` | int | `3` | no | Failures allowed inside the find window before a ban. |
-| `fail2ban_ignoreip_extra` | list of str | `[]` | no | Extra addresses or networks never banned, added to the detected ones. |
-| `fail2ban_caddy_log` | str | `/home/{{ operator_user_name }}/.caddy/logs/access.log` | no | Caddy JSON access log watched by the `caddy-auth` jail. |
+| `fail2ban_ignoreip_extra` | list of str | `[]` | no | Extra addresses or networks never banned, public ones included. |
+| `fail2ban_caddy_log_owner` | str | `{{ podman_monitoring_user \| default(operator_user_name \|...` (truncated, see `defaults/main.yml`) | no | Account running Caddy, owner and group of the access log created when missing. |
+| `fail2ban_caddy_log` | str | `{{ podman_monitoring_user_home \| default(operator_user_ho...` (truncated, see `defaults/main.yml`) | no | Caddy JSON access log watched by the `caddy-auth` jail. |
 <!-- END VARIABLES -->
