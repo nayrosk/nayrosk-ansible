@@ -243,3 +243,24 @@
             (verify_run1_log.content | b64decode)
             is search('TASK \[firmware : Refresh firmware metadata\][^\n]*\nskipping: \[' ~ inventory_hostname ~ '\]')
         quiet: true
+
+    - name: Dump the effective unattended-upgrades allowed origins
+      ansible.builtin.command: apt-config dump Unattended-Upgrade::Allowed-Origins
+      register: verify_origins
+      changed_when: false
+
+    - name: Dump the effective unattended-upgrades origin patterns
+      ansible.builtin.command: apt-config dump Unattended-Upgrade::Origins-Pattern
+      register: verify_origins_pattern
+      changed_when: false
+
+    - name: Check only the three security origins remain
+      ansible.builtin.assert:
+        that:
+          - verify_origins.stdout_lines | select('search', 'Allowed-Origins::') | list | length == 3
+          - verify_origins.stdout is search('-security";')
+          - verify_origins.stdout is search('ESMApps:')
+          - verify_origins.stdout is search('ESM:')
+          - verify_origins.stdout is not search('-updates')
+          - verify_origins_pattern.stdout | trim == ''
+        quiet: true

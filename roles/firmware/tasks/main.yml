@@ -41,6 +41,4 @@
       ansible.builtin.debug:
         msg: >-
           Firmware updates were staged. Reboot the host to apply them; this role never reboots.
-      when:
-        - firmware_has_updates
-        - firmware_update.stdout | default('') is search('(?i)reboot')
+      when: firmware_has_updates

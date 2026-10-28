@@ -6,7 +6,7 @@ Configures unattended security upgrades.
 
 - Fails with a clear message when the `unattended-upgrades` package is missing (the `base_packages` role installs
   it on first install; this role never installs it).
-- Writes `/etc/apt/apt.conf.d/52install-base`: only the security, ESM apps and ESM infra origins,
+- Writes `/etc/apt/apt.conf.d/52install-base`: clears the stock origins, then allows only the security, ESM apps and ESM infra origins,
   `Automatic-Reboot` and `Automatic-Reboot-Time` from the variables, `Remove-Unused-Dependencies "true"`.
 - Writes `/etc/apt/apt.conf.d/20auto-upgrades` (daily package list update and unattended upgrade).
 - Enables and starts `apt-daily.timer` and `apt-daily-upgrade.timer`.
