@@ -48,7 +48,7 @@ ansible-lint: controller ## Run ansible-lint (production profile)
 	$(CONTROLLER_RUN) ansible-lint
 
 shellcheck: controller ## Lint shell scripts
-	$(CONTROLLER_RUN) shellcheck scripts/*.sh tests/e2e/*.sh tests/e2e/*/*.sh
+	$(CONTROLLER_RUN) shellcheck scripts/*.sh .github/scripts/*.sh tests/e2e/*.sh tests/e2e/*/*.sh
 
 actionlint: controller ## Lint GitHub workflows (no-op without .github/workflows)
 	@if [ -d .github/workflows ]; then $(CONTROLLER_RUN) actionlint; else echo "actionlint: no .github/workflows, skipped"; fi
@@ -83,7 +83,7 @@ changelog: controller ## Generate CHANGELOG.md with git-cliff
 	$(CONTROLLER_RUN) git-cliff --output CHANGELOG.md
 
 github-rulesets: ## Apply .github/rulesets/*.json to the repository
-	@echo "github-rulesets: not implemented yet"; exit 1
+	scripts/github-rulesets.sh
 
 pre-commit-install: ## Install the git hooks (pre-commit, commit-msg)
 	@command -v pre-commit >/dev/null 2>&1 || { echo "pre-commit not found: install it (pipx install pre-commit)"; exit 1; }

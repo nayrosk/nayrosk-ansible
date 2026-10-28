@@ -1,0 +1,76 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Dependabot owns GitHub Actions; Renovate owns everything else.",
+    "Manual steps: the cloud image (release-YYYYMMDD path plus SHA256 in tests/e2e/run.sh) and the git-cliff and actionlint versions with their checksums in tests/e2e/controller/provision.sh are updated by hand."
+  ],
+  "extends": ["config:recommended"],
+  "minimumReleaseAge": "7 days",
+  "dependencyDashboard": true,
+  "labels": ["dependencies"],
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "github-actions": {
+    "enabled": false
+  },
+  "customManagers": [
+    {
+      "description": "Caddy image tag (docker.io/library/caddy:<version>-alpine)",
+      "customType": "regex",
+      "managerFilePatterns": ["/^roles/podman_monitoring/defaults/main\\.yml$/"],
+      "matchStrings": ["podman_monitoring_caddy_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "library/caddy",
+      "extractVersionTemplate": "^(?<version>\\d+\\.\\d+\\.\\d+)$"
+    },
+    {
+      "description": "node_exporter release (quay.io/prometheus/node-exporter:v<version>)",
+      "customType": "regex",
+      "managerFilePatterns": ["/^roles/podman_monitoring/defaults/main\\.yml$/"],
+      "matchStrings": ["podman_monitoring_node_exporter_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "prometheus/node_exporter",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "description": "Base images pinned by tag and digest in the Makefile",
+      "customType": "regex",
+      "managerFilePatterns": ["/^Makefile$/"],
+      "matchStrings": [
+        "^(?:CONTROLLER_BASE|E2E_VM_BASE)\\s*:?=\\s*(?<depName>\\S+?):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "git-cliff version in the controller provision script",
+      "customType": "regex",
+      "managerFilePatterns": ["/^tests/e2e/controller/provision\\.sh$/"],
+      "matchStrings": ["GIT_CLIFF_VERSION=(?<currentValue>\\S+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "orhun/git-cliff",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "description": "actionlint version in the controller provision script",
+      "customType": "regex",
+      "managerFilePatterns": ["/^tests/e2e/controller/provision\\.sh$/"],
+      "matchStrings": ["ACTIONLINT_VERSION=(?<currentValue>\\S+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "rhysd/actionlint",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The tool versions in provision.sh come with a SHA256 that Renovate cannot update (not self-hosted, no post-upgrade tasks). Bump them by hand together with the checksum.",
+      "matchPackageNames": ["orhun/git-cliff", "rhysd/actionlint"],
+      "enabled": false
+    },
+    {
+      "description": "Stay on the Ubuntu 26.04 LTS image; only its digest moves.",
+      "matchPackageNames": ["docker.io/library/ubuntu", "ubuntu"],
+      "allowedVersions": "26.04"
+    }
+  ]
+}

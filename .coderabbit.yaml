@@ -1,0 +1,82 @@
+---
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en
+early_access: true
+
+reviews:
+  profile: "assertive"
+
+  auto_review:
+    enabled: true
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+      - "Draft"
+      - "DO NOT MERGE"
+      # Documentation-only pull requests carry a Conventional Commits `docs` title.
+      - "docs:"
+      - "docs("
+    # Release pull requests carry the release label; they only bump versions and the changelog.
+    labels:
+      - "!release"
+
+  high_level_summary: true
+  review_status: true
+  commit_status: true
+  sequence_diagrams: true
+  changed_files_summary: true
+  related_issues: true
+  request_changes_workflow: true
+
+  path_instructions:
+    - path: "roles/**"
+      instructions: |
+        Review for compliance with project conventions:
+        - Fully qualified collection names for every module (ansible.builtin.copy, never copy)
+        - Every task has a name; every command or shell task has an explicit changed_when
+        - no_log: true on every task that handles a secret (vault_* values, passwords, keys, hashes)
+        - Variables are prefixed with the role name; secrets are vault_* and reach roles through a defaults alias
+        - Every input is declared in meta/argument_specs.yml; flag a variable missing from the spec
+        - Variable tables in docs/roles.md and role READMEs are generated: flag a spec change without make docs
+        - No hardcoded become: the playbook decides privilege escalation
+        - Boolean flags are tested with | bool, never as bare strings
+        - Non-idempotent steps are gated by first_install; steps that cannot run in the test VM are gated by not e2e
+        - Each role has a tag equal to its name
+        - Code, comments and docs in English only, no emoji, no em dashes
+
+    - path: "tests/e2e/**"
+      instructions: |
+        - Shell scripts use set -euo pipefail, quote every expansion and pass shellcheck
+        - The harness needs only podman, make and /dev/kvm on the host; flag any other host dependency
+        - Assertions check real behavior; flag a check that cannot fail
+        - Secrets in the test inventory are throwaway values and never real credentials
+        - Logs go to artifacts/e2e/
+
+    - path: ".github/workflows/**"
+      instructions: |
+        - Third-party actions pinned by full commit SHA with a version comment
+        - Minimal permissions at workflow and job level, persist-credentials false on checkout
+        - Untrusted values (branch names, PR titles, commit subjects) go through env, never into run scripts
+        - Job names of ci.yml and pr-policy.yml are required checks in .github/rulesets/main.json: flag a rename
+        - No secrets in logs
+
+    - path: "**/*.md"
+      instructions: |
+        - Plain English in short sentences; no emoji, no em dashes
+        - No marketing words, no filler openers or closing summaries
+        - Commands and file names are accurate against the repository
+
+  path_filters:
+    - "!**/.cache/**"
+    - "!**/artifacts/**"
+    - "!CHANGELOG.md"
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "**/CLAUDE.md"
+      - "**/AGENTS.md"
