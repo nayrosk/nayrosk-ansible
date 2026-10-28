@@ -5,7 +5,8 @@
 #   tests/e2e/run.sh          run 1 (first_install), run 2 (must be idempotent), verify, teardown
 #   tests/e2e/run.sh clean    remove the VM container and its overlay disk
 #
-# Environment: CONTROLLER_IMAGE, VM_IMAGE (built by make), KEEP=1 keeps the VM running afterwards.
+# Environment: CONTROLLER_IMAGE, VM_IMAGE (built by make), KEEP=1 keeps the VM running afterwards,
+# E2E_ZOMBIE_CHECK=1 makes verify wait five minutes and assert no zombie process (always set in CI).
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -34,7 +35,7 @@ log() {
 }
 
 controller() {
-  podman run --rm --userns=keep-id --network host -e HOME=/tmp \
+  podman run --rm --userns=keep-id --network host -e HOME=/tmp -e E2E_ZOMBIE_CHECK="${E2E_ZOMBIE_CHECK:-0}" \
     -v "$PWD:/work:Z" -w /work "$CONTROLLER_IMAGE" "$@"
 }
 

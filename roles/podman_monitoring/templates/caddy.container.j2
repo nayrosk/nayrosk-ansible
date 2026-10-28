@@ -1,0 +1,29 @@
+# Managed by Ansible (role podman_monitoring).
+[Unit]
+Description=Caddy reverse proxy
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=docker.io/library/caddy:{{ podman_monitoring_caddy_version }}-alpine
+Network=monitoring.network
+PublishPort=80:80
+PublishPort=443:443
+PublishPort=443:443/udp
+Volume=%h/.caddy/config/Caddyfile:/etc/caddy/Caddyfile:ro,Z
+Volume=%h/.caddy/certs:/certs:ro,Z
+Volume=%h/.caddy/data:/data:Z
+Volume=%h/.caddy/logs:/logs:Z
+RunInit=true
+NoNewPrivileges=true
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:8081/healthz
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthOnFailure=kill
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

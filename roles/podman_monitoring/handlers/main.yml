@@ -1,0 +1,13 @@
+---
+- name: Restart node-exporter
+  ansible.builtin.systemd_service:
+    name: node-exporter.service
+    state: restarted
+    daemon_reload: true
+
+# See tasks/main.yml: include vars are the only scoped way to outrank the ansible_become host fact.
+- name: Restart caddy
+  ansible.builtin.include_tasks: caddy_restart.yml
+  vars:
+    ansible_become: true
+    ansible_become_user: "{{ podman_monitoring_user }}"

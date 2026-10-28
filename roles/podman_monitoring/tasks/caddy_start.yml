@@ -1,0 +1,11 @@
+---
+# Included from main.yml with ansible_become and ansible_become_user set to the operator.
+- name: Start the Caddy user unit
+  ansible.builtin.systemd_service:
+    name: caddy.service
+    scope: user
+    state: started
+    daemon_reload: true
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ podman_monitoring_user_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ podman_monitoring_user_uid }}/bus"

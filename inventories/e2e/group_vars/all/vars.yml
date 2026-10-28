@@ -13,3 +13,6 @@ ansible_ssh_common_args: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/
 # choice (root with password on first install, operator with key afterwards) once it exists.
 ansible_user: root
 ansible_password: "{{ vault_root_password }}"
+
+# Caddy basic auth user; the password is e2e-password (bcrypt hash in vault_caddy_basic_auth_hash).
+podman_monitoring_caddy_basic_auth_user: e2e

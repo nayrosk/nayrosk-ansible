@@ -2,6 +2,11 @@
 - name: Verify the end-to-end host
   hosts: all
   gather_facts: false
+  vars:
+    verify_ca_path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
+    verify_caddy_password: e2e-password
+    # Set E2E_ZOMBIE_CHECK=1 (always set in CI) to wait five minutes and assert no zombie process.
+    verify_zombie_check: "{{ lookup('ansible.builtin.env', 'E2E_ZOMBIE_CHECK', default='0') == '1' }}"
   roles:
     - role: bootstrap_connection
       tags: [always, bootstrap_connection]
@@ -331,3 +336,157 @@
       loop: "{{ verify_vimrc.results }}"
       loop_control:
         label: "{{ item.item }}"
+
+    - name: Request the Caddy root without credentials from the controller
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - "https://{{ hostname }}:8443/"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_noauth
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: verify_caddy_noauth.stdout == '401'
+
+    - name: Request the node_exporter metrics through Caddy with credentials
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -w
+          - "\n%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - -u
+          - "{{ podman_monitoring_caddy_basic_auth_user }}:{{ verify_caddy_password }}"
+          - "https://{{ hostname }}:8443/node_exporter"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_metrics
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: verify_caddy_metrics.stdout_lines[-1] | default('') == '200'
+
+    - name: Check the metrics body holds the systemd collector output
+      ansible.builtin.assert:
+        that: "'node_systemd_unit_state' in verify_caddy_metrics.stdout"
+        quiet: true
+
+    - name: Request plain HTTP from the controller
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code} %{redirect_url}"
+          - http://127.0.0.1:8080/x
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_http
+      changed_when: false
+
+    - name: Check plain HTTP redirects to HTTPS with 308
+      ansible.builtin.assert:
+        that: verify_caddy_http.stdout is match('308 https://')
+        quiet: true
+
+    - name: Read the HTTPS response headers
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -D
+          - "-"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - "https://{{ hostname }}:8443/"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_headers
+      changed_when: false
+
+    - name: Check Caddy advertises HTTP/3
+      ansible.builtin.assert:
+        that: verify_caddy_headers.stdout is search('(?im)^alt-svc:.*h3')
+        quiet: true
+
+    - name: Read the node_exporter container health
+      ansible.builtin.command: podman inspect --format {{ '{{.State.Health.Status}}' }} systemd-node-exporter
+      register: verify_node_exporter_health
+      changed_when: false
+      retries: 20
+      delay: 5
+      until: verify_node_exporter_health.stdout | default('') | trim == 'healthy'
+
+    - name: Read the Caddy container health as the operator
+      ansible.builtin.command: podman inspect --format {{ '{{.State.Health.Status}}' }} systemd-caddy
+      become: true
+      become_user: operator
+      environment:
+        XDG_RUNTIME_DIR: /run/user/10000
+      register: verify_caddy_health
+      changed_when: false
+      retries: 20
+      delay: 5
+      until: verify_caddy_health.stdout | default('') | trim == 'healthy'
+
+    - name: List the listening TCP sockets
+      ansible.builtin.command: ss -Hltn
+      register: verify_ss
+      changed_when: false
+
+    - name: Check node_exporter listens on loopback only
+      ansible.builtin.assert:
+        that:
+          - verify_ss.stdout is search('127\.0\.0\.1:9100\s')
+          - verify_ss.stdout is not search('0\.0\.0\.0:9100\s')
+          - verify_ss.stdout is not search('\*:9100\s')
+        quiet: true
+
+    - name: Stat the Caddy access log
+      ansible.builtin.stat:
+        path: /home/operator/.caddy/logs/access.log
+      register: verify_caddy_access_log
+
+    - name: Check the Caddy access log exists
+      ansible.builtin.assert:
+        that: verify_caddy_access_log.stat.exists
+        quiet: true
+
+    - name: Wait five minutes for healthchecks to run before the zombie check
+      ansible.builtin.pause:
+        minutes: 5
+      when: verify_zombie_check | bool
+
+    - name: List the process states
+      ansible.builtin.command: ps -eo stat=
+      register: verify_ps
+      changed_when: false
+      when: verify_zombie_check | bool
+
+    - name: Check no process is a zombie
+      ansible.builtin.assert:
+        that: verify_ps.stdout_lines | select('match', '^Z') | list | length == 0
+        fail_msg: "{{ verify_ps.stdout_lines | select('match', '^Z') | list | length }} zombie processes"
+        quiet: true
+      when: verify_zombie_check | bool

@@ -25,3 +25,5 @@
       tags: [operator_user]
     - role: user_customization
       tags: [user_customization]
+    - role: podman_monitoring
+      tags: [podman_monitoring]
