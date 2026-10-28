@@ -20,9 +20,12 @@
   ansible.builtin.set_fact:
     bootstrap_connection_mode: "{{ 'root' if bootstrap_connection_probe.unreachable | default(false) else 'operator' }}"
 
+# The inventory may set ansible_password for the root fallback: clear it so the operator connection is
+# key-only (no sshpass wrapper) and privilege escalation uses the passwordless sudo rule.
 - name: Use operator with become
   ansible.builtin.set_fact:
     ansible_user: "{{ bootstrap_connection_operator }}"
+    ansible_password: ""
     ansible_become: true
   when: bootstrap_connection_mode == 'operator'
 
