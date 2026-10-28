@@ -556,8 +556,8 @@
 
     # Caddy must see the client address (pasta), not a container address (rootlessport on a bridge). Only
     # the unknown path request made above is checked, so older log lines do not matter. The address seen in
-    # e2e is the controller host's own address: the rootless port forward of the VM container and qemu user
-    # networking both keep non-loopback sources.
+    # e2e is the qemu user networking gateway: the VM container shares the host network and qemu forwards
+    # the host loopback ports into the VM.
     - name: Check the access log records client addresses, not container addresses
       vars:
         verify_remote_ips: >-

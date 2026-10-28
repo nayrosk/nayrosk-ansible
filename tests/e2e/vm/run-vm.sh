@@ -4,6 +4,7 @@
 #   /e2e    read-only, tests/e2e (cloud-init seed files)
 #   /vm     writable, receives the qcow2 overlay and the seed ISO
 # The overlay keeps the cached image pristine; a fresh overlay is created on every boot.
+# The container shares the host network, so the forwarded ports are bound to the host loopback only.
 set -eu
 
 : "${CLOUD_IMAGE:?CLOUD_IMAGE is required}"
@@ -22,5 +23,5 @@ rm -rf "$seed"
 
 exec qemu-system-x86_64 -enable-kvm -cpu host -smp 2 -m 4096 -nographic \
   -drive file=/vm/disk.qcow2,if=virtio -drive file=/vm/seed.iso,if=virtio,media=cdrom \
-  -netdev user,id=n0,hostfwd=tcp::2222-:22,hostfwd=tcp::8080-:80,hostfwd=tcp::8443-:443,hostfwd=udp::8443-:443 \
+  -netdev user,id=n0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:8080-:80,hostfwd=tcp:127.0.0.1:8443-:443,hostfwd=udp:127.0.0.1:8443-:443 \
   -device virtio-net-pci,netdev=n0

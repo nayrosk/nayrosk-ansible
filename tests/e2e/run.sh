@@ -99,9 +99,10 @@ start_vm() {
   clean
   mkdir -p "$VM_DIR"
   # keep-id: the VM must write its overlay into a host directory owned by the invoking user.
-  podman run -d --name "$VM_NAME" --userns=keep-id --device /dev/kvm \
-    -p 127.0.0.1:2222:2222 -p 127.0.0.1:8080:8080 \
-    -p 127.0.0.1:8443:8443/tcp -p 127.0.0.1:8443:8443/udp \
+  # Host network: qemu's user-mode hostfwd listens on the host loopback directly (see run-vm.sh).
+  # Published ports (-p) are not used: with podman 4.9 (slirp4netns + rootlessport, GitHub runners)
+  # rootlessport accepts the connection but never relays the qemu hostfwd traffic.
+  podman run -d --name "$VM_NAME" --userns=keep-id --device /dev/kvm --network host \
     -e CLOUD_IMAGE="$CLOUD_IMAGE" -e CLOUD_IMAGE_SHA256="$CLOUD_IMAGE_SHA256" \
     -v "$PWD/$IMAGE_DIR:/cache:ro,z" -v "$PWD/tests/e2e:/e2e:ro,z" -v "$PWD/$VM_DIR:/vm:z" \
     "$VM_IMAGE" sh /e2e/vm/run-vm.sh >/dev/null

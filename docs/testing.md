@@ -23,6 +23,11 @@ With `KEEP=1` the VM stays reachable at `ssh -p 2222 root@127.0.0.1` (and, once 
 the operator with the key in `inventories/e2e/.ssh/`). Ports 8080 and 8443 forward to HTTP and HTTPS on the
 VM.
 
+The VM container shares the host network (`--network host`) and qemu binds its forwarded ports to
+`127.0.0.1` on the host. Podman published ports are not used: with podman 4.9 (slirp4netns and
+rootlessport, as on GitHub `ubuntu-latest` runners) rootlessport accepts connections but never relays them
+to the qemu forward, so SSH never answers. Ports 2222, 8080 and 8443 must be free on the host loopback.
+
 A full run takes about 5 minutes once the images and the cloud image are cached. The first run takes longer.
 
 ## What happens
