@@ -1,0 +1,22 @@
+---
+argument_specs:
+  main:
+    short_description: Choose how Ansible connects to the host, operator key or root password.
+    description:
+      - Probes an SSH key login as the operator account. When it works, the play continues as the
+        operator with privilege escalation. Otherwise it falls back to root with the vault password.
+      - Sets the fact C(bootstrap_connection_mode) to V(operator) or V(root).
+    options:
+      bootstrap_connection_operator:
+        type: str
+        default: "{{ operator_user_name | default('operator') }}"
+        description: Account probed with the SSH key. Follows C(operator_user_name) when it is set.
+      bootstrap_connection_probe_timeout:
+        type: int
+        default: 10
+        description: Seconds before the operator probe gives up.
+      vault_root_password:
+        type: str
+        required: false
+        no_log: true
+        description: Root password used by the fallback. Required only when the operator probe fails.

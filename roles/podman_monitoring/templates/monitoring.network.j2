@@ -1,0 +1,8 @@
+# Managed by Ansible (role podman_monitoring).
+# Network for future rootless services. Caddy rejoins it once Podman >= 6 offers
+# rootless_port_forwarder = "pasta", which keeps client source addresses on bridge networks.
+[Network]
+NetworkName=monitoring
+
+[Install]
+WantedBy=default.target

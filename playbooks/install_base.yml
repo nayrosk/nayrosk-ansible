@@ -1,0 +1,35 @@
+---
+- name: Install base configuration on Ubuntu hosts
+  hosts: all
+  gather_facts: false
+  roles:
+    - role: bootstrap_connection
+      tags: [always, bootstrap_connection]
+    - role: hostname
+      tags: [hostname]
+    - role: local_ca
+      tags: [local_ca]
+    - role: ubuntu_pro
+      tags: [ubuntu_pro]
+    - role: dns
+      tags: [dns]
+    - role: system
+      tags: [system]
+    - role: base_packages
+      tags: [base_packages]
+    - role: unattended_upgrades
+      tags: [unattended_upgrades]
+    - role: firmware
+      tags: [firmware]
+    - role: operator_user
+      tags: [operator_user]
+    - role: user_customization
+      tags: [user_customization]
+    - role: podman_monitoring
+      tags: [podman_monitoring]
+    - role: ssh_hardening
+      tags: [ssh_hardening]
+    - role: firewall
+      tags: [firewall]
+    - role: fail2ban
+      tags: [fail2ban]

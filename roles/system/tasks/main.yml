@@ -1,0 +1,116 @@
+---
+- name: Apply the sysctl settings
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/60-install-base.conf
+    sysctl_set: true
+    reload: true
+    state: present
+  loop: "{{ (system_sysctl | combine(system_sysctl_extra)) | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Set the time zone to UTC
+  community.general.timezone:
+    name: Etc/UTC
+
+- name: Install chrony
+  ansible.builtin.apt:
+    name: chrony
+    state: present
+    lock_timeout: 600
+
+- name: Start and enable chrony
+  ansible.builtin.systemd:
+    name: chrony
+    state: started
+    enabled: true
+
+- name: Wait for chrony to be synchronised
+  ansible.builtin.command: chronyc tracking
+  register: system_chrony
+  changed_when: false
+  retries: 12
+  delay: 10
+  until: system_chrony.stdout is search('Leap status\s*:\s*Normal')
+
+- name: Create the journald drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the journald drop-in
+  ansible.builtin.template:
+    src: journald.conf.j2
+    dest: /etc/systemd/journald.conf.d/10-install-base.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart systemd-journald
+
+- name: Use the configured APT mirror
+  ansible.builtin.set_fact:
+    system_apt_mirror: "{{ (system_apt_mirror_url | trim | regex_replace('/+$', '')) ~ '/' }}"
+  when: system_apt_mirror_url | length > 0
+
+# Measuring is not repeatable (the fastest mirror changes over time), so it only runs on the first install.
+- name: Measure the APT mirrors
+  ansible.builtin.include_tasks: apt_mirror.yml
+  when:
+    - system_apt_mirror_url | length == 0
+    - first_install | default(false) | bool
+    - not (e2e | default(false) | bool)
+
+- name: Read the current APT sources
+  ansible.builtin.slurp:
+    src: /etc/apt/sources.list.d/ubuntu.sources
+  register: system_apt_sources_current
+  failed_when: false
+  when: system_apt_mirror is not defined
+
+# Later runs keep the mirror of the stanza that serves the release itself (not -security), so the file does
+# not change between runs. Without such a stanza the default mirror is used.
+- name: Keep the current APT mirror or use the default
+  ansible.builtin.set_fact:
+    system_apt_mirror: >-
+      {%- set ns = namespace(uri='') -%}
+      {%- set content = (system_apt_sources_current.content | default('') | b64decode) -%}
+      {%- for stanza in content | regex_replace('\n[ \t]*\n', '\n\n') | split('\n\n') if ns.uri == '' -%}
+      {%- set suites = stanza | regex_search('(?m)^Suites:(.*)$', '\\1') -%}
+      {%- set uris = stanza | regex_search('(?m)^URIs:\\s*(\\S+)', '\\1') -%}
+      {%- if suites and uris and ansible_facts.distribution_release in suites[0].split() -%}
+      {%- set ns.uri = uris[0] -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ ((ns.uri if ns.uri | length > 0 else system_apt_mirror_default) | trim | regex_replace('/+$', '')) ~ '/' }}
+  when: system_apt_mirror is not defined
+
+- name: Install the APT sources
+  ansible.builtin.template:
+    src: ubuntu.sources.j2
+    dest: /etc/apt/sources.list.d/ubuntu.sources
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Update the APT cache
+
+- name: Stat the cloud-init configuration directory
+  ansible.builtin.stat:
+    path: /etc/cloud
+  register: system_cloud_dir
+
+- name: Keep cloud-init from rewriting the APT sources
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible (role system).
+      apt:
+        preserve_sources_list: true
+    dest: /etc/cloud/cloud.cfg.d/99-install-base-apt.cfg
+    owner: root
+    group: root
+    mode: "0644"
+  when: system_cloud_dir.stat.exists

@@ -1,0 +1,14 @@
+---
+# Included from main.yml with ansible_become and ansible_become_user set to the operator.
+- name: Start the monitoring network and Caddy user units
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    scope: user
+    state: started
+    daemon_reload: true
+  loop:
+    - monitoring-network.service
+    - caddy.service
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ podman_monitoring_user_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ podman_monitoring_user_uid }}/bus"

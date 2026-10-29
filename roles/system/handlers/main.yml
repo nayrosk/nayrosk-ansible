@@ -1,0 +1,10 @@
+---
+- name: Restart systemd-journald
+  ansible.builtin.systemd:
+    name: systemd-journald
+    state: restarted
+
+- name: Update the APT cache
+  ansible.builtin.apt:
+    update_cache: true
+    lock_timeout: 600

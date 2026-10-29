@@ -1,0 +1,781 @@
+---
+- name: Verify the end-to-end host
+  hosts: all
+  gather_facts: false
+  vars:
+    verify_ca_path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
+    verify_caddy_password: e2e-password
+    # Set E2E_ZOMBIE_CHECK=1 (always set in CI) to wait five minutes and assert no zombie process.
+    verify_zombie_check: "{{ lookup('ansible.builtin.env', 'E2E_ZOMBIE_CHECK', default='0') == '1' }}"
+  roles:
+    - role: bootstrap_connection
+      tags: [always, bootstrap_connection]
+  tasks:
+    - name: Check the host answers an Ansible ping
+      ansible.builtin.ping:
+
+    - name: Read the hostname
+      ansible.builtin.command: hostname
+      register: verify_hostname
+      changed_when: false
+
+    - name: Check the hostname matches the inventory
+      ansible.builtin.assert:
+        that: verify_hostname.stdout == hostname
+        quiet: true
+
+    - name: Read /etc/hosts
+      ansible.builtin.slurp:
+        src: /etc/hosts
+      register: verify_etc_hosts
+
+    - name: Check /etc/hosts maps 127.0.1.1 to the hostname exactly once
+      ansible.builtin.assert:
+        that:
+          - >-
+            (verify_etc_hosts.content | b64decode).splitlines()
+            | select('match', '^127\\.0\\.1\\.1\\s') | list == ['127.0.1.1 ' ~ hostname]
+        quiet: true
+
+    - name: Verify the server certificate against the local CA
+      ansible.builtin.command: openssl verify -CAfile /etc/ssl/local-ca/ca.crt /etc/ssl/local-ca/server.crt
+      register: verify_openssl
+      changed_when: false
+
+    - name: Check openssl accepted the server certificate
+      ansible.builtin.assert:
+        that: "'OK' in verify_openssl.stdout"
+        quiet: true
+
+    - name: Read the server certificate SANs
+      ansible.builtin.command: openssl x509 -noout -ext subjectAltName -in /etc/ssl/local-ca/server.crt
+      register: verify_san
+      changed_when: false
+
+    - name: Check the SANs hold the hostname and the local IP
+      ansible.builtin.assert:
+        that:
+          - "'DNS:' ~ hostname in verify_san.stdout"
+          - "'IP Address:' ~ ansible_facts.default_ipv4.address in verify_san.stdout"
+        quiet: true
+
+    - name: Stat the installed CA certificate
+      ansible.builtin.stat:
+        path: /usr/local/share/ca-certificates/local-ca.crt
+      register: verify_ca_installed
+
+    - name: Check the CA certificate is installed in the system store source
+      ansible.builtin.assert:
+        that: verify_ca_installed.stat.exists
+        quiet: true
+
+    - name: Stat the CA certificate fetched to the controller
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
+      delegate_to: localhost
+      become: false
+      register: verify_ca_fetched
+
+    - name: Check the CA certificate reached the controller
+      ansible.builtin.assert:
+        that: verify_ca_fetched.stat.exists
+        quiet: true
+
+    - name: Read the Ubuntu Pro status
+      ansible.builtin.command: pro status --format json
+      register: verify_pro_status
+      changed_when: false
+
+    - name: Check the machine is not attached to Ubuntu Pro (the e2e vault token is empty)
+      ansible.builtin.assert:
+        that: not (verify_pro_status.stdout | from_json).attached
+        quiet: true
+
+    - name: Read the run 1 log from the controller
+      ansible.builtin.slurp:
+        src: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/run1.log"
+      delegate_to: localhost
+      become: false
+      register: verify_run1_log
+
+    - name: Check the Ubuntu Pro attach task was skipped in run 1
+      ansible.builtin.assert:
+        that:
+          - >-
+            (verify_run1_log.content | b64decode)
+            is search('TASK \[ubuntu_pro : Attach Ubuntu Pro\][^\n]*\nskipping: \[' ~ inventory_hostname ~ '\]')
+        quiet: true
+
+    - name: Stat the DNS drop-in
+      ansible.builtin.stat:
+        path: /etc/systemd/resolved.conf.d/10-dns.conf
+      register: verify_dns_dropin
+
+    - name: Check the DNS drop-in exists
+      ansible.builtin.assert:
+        that: verify_dns_dropin.stat.exists
+        quiet: true
+
+    - name: Read the resolver status
+      ansible.builtin.command: resolvectl status
+      register: verify_resolvectl
+      changed_when: false
+
+    - name: Check DNS over TLS is active with the pinned Cloudflare servers
+      ansible.builtin.assert:
+        that:
+          - "'+DNSOverTLS' in verify_resolvectl.stdout"
+          - "'1.1.1.1#cloudflare-dns.com' in verify_resolvectl.stdout"
+        quiet: true
+
+    - name: Resolve a name through the system resolver
+      ansible.builtin.command: getent hosts ubuntu.com
+      register: verify_getent
+      changed_when: false
+      retries: 5
+      delay: 3
+      until: verify_getent.rc == 0
+
+    - name: Read the unprivileged port start sysctl
+      ansible.builtin.command: sysctl -n net.ipv4.ip_unprivileged_port_start
+      register: verify_port_start
+      changed_when: false
+
+    - name: Read the kernel pointer restriction sysctl
+      ansible.builtin.command: sysctl -n kernel.kptr_restrict
+      register: verify_kptr
+      changed_when: false
+
+    - name: Check the sysctl values are applied
+      ansible.builtin.assert:
+        that:
+          - verify_port_start.stdout | trim == '80'
+          - verify_kptr.stdout | trim == '2'
+        quiet: true
+
+    - name: Read the time zone
+      ansible.builtin.command: timedatectl show -p Timezone --value
+      register: verify_timezone
+      changed_when: false
+
+    - name: Check the time zone is UTC
+      ansible.builtin.assert:
+        that: verify_timezone.stdout | trim == 'Etc/UTC'
+        quiet: true
+
+    - name: Read the chrony tracking status
+      ansible.builtin.command: chronyc tracking
+      register: verify_chrony
+      changed_when: false
+
+    - name: Check chrony is synchronised
+      ansible.builtin.assert:
+        that: verify_chrony.stdout is search('Leap status\s*:\s*Normal')
+        quiet: true
+
+    - name: Read the journald drop-in
+      ansible.builtin.slurp:
+        src: /etc/systemd/journald.conf.d/10-install-base.conf
+      register: verify_journald
+
+    - name: Check journald storage is persistent
+      ansible.builtin.assert:
+        that: "'Storage=persistent' in (verify_journald.content | b64decode)"
+        quiet: true
+
+    - name: Read the APT sources
+      ansible.builtin.slurp:
+        src: /etc/apt/sources.list.d/ubuntu.sources
+      register: verify_apt_sources
+
+    - name: Check the APT sources hold the default mirror and the security origin
+      ansible.builtin.assert:
+        that:
+          - "'http://archive.ubuntu.com/ubuntu/' in (verify_apt_sources.content | b64decode)"
+          - "'security.ubuntu.com' in (verify_apt_sources.content | b64decode)"
+        quiet: true
+
+    - name: Query the base packages
+      ansible.builtin.command: dpkg-query -W -f '${Package} ${db:Status-Status}\n' {{ item }}
+      register: verify_dpkg
+      changed_when: false
+      loop:
+        - ca-certificates
+        - tree
+        - vim
+        - curl
+        - fwupd
+        - ufw
+        - fail2ban
+        - podman
+        - unattended-upgrades
+
+    - name: Check every base package is installed
+      ansible.builtin.assert:
+        that: item.stdout | trim == item.item ~ ' installed'
+        quiet: true
+      loop: "{{ verify_dpkg.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read the unattended-upgrades drop-in
+      ansible.builtin.slurp:
+        src: /etc/apt/apt.conf.d/52install-base
+      register: verify_unattended
+
+    - name: Check the unattended-upgrades drop-in content
+      ansible.builtin.assert:
+        that:
+          - "'Automatic-Reboot \"false\"' in (verify_unattended.content | b64decode)"
+          - "'${distro_id}:${distro_codename}-security' in (verify_unattended.content | b64decode)"
+          - "'Remove-Unused-Dependencies \"true\"' in (verify_unattended.content | b64decode)"
+        quiet: true
+
+    - name: Check the apt-daily-upgrade timer is enabled
+      ansible.builtin.systemd:
+        name: apt-daily-upgrade.timer
+      register: verify_timer
+
+    - name: Check the timer state
+      ansible.builtin.assert:
+        that: verify_timer.status.UnitFileState == 'enabled'
+        quiet: true
+
+    - name: Check the firmware role was skipped in run 1 (e2e)
+      ansible.builtin.assert:
+        that:
+          - >-
+            (verify_run1_log.content | b64decode)
+            is search('TASK \[firmware : Refresh firmware metadata\][^\n]*\nskipping: \[' ~ inventory_hostname ~ '\]')
+        quiet: true
+
+    - name: Dump the effective unattended-upgrades allowed origins
+      ansible.builtin.command: apt-config dump Unattended-Upgrade::Allowed-Origins
+      register: verify_origins
+      changed_when: false
+
+    - name: Dump the effective unattended-upgrades origin patterns
+      ansible.builtin.command: apt-config dump Unattended-Upgrade::Origins-Pattern
+      register: verify_origins_pattern
+      changed_when: false
+
+    - name: Check only the three security origins remain
+      ansible.builtin.assert:
+        that:
+          - verify_origins.stdout_lines | select('search', 'Allowed-Origins::') | list | length == 3
+          - verify_origins.stdout is search('-security";')
+          - verify_origins.stdout is search('ESMApps:')
+          - verify_origins.stdout is search('ESM:')
+          - verify_origins.stdout is not search('-updates')
+          - verify_origins_pattern.stdout | trim == ''
+        quiet: true
+
+    - name: Read the operator uid
+      ansible.builtin.command: id -u operator
+      register: verify_operator_uid
+      changed_when: false
+
+    - name: Read the operator gid
+      ansible.builtin.command: id -g operator
+      register: verify_operator_gid
+      changed_when: false
+
+    - name: Read the operator home
+      ansible.builtin.command: getent passwd operator
+      register: verify_operator_passwd
+      changed_when: false
+
+    - name: Check the operator account
+      ansible.builtin.assert:
+        that:
+          - verify_operator_uid.stdout | trim == '10000'
+          - verify_operator_gid.stdout | trim == '10000'
+          - verify_operator_passwd.stdout.split(':')[5] == '/home/operator'
+        quiet: true
+
+    - name: Stat the operator sudoers drop-in
+      ansible.builtin.stat:
+        path: /etc/sudoers.d/90-operator
+      register: verify_operator_sudoers
+
+    - name: Check the sudoers drop-in mode
+      ansible.builtin.assert:
+        that:
+          - verify_operator_sudoers.stat.exists
+          - verify_operator_sudoers.stat.mode == '0440'
+        quiet: true
+
+    - name: Check the operator has passwordless sudo
+      ansible.builtin.command: sudo -n -u operator sudo -n true
+      changed_when: false
+
+    - name: Read the operator linger state
+      ansible.builtin.command: loginctl show-user operator -p Linger
+      register: verify_operator_linger
+      changed_when: false
+
+    - name: Check lingering is enabled
+      ansible.builtin.assert:
+        that: verify_operator_linger.stdout | trim == 'Linger=yes'
+        quiet: true
+
+    - name: Read the vimrc files
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      register: verify_vimrc
+      loop:
+        - /root/.vimrc
+        - /home/operator/.vimrc
+
+    - name: Check the vimrc files hold the default content
+      ansible.builtin.assert:
+        that:
+          - "'syntax on' in (item.content | b64decode)"
+          - "'set shiftwidth=2' in (item.content | b64decode)"
+        quiet: true
+      loop: "{{ verify_vimrc.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Request the Caddy root without credentials from the controller
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - "https://{{ hostname }}:8443/"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_noauth
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: verify_caddy_noauth.stdout == '401'
+
+    - name: Request the node_exporter metrics through Caddy with credentials
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -w
+          - "\n%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - -u
+          - "{{ podman_monitoring_caddy_basic_auth_user }}:{{ verify_caddy_password }}"
+          - "https://{{ hostname }}:8443/node_exporter"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_metrics
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: verify_caddy_metrics.stdout_lines[-1] | default('') == '200'
+
+    - name: Check the metrics body holds the systemd collector output
+      ansible.builtin.assert:
+        that: "'node_systemd_unit_state' in verify_caddy_metrics.stdout"
+        quiet: true
+
+    - name: Request an unknown path through Caddy with credentials
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - -u
+          - "{{ podman_monitoring_caddy_basic_auth_user }}:{{ verify_caddy_password }}"
+          - "https://{{ hostname }}:8443/verify-unknown-path"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_unknown
+      changed_when: false
+
+    - name: Check an unknown path returns 404
+      ansible.builtin.assert:
+        that: verify_caddy_unknown.stdout == '404'
+        quiet: true
+
+    # Two 401 answers for the caddy-auth filter checks below: one request without credentials (the basic auth
+    # challenge every browser gets first, must not count) and one with a wrong password (must count). One
+    # wrong password stays under fail2ban_maxretry, so the controller is not banned.
+    - name: Request a marked path through Caddy without credentials
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - "https://{{ hostname }}:8443/verify-no-credentials"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_nocreds
+      changed_when: false
+
+    - name: Request a marked path through Caddy with a wrong password
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - -u
+          - "{{ podman_monitoring_caddy_basic_auth_user }}:not-the-password"
+          - "https://{{ hostname }}:8443/verify-wrong-password"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_badcreds
+      changed_when: false
+
+    - name: Check both marked requests were refused with 401
+      ansible.builtin.assert:
+        that:
+          - verify_caddy_nocreds.stdout == '401'
+          - verify_caddy_badcreds.stdout == '401'
+        quiet: true
+
+    - name: Request plain HTTP from the controller
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code} %{redirect_url}"
+          - http://127.0.0.1:8080/x
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_http
+      changed_when: false
+
+    - name: Check plain HTTP redirects to HTTPS with 308
+      ansible.builtin.assert:
+        that: verify_caddy_http.stdout is match('308 https://')
+        quiet: true
+
+    - name: Read the HTTPS response headers
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -o
+          - /dev/null
+          - -D
+          - "-"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - "https://{{ hostname }}:8443/"
+      delegate_to: localhost
+      become: false
+      register: verify_caddy_headers
+      changed_when: false
+
+    - name: Check Caddy advertises HTTP/3
+      ansible.builtin.assert:
+        that: verify_caddy_headers.stdout is search('(?im)^alt-svc:.*h3')
+        quiet: true
+
+    - name: Read the node_exporter container health
+      ansible.builtin.command: podman inspect --format {{ '{{.State.Health.Status}}' }} systemd-node-exporter
+      register: verify_node_exporter_health
+      changed_when: false
+      retries: 20
+      delay: 5
+      until: verify_node_exporter_health.stdout | default('') | trim == 'healthy'
+
+    - name: Read the Caddy container health as the operator
+      ansible.builtin.command: podman inspect --format {{ '{{.State.Health.Status}}' }} systemd-caddy
+      become: true
+      become_user: operator
+      environment:
+        XDG_RUNTIME_DIR: /run/user/10000
+      register: verify_caddy_health
+      changed_when: false
+      retries: 20
+      delay: 5
+      until: verify_caddy_health.stdout | default('') | trim == 'healthy'
+
+    - name: List the listening TCP sockets
+      ansible.builtin.command: ss -Hltn
+      register: verify_ss
+      changed_when: false
+
+    - name: Check node_exporter listens on loopback only
+      ansible.builtin.assert:
+        that:
+          - verify_ss.stdout is search('127\.0\.0\.1:9100\s')
+          - verify_ss.stdout is not search('0\.0\.0\.0:9100\s')
+          - verify_ss.stdout is not search('\*:9100\s')
+        quiet: true
+
+    - name: Stat the Caddy access log
+      ansible.builtin.stat:
+        path: /home/operator/.caddy/logs/access.log
+      register: verify_caddy_access_log
+
+    - name: Check the Caddy access log exists
+      ansible.builtin.assert:
+        that: verify_caddy_access_log.stat.exists
+        quiet: true
+
+    - name: Read the Caddy access log
+      ansible.builtin.slurp:
+        src: /home/operator/.caddy/logs/access.log
+      register: verify_caddy_access_log_content
+
+    # Caddy must see the client address (pasta), not a container address (rootlessport on a bridge). Only
+    # the unknown path request made above is checked, so older log lines do not matter. The address seen in
+    # e2e is the qemu user networking gateway: the VM container shares the host network and qemu forwards
+    # the host loopback ports into the VM.
+    - name: Check the access log records client addresses, not container addresses
+      vars:
+        verify_remote_ips: >-
+          {{ (verify_caddy_access_log_content.content | b64decode).splitlines()
+             | map('from_json') | map(attribute='request')
+             | selectattr('uri', 'equalto', '/verify-unknown-path')
+             | map(attribute='remote_ip') | unique | list }}
+      ansible.builtin.assert:
+        that:
+          - verify_remote_ips | length > 0
+          - verify_remote_ips | select('match', '^10\\.8[89]\\.') | list | length == 0
+        fail_msg: "remote_ip values in the access log: {{ verify_remote_ips }}"
+        success_msg: "remote_ip values in the access log: {{ verify_remote_ips }}"
+
+    - name: Wait five minutes for healthchecks to run before the zombie check
+      ansible.builtin.pause:
+        minutes: 5
+      when: verify_zombie_check | bool
+
+    - name: List the process states
+      ansible.builtin.command: ps -eo stat=
+      register: verify_ps
+      changed_when: false
+      when: verify_zombie_check | bool
+
+    - name: Check no process is a zombie
+      ansible.builtin.assert:
+        that: verify_ps.stdout_lines | select('match', '^Z') | list | length == 0
+        fail_msg: "{{ verify_ps.stdout_lines | select('match', '^Z') | list | length }} zombie processes"
+        quiet: true
+      when: verify_zombie_check | bool
+
+    - name: Attempt a root login with the password from the controller
+      ansible.builtin.command:
+        argv:
+          - sshpass
+          - -e
+          - ssh
+          - -p
+          - "{{ ansible_port }}"
+          - -o
+          - PubkeyAuthentication=no
+          - -o
+          - ConnectTimeout=10
+          - -o
+          - StrictHostKeyChecking=no
+          - -o
+          - UserKnownHostsFile=/dev/null
+          - -o
+          - LogLevel=ERROR
+          - "root@{{ ansible_host }}"
+          - "true"
+      environment:
+        SSHPASS: "{{ vault_root_password }}"
+      delegate_to: localhost
+      become: false
+      no_log: true
+      register: verify_root_password_login
+      changed_when: false
+      failed_when: false
+
+    - name: Check the root password login is refused
+      ansible.builtin.assert:
+        that: verify_root_password_login.rc != 0
+        fail_msg: "root can still log in with a password"
+        quiet: true
+
+    - name: Attempt a root login with the operator key from the controller
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - -i
+          - "{{ ansible_ssh_private_key_file }}"
+          - -p
+          - "{{ ansible_port }}"
+          - -o
+          - BatchMode=yes
+          - -o
+          - ConnectTimeout=10
+          - -o
+          - StrictHostKeyChecking=no
+          - -o
+          - UserKnownHostsFile=/dev/null
+          - -o
+          - LogLevel=ERROR
+          - "root@{{ ansible_host }}"
+          - "true"
+      delegate_to: localhost
+      become: false
+      register: verify_root_key_login
+      changed_when: false
+      failed_when: false
+
+    - name: Check the root key login is refused
+      ansible.builtin.assert:
+        that: verify_root_key_login.rc != 0
+        fail_msg: "root can still log in with a key"
+        quiet: true
+
+    - name: Dump the effective sshd configuration
+      ansible.builtin.command: /usr/sbin/sshd -T
+      register: verify_sshd
+      changed_when: false
+
+    - name: Check the effective sshd configuration is hardened
+      ansible.builtin.assert:
+        that:
+          - verify_sshd.stdout_lines is contains('permitrootlogin no')
+          - verify_sshd.stdout_lines is contains('passwordauthentication no')
+          - verify_sshd.stdout_lines is contains('kbdinteractiveauthentication no')
+          - verify_sshd.stdout_lines is contains('pubkeyauthentication yes')
+          - verify_sshd.stdout_lines is contains('allowusers operator')
+          - verify_sshd.stdout_lines is contains('allowagentforwarding yes')
+          - verify_sshd.stdout_lines is contains('x11forwarding no')
+          - verify_sshd.stdout_lines is contains('maxauthtries 3')
+        quiet: true
+
+    - name: Read the firewall status
+      ansible.builtin.command: ufw status verbose
+      register: verify_ufw
+      changed_when: false
+
+    - name: Check the firewall is active with the expected defaults and commented rules
+      ansible.builtin.assert:
+        that:
+          - "verify_ufw.stdout is search('Status: active')"
+          - "verify_ufw.stdout is search('Default: deny \\(incoming\\), allow \\(outgoing\\)')"
+          - verify_ufw.stdout is search('# OpenSSH')
+          - verify_ufw.stdout is search('# Caddy HTTP\s*$', multiline=True)
+          - verify_ufw.stdout is search('# Caddy HTTPS')
+          - verify_ufw.stdout is search('# Caddy HTTP/3')
+        fail_msg: "{{ verify_ufw.stdout }}"
+        quiet: true
+
+    - name: Read the fail2ban status
+      ansible.builtin.command: fail2ban-client status
+      register: verify_f2b_status
+      changed_when: false
+
+    - name: Check fail2ban runs the sshd and caddy-auth jails
+      ansible.builtin.assert:
+        that:
+          - verify_f2b_status.stdout is search('Jail list:.*\\bsshd\\b')
+          - verify_f2b_status.stdout is search('Jail list:.*\\bcaddy-auth\\b')
+        fail_msg: "{{ verify_f2b_status.stdout }}"
+        quiet: true
+
+    - name: Read the sshd jail settings
+      ansible.builtin.command: "fail2ban-client get sshd {{ item }}"
+      register: verify_f2b_sshd
+      changed_when: false
+      loop:
+        - maxretry
+        - ignoreip
+        - actions
+
+    - name: Check the sshd jail settings
+      ansible.builtin.assert:
+        that:
+          - verify_f2b_sshd.results[0].stdout | trim == '3'
+          - verify_f2b_sshd.results[1].stdout is search('10\.0\.2\.0/24')
+          - verify_f2b_sshd.results[2].stdout is search('ufw')
+        fail_msg: "{{ verify_f2b_sshd.results | map(attribute='stdout') | list }}"
+        quiet: true
+
+    - name: Check the sshd jail ignores the private e2e network and link-local addresses
+      ansible.builtin.assert:
+        that:
+          - verify_f2b_sshd.results[1].stdout is search('10\.0\.2\.0/24')
+          - verify_f2b_sshd.results[1].stdout is search('fe80::/10')
+        fail_msg: "{{ verify_f2b_sshd.results[1].stdout }}"
+        quiet: true
+
+    - name: Read the Caddy access log for the filter checks
+      ansible.builtin.slurp:
+        src: /home/operator/.caddy/logs/access.log
+      register: verify_caddy_log_f2b
+
+    - name: Pick the log lines of the marked requests
+      vars:
+        verify_log_lines: "{{ (verify_caddy_log_f2b.content | b64decode).splitlines() }}"
+      ansible.builtin.set_fact:
+        verify_line_nocreds: >-
+          {{ verify_log_lines | select('search', '"uri":"/verify-no-credentials"') | list | last }}
+        verify_line_badcreds: >-
+          {{ verify_log_lines | select('search', '"uri":"/verify-wrong-password"') | list | last }}
+        verify_badcreds_count: >-
+          {{ verify_log_lines | select('search', '"uri":"/verify-wrong-password"') | list | length }}
+
+    - name: Run the caddy-auth filter against the credential-less 401 line
+      ansible.builtin.command:
+        argv: [fail2ban-regex, "{{ verify_line_nocreds }}", /etc/fail2ban/filter.d/caddy-auth.conf]
+      register: verify_f2b_regex_nocreds
+      changed_when: false
+
+    - name: Run the caddy-auth filter against the wrong-password 401 line
+      ansible.builtin.command:
+        argv: [fail2ban-regex, "{{ verify_line_badcreds }}", /etc/fail2ban/filter.d/caddy-auth.conf]
+      register: verify_f2b_regex_badcreds
+      changed_when: false
+
+    - name: Run the caddy-auth filter against the whole access log
+      ansible.builtin.command: >-
+        fail2ban-regex /home/operator/.caddy/logs/access.log /etc/fail2ban/filter.d/caddy-auth.conf
+      register: verify_f2b_regex
+      changed_when: false
+
+    # The whole log also holds credential-less 401 lines (the first request above, the header read): only
+    # the wrong-password requests may match.
+    - name: Check the caddy-auth filter counts only 401 answers to requests with credentials
+      ansible.builtin.assert:
+        that:
+          - "verify_f2b_regex_nocreds.stdout is search('Failregex: 0 total')"
+          - "verify_f2b_regex_badcreds.stdout is search('Failregex: 1 total')"
+          - "verify_f2b_regex.stdout is search('Failregex: ' ~ verify_badcreds_count ~ ' total')"
+        fail_msg: >-
+          no credentials: {{ verify_f2b_regex_nocreds.stdout_lines | select('search', 'Failregex') | list }},
+          wrong password: {{ verify_f2b_regex_badcreds.stdout_lines | select('search', 'Failregex') | list }},
+          whole log: {{ verify_f2b_regex.stdout_lines | select('search', 'Failregex') | list }}
+          for {{ verify_badcreds_count }} wrong-password lines
+        quiet: true

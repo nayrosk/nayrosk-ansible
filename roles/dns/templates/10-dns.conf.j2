@@ -1,0 +1,6 @@
+# Managed by Ansible (role dns).
+[Resolve]
+DNS={{ dns_servers | map('regex_replace', '$', '#' ~ dns_tls_server_name) | join(' ') }}
+FallbackDNS=
+DNSOverTLS=yes
+Domains=~.

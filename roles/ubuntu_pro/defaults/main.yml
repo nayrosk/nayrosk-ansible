@@ -1,0 +1,5 @@
+---
+# Ubuntu Pro token, read from the vault. An empty token skips the role.
+ubuntu_pro_token: "{{ vault_ubuntu_pro_token | default('') }}"
+# Enable Livepatch once the machine is attached.
+ubuntu_pro_livepatch: true

@@ -1,0 +1,26 @@
+---
+argument_specs:
+  main:
+    short_description: Upgrade the system and install the base packages on first install.
+    description:
+      - When first_install is true, refreshes the APT cache, runs a dist-upgrade, installs the package list and
+        reboots when the system asks for it.
+    options:
+      base_packages_list:
+        type: list
+        elements: str
+        default:
+          - ca-certificates
+          - tree
+          - vim
+          - curl
+          - fwupd
+          - ufw
+          - fail2ban
+          - podman
+          - unattended-upgrades
+        description: Packages installed on first install.
+      base_packages_reboot:
+        type: bool
+        default: true
+        description: Reboot when /var/run/reboot-required exists after the upgrade.

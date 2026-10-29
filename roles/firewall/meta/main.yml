@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  author: nayrosk
+  description: Enable UFW with a default deny policy and the SSH and Caddy rules.
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - resolute
+  galaxy_tags: []
+dependencies: []

@@ -1,0 +1,11 @@
+---
+- name: Deploy the vimrc
+  ansible.builtin.copy:
+    content: "{{ user_customization_vimrc }}"
+    dest: "{{ item.home }}/.vimrc"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: "0644"
+  loop: "{{ user_customization_users }}"
+  loop_control:
+    label: "{{ item.name }}"

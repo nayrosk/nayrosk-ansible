@@ -1,0 +1,47 @@
+---
+argument_specs:
+  main:
+    short_description: Apply sysctl hardening, UTC time with chrony, journald limits and the APT mirror.
+    description:
+      - Writes the sysctl file, sets the time zone to UTC, ensures chrony runs and is synchronised, limits the
+        persistent journal and writes the deb822 APT sources with the configured or fastest mirror.
+    options:
+      system_unprivileged_port_start:
+        type: int
+        default: 80
+        description: First unprivileged port (net.ipv4.ip_unprivileged_port_start).
+      system_journal_max_use:
+        type: str
+        default: 500M
+        description: Maximum disk space used by the persistent journal (journald SystemMaxUse).
+      system_sysctl:
+        type: dict
+        description: >-
+          Sysctl settings written to /etc/sysctl.d/60-install-base.conf. The default holds the hardening set.
+      system_sysctl_extra:
+        type: dict
+        default: {}
+        description: Additional sysctl settings merged over system_sysctl.
+      system_apt_mirror_url:
+        type: str
+        default: ""
+        description: >-
+          Mirror to use as is. When empty the fastest mirror of the country is measured on the first install
+          (never in e2e) and later runs keep the mirror already in the sources file.
+      system_apt_mirror_country:
+        type: str
+        default: ""
+        description: Two-letter country code used to pick the mirror list. When empty it is detected from the public IP.
+      system_apt_mirror_default:
+        type: str
+        default: http://archive.ubuntu.com/ubuntu/
+        description: >-
+          Mirror used when no measured mirror answers and when the sources file holds no mirror for the release.
+      first_install:
+        type: bool
+        default: false
+        description: Measure the APT mirrors only on the first install run.
+      e2e:
+        type: bool
+        default: false
+        description: Never measure the APT mirrors in the end-to-end test VM.

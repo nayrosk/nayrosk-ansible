@@ -1,0 +1,4 @@
+---
+# Additional rules applied by community.general.ufw after the fixed SSH and Caddy rules, in order. Each item
+# takes the ufw module rule options (rule, name or port, proto, from_ip, comment, and so on).
+firewall_rules_extra: []

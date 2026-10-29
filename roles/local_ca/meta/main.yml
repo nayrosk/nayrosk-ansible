@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  author: nayrosk
+  description: Create a local certificate authority and issue a server certificate.
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - resolute
+  galaxy_tags: []
+dependencies: []

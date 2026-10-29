@@ -1,0 +1,67 @@
+---
+argument_specs:
+  main:
+    short_description: Run node_exporter as a rootful quadlet and Caddy as a rootless quadlet in front of it.
+    description:
+      - Installs a rootful node_exporter quadlet listening on the host loopback and a rootless Caddy quadlet for
+        the operator account that serves node_exporter metrics over HTTPS with basic auth.
+      - Uses the server certificate of the local_ca role and the facts C(local_ca_local_ip) and
+        C(local_ca_public_ip).
+    options:
+      podman_monitoring_caddy_version:
+        type: str
+        default: "2.11.7"
+        description: Caddy image tag (C(docker.io/library/caddy:<version>-alpine)).
+      podman_monitoring_node_exporter_version:
+        type: str
+        default: "1.12.1"
+        description: node_exporter image tag (C(quay.io/prometheus/node-exporter:v<version>)).
+      podman_monitoring_node_exporter_listen:
+        type: str
+        default: 127.0.0.1:9100
+        description:
+          - Address and port node_exporter listens on.
+          - Must stay a loopback address. Caddy proxies to C(host.containers.internal), which pasta maps to the
+            host loopback only.
+      podman_monitoring_caddy_basic_auth_user:
+        type: str
+        default: admin
+        description: Basic auth user protecting every Caddy route.
+      podman_monitoring_caddy_basic_auth_hash:
+        type: str
+        no_log: true
+        default: "{{ vault_caddy_basic_auth_hash }}"
+        description:
+          - Bcrypt hash of the basic auth password, as printed by C(caddy hash-password).
+          - Defaults to the vault variable C(vault_caddy_basic_auth_hash), which must then be set.
+      podman_monitoring_caddy_extra_site_addresses:
+        type: list
+        elements: str
+        default: []
+        description: Site addresses served by Caddy in addition to the hostname, the local IP and the public IP.
+      podman_monitoring_host_loopback_ip:
+        type: str
+        default: 169.254.1.3
+        description:
+          - Link-local address that the pasta instance of the Caddy container maps to the host loopback.
+          - C(host.containers.internal) resolves to it inside Caddy. It must differ from podman's own C(169.254.1.2).
+      podman_monitoring_user:
+        type: str
+        default: "{{ operator_user_name }}"
+        description: Rootless account running Caddy. Defaults to the operator_user role account.
+      podman_monitoring_user_uid:
+        type: int
+        default: "{{ operator_user_uid }}"
+        description: Numeric id of C(podman_monitoring_user).
+      podman_monitoring_user_home:
+        type: str
+        default: "{{ operator_user_home }}"
+        description: Home directory of C(podman_monitoring_user).
+      podman_monitoring_cert_source_directory:
+        type: path
+        default: "{{ local_ca_directory }}"
+        description: Directory holding C(server.crt) and C(server.key). Defaults to the local_ca role directory.
+      hostname:
+        type: str
+        required: true
+        description: Hostname served by Caddy, also the first name of the server certificate.

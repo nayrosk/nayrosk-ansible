@@ -1,0 +1,34 @@
+---
+argument_specs:
+  main:
+    short_description: Create the operator account with key-only SSH and passwordless sudo.
+    description:
+      - Creates the operator group and user with fixed ids, a locked password, an exclusive authorized SSH key,
+        a passwordless sudo drop-in and systemd lingering.
+    options:
+      operator_user_name:
+        type: str
+        default: operator
+        description: Name of the operator account.
+      operator_user_uid:
+        type: int
+        default: 10000
+        description: Numeric user id.
+      operator_user_gid:
+        type: int
+        default: 10000
+        description: Numeric id of the primary group, which has the same name as the user.
+      operator_user_home:
+        type: str
+        default: "/home/{{ operator_user_name }}"
+        description: Home directory.
+      operator_user_shell:
+        type: str
+        default: /bin/bash
+        description: Login shell.
+      operator_user_public_key:
+        type: str
+        default: "{{ operator_public_key }}"
+        description:
+          - SSH public key installed as the only authorized key.
+          - Defaults to the inventory variable C(operator_public_key), which must then be set.

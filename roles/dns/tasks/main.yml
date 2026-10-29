@@ -1,0 +1,43 @@
+---
+- name: Create the systemd-resolved drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the DNS over TLS drop-in
+  ansible.builtin.template:
+    src: 10-dns.conf.j2
+    dest: /etc/systemd/resolved.conf.d/10-dns.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart systemd-resolved
+
+- name: Apply the resolver configuration now
+  ansible.builtin.meta: flush_handlers
+
+- name: Read the resolver status
+  ansible.builtin.command: resolvectl status
+  register: dns_resolvectl
+  changed_when: false
+
+- name: Check DNS over TLS is active and the global servers are in use
+  ansible.builtin.assert:
+    that:
+      - "'+DNSOverTLS' in dns_resolvectl.stdout"
+      - >-
+        dns_servers | map('regex_replace', '$', '#' ~ dns_tls_server_name)
+        | select('in', dns_resolvectl.stdout) | list | length == dns_servers | length
+    fail_msg: DNS over TLS is not active or the global servers are missing from resolvectl status.
+    quiet: true
+
+- name: Resolve a name through the system resolver
+  ansible.builtin.command: getent hosts ubuntu.com
+  register: dns_getent
+  changed_when: false
+  retries: 5
+  delay: 3
+  until: dns_getent.rc == 0

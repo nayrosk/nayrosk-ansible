@@ -1,0 +1,11 @@
+---
+# Included from the Restart handlers with ansible_become and ansible_become_user set to the operator.
+- name: Restart the user unit {{ podman_monitoring_restart_unit }}
+  ansible.builtin.systemd_service:
+    name: "{{ podman_monitoring_restart_unit }}"
+    scope: user
+    state: restarted
+    daemon_reload: true
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ podman_monitoring_user_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ podman_monitoring_user_uid }}/bus"

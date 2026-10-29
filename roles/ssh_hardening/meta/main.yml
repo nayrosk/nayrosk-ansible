@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  author: nayrosk
+  description: Restrict SSH to key-based operator logins and refuse root and password logins.
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - resolute
+  galaxy_tags: []
+dependencies: []

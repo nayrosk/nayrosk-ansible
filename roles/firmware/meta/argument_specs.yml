@@ -1,0 +1,8 @@
+---
+argument_specs:
+  main:
+    short_description: Apply firmware updates with fwupd on first install of physical hosts.
+    description:
+      - When first_install is true and e2e is false, refreshes the fwupd metadata, lists devices and updates,
+        applies pending updates and reports when a reboot is needed. The role never reboots. It takes no variables.
+    options: {}

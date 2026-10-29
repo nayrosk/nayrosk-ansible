@@ -1,0 +1,67 @@
+---
+name: Bug report
+description: A role or the test harness does not behave as documented.
+title: "fix: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Remove passwords, vault contents, keys and real hostnames from anything you paste.
+        Report security issues through the
+        [private advisory form](https://github.com/nayrosk/nayrosk-ansible/security/advisories/new) instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, including the failing task and its error message.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The command you ran and the variables you set, without secrets.
+      placeholder: |
+        1. make run INVENTORY=...
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Role
+        - End-to-end test
+        - CI
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release tag or commit of this repository.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Target host
+      placeholder: Ubuntu 26.04 LTS, bare metal or VM
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The relevant part of the playbook output. Redact secrets.
+      render: text

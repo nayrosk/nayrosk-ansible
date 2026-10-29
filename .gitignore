@@ -5,3 +5,5 @@ artifacts/
 inventories/e2e/.ssh/
 *.retry
 .vault-pass
+.ansible/
+brag-output*/

@@ -1,0 +1,34 @@
+---
+argument_specs:
+  main:
+    short_description: Create a local certificate authority and issue a server certificate.
+    description:
+      - Creates an EC P-384 CA valid for 10 years and a server certificate valid for 1 year, installs the
+        CA in the system trust store and fetches it to the controller.
+      - Sets the facts C(local_ca_local_ip) (default IPv4 address, or default IPv6 address on IPv6-only hosts)
+        and C(local_ca_public_ip) (empty when no public IP is known).
+    options:
+      local_ca_force_regenerate:
+        type: bool
+        default: false
+        description: Regenerate the CA key and certificate, and therefore the server certificate.
+      local_ca_directory:
+        type: path
+        default: /etc/ssl/local-ca
+        description: Directory holding the CA and server key material.
+      local_ca_public_ip_override:
+        type: str
+        default: ""
+        description:
+          - Public IP added to the server certificate. When set, the public IP is not probed.
+          - When empty, the target asks C(local_ca_public_ip_probe_url) for its public IPv4 address. If the
+            probe fails or does not answer an IPv4 address, the public IP already in the server certificate
+            is kept, else C(ansible_host) is used when it is an IP address, else no public IP is added.
+      local_ca_public_ip_probe_url:
+        type: str
+        default: https://ipv4.icanhazip.com
+        description: URL answering the public IPv4 address of the target as plain text.
+      hostname:
+        type: str
+        required: true
+        description: Hostname added to the server certificate as a DNS name.

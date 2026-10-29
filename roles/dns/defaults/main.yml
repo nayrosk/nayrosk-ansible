@@ -1,0 +1,9 @@
+---
+# Resolvers used for every domain, queried over TLS.
+dns_servers:
+  - 1.1.1.1
+  - 1.0.0.1
+  - 2606:4700:4700::1111
+  - 2606:4700:4700::1001
+# TLS server name presented by the resolvers.
+dns_tls_server_name: cloudflare-dns.com

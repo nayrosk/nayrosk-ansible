@@ -1,0 +1,38 @@
+---
+argument_specs:
+  main:
+    short_description: Ban repeated SSH and Caddy authentication failures through UFW.
+    description:
+      - Writes the jail drop-in C(10-install-base.local) (jails C(sshd) and C(caddy-auth), ban action C(ufw)),
+        the C(caddy-auth) filter, and keeps the service enabled and running.
+      - Loopback, C(fe80::/10), C(fail2ban_ignoreip_extra) and the detected LAN networks are never banned. A
+        detected network (default IPv4 network, default IPv6 network) counts only when it is private, inside
+        C(10.0.0.0/8), C(172.16.0.0/12), C(192.168.0.0/16), C(100.64.0.0/10) or C(fc00::/7).
+    options:
+      fail2ban_bantime:
+        type: str
+        default: 1h
+        description: Ban duration.
+      fail2ban_findtime:
+        type: str
+        default: 10m
+        description: Window in which C(fail2ban_maxretry) failures trigger a ban.
+      fail2ban_maxretry:
+        type: int
+        default: 3
+        description: Failures allowed inside the find window before a ban.
+      fail2ban_ignoreip_extra:
+        type: list
+        elements: str
+        default: []
+        description: Extra addresses or networks never banned, public ones included.
+      fail2ban_caddy_log_owner:
+        type: str
+        default: "{{ podman_monitoring_user | default(operator_user_name | default('operator')) }}"
+        description: Account running Caddy, owner and group of the access log created when missing.
+      fail2ban_caddy_log:
+        type: str
+        default: >-
+          {{ podman_monitoring_user_home | default(operator_user_home | default('/home/' ~ fail2ban_caddy_log_owner))
+          }}/.caddy/logs/access.log
+        description: Caddy JSON access log watched by the C(caddy-auth) jail.

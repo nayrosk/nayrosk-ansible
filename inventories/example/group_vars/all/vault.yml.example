@@ -1,0 +1,16 @@
+---
+# Plaintext example of the vault. Do not use it as is.
+#   1. Run: make vault-edit INVENTORY=inventories/prod VAULT_FILE=inventories/prod/group_vars/all/vault.yml
+#      The target creates the encrypted file when it does not exist and opens your editor.
+#   2. Paste the content of this file and replace the placeholder values.
+#   3. Edit it later with the same command.
+
+# Root password of the fresh machine. Used only while the operator key login does not work yet.
+vault_root_password: REPLACE_WITH_THE_ROOT_PASSWORD
+
+# Ubuntu Pro token from https://ubuntu.com/pro/dashboard. Leave empty to skip attaching.
+vault_ubuntu_pro_token: ""
+
+# Bcrypt hash of the Caddy basic auth password. Produce it with:
+#   podman run --rm docker.io/library/caddy:2.11.7-alpine caddy hash-password --plaintext '<password>'
+vault_caddy_basic_auth_hash: "$2a$14$REPLACE_WITH_THE_OUTPUT_OF_CADDY_HASH_PASSWORD"

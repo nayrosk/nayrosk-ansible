@@ -1,0 +1,15 @@
+---
+# Ubuntu starts sshd through ssh.socket: when the daemon is not running there is nothing to reload, the next
+# connection spawns a fresh sshd that reads the new configuration.
+- name: Read the SSH daemon state
+  ansible.builtin.systemd_service:
+    name: ssh.service
+  register: ssh_hardening_sshd_state
+  listen: Reload sshd
+
+- name: Reload the SSH daemon
+  ansible.builtin.systemd_service:
+    name: ssh
+    state: reloaded
+  when: ssh_hardening_sshd_state.status.ActiveState == 'active'
+  listen: Reload sshd

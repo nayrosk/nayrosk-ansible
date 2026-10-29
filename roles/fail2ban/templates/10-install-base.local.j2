@@ -1,0 +1,17 @@
+# Managed by Ansible (role fail2ban).
+[DEFAULT]
+banaction = ufw
+bantime = {{ fail2ban_bantime }}
+findtime = {{ fail2ban_findtime }}
+maxretry = {{ fail2ban_maxretry }}
+ignoreip = {{ fail2ban_ignoreip_all | join(' ') }}
+
+[sshd]
+enabled = true
+backend = systemd
+
+[caddy-auth]
+enabled = true
+port = http,https
+backend = auto
+logpath = {{ fail2ban_caddy_log }}

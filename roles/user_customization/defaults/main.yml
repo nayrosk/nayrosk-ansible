@@ -1,0 +1,26 @@
+---
+# Content of the .vimrc written for every user of user_customization_users.
+user_customization_vimrc: |
+  syntax on
+  filetype plugin indent on
+  set number
+  set norelativenumber
+  set expandtab
+  set shiftwidth=2
+  set tabstop=2
+  set ignorecase
+  set smartcase
+  set incsearch
+  set hlsearch
+  set ruler
+  set laststatus=2
+  set mouse=
+  set encoding=utf-8
+  set backspace=indent,eol,start
+# Users receiving the .vimrc: name is also the owner and group, home is the directory holding the file.
+# The second entry follows the operator_user role variables.
+user_customization_users:
+  - name: root
+    home: /root
+  - name: "{{ operator_user_name | default('operator') }}"
+    home: "{{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}"

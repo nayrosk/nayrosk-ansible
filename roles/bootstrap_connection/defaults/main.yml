@@ -1,0 +1,5 @@
+---
+# Account probed with the SSH key. Follows operator_user_name when the inventory sets it.
+bootstrap_connection_operator: "{{ operator_user_name | default('operator') }}"
+# Seconds before the operator probe gives up.
+bootstrap_connection_probe_timeout: 10

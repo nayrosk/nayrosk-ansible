@@ -1,0 +1,14 @@
+---
+argument_specs:
+  main:
+    short_description: Restrict SSH to key-based operator logins and refuse root and password logins.
+    description:
+      - Writes the sshd drop-in C(00-hardening.conf), neutralizes conflicting settings in the other drop-ins,
+        checks that the operator can log in with the key from the controller, then reloads sshd.
+      - When the play connected as root with a password, switches the rest of the play to the operator account.
+    options:
+      ssh_hardening_allow_users:
+        type: list
+        elements: str
+        default: ["{{ operator_user_name }}"]
+        description: Accounts allowed to log in over SSH (C(AllowUsers)). Defaults to the operator account only.

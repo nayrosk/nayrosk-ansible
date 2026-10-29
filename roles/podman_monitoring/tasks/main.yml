@@ -1,0 +1,122 @@
+---
+# Root-scoped tasks run with the play's privileges.
+- name: Install the container init and the rootless network helper
+  ansible.builtin.apt:
+    name:
+      - catatonit
+      - passt
+    state: present
+    lock_timeout: 600
+
+- name: Check the local_ca facts are available
+  ansible.builtin.assert:
+    that:
+      - local_ca_local_ip is defined
+      - local_ca_public_ip is defined
+    fail_msg: The local_ca role must run first in the same play (for example --tags local_ca,podman_monitoring).
+    quiet: true
+
+- name: Build the Caddy site addresses
+  ansible.builtin.set_fact:
+    podman_monitoring_caddy_site_addresses: >-
+      {{ ([hostname, local_ca_local_ip, local_ca_public_ip] + podman_monitoring_caddy_extra_site_addresses)
+         | select | map('string') | unique
+         | map('regex_replace', '^([0-9a-fA-F]*:[0-9a-fA-F:]*)$', '[\1]')
+         | list }}
+
+- name: Create the operator configuration directories
+  ansible.builtin.file:
+    path: "{{ podman_monitoring_user_home }}/{{ item }}"
+    state: directory
+    owner: "{{ podman_monitoring_user }}"
+    group: "{{ podman_monitoring_user }}"
+    mode: "0700"
+  loop:
+    - .config
+    - .config/containers
+
+# Earlier versions mapped the host loopback for every rootless container of the operator through
+# containers.conf. The mapping is now scoped to the Caddy container: remove the file so old hosts converge.
+- name: Remove the operator-wide pasta configuration
+  ansible.builtin.file:
+    path: "{{ podman_monitoring_user_home }}/.config/containers/containers.conf"
+    state: absent
+  notify: Restart caddy
+
+- name: Create the quadlet and Caddy directories
+  ansible.builtin.file:
+    path: "{{ podman_monitoring_user_home }}/{{ item.path }}"
+    state: directory
+    owner: "{{ podman_monitoring_user }}"
+    group: "{{ podman_monitoring_user }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: .config/containers/systemd, mode: "0750"}
+    - {path: .caddy, mode: "0750"}
+    - {path: .caddy/config, mode: "0750"}
+    - {path: .caddy/data, mode: "0750"}
+    - {path: .caddy/logs, mode: "0750"}
+    - {path: .caddy/certs, mode: "0700"}
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Copy the server certificate and key for Caddy
+  ansible.builtin.copy:
+    src: "{{ podman_monitoring_cert_source_directory }}/{{ item }}"
+    dest: "{{ podman_monitoring_user_home }}/.caddy/certs/{{ item }}"
+    remote_src: true
+    owner: "{{ podman_monitoring_user }}"
+    group: "{{ podman_monitoring_user }}"
+    mode: "0600"
+  loop:
+    - server.crt
+    - server.key
+  notify: Restart caddy
+  no_log: true
+
+- name: Pull the node_exporter image
+  containers.podman.podman_image:
+    name: quay.io/prometheus/node-exporter
+    tag: "v{{ podman_monitoring_node_exporter_version }}"
+    state: present
+
+- name: Create the system quadlet directory
+  ansible.builtin.file:
+    path: /etc/containers/systemd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the node_exporter quadlet
+  ansible.builtin.template:
+    src: node-exporter.container.j2
+    dest: /etc/containers/systemd/node-exporter.container
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart node-exporter
+
+# Tasks for the rootless Caddy run as the operator. bootstrap_connection sets ansible_become as a host
+# fact (false in root mode), which beats the become keyword: include parameters are the only scoped way
+# to outrank it, so the switch to the operator is passed as include vars.
+- name: Configure the rootless Caddy as the operator
+  ansible.builtin.include_tasks: caddy.yml
+  vars:
+    ansible_become: true
+    ansible_become_user: "{{ podman_monitoring_user }}"
+
+- name: Apply pending restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Start node_exporter
+  ansible.builtin.systemd_service:
+    name: node-exporter.service
+    state: started
+    daemon_reload: true
+
+- name: Start Caddy as the operator
+  ansible.builtin.include_tasks: caddy_start.yml
+  vars:
+    ansible_become: true
+    ansible_become_user: "{{ podman_monitoring_user }}"

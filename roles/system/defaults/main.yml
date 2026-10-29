@@ -1,0 +1,31 @@
+---
+# First unprivileged port (net.ipv4.ip_unprivileged_port_start).
+system_unprivileged_port_start: 80
+# Maximum disk space used by the persistent journal (journald SystemMaxUse).
+system_journal_max_use: 500M
+# Sysctl settings written to /etc/sysctl.d/60-install-base.conf.
+system_sysctl:
+  net.ipv4.ip_unprivileged_port_start: "{{ system_unprivileged_port_start }}"
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv6.conf.all.accept_redirects: 0
+  net.ipv6.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.default.send_redirects: 0
+  net.ipv4.conf.all.accept_source_route: 0
+  net.ipv4.conf.default.accept_source_route: 0
+  net.ipv6.conf.all.accept_source_route: 0
+  net.ipv4.conf.all.rp_filter: 1
+  net.ipv4.conf.default.rp_filter: 1
+  net.ipv4.conf.all.log_martians: 1
+  kernel.kptr_restrict: 2
+  kernel.dmesg_restrict: 1
+# Additional sysctl settings merged over system_sysctl.
+system_sysctl_extra: {}
+# Mirror to use as is. When empty the fastest mirror of the country is measured on the first install
+# (never in e2e) and later runs keep the mirror already in the sources file.
+system_apt_mirror_url: ""
+# Two-letter country code used to pick the mirror list. When empty it is detected from the public IP.
+system_apt_mirror_country: ""
+# Mirror used when no measured mirror answers and when the sources file holds no mirror for the release.
+system_apt_mirror_default: http://archive.ubuntu.com/ubuntu/

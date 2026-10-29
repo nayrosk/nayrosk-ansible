@@ -1,0 +1,164 @@
+---
+# A list without the operator would lock the host out once the new configuration is active.
+- name: Check the operator is allowed to log in
+  ansible.builtin.assert:
+    that: operator_user_name in ssh_hardening_allow_users
+    fail_msg: "ssh_hardening_allow_users must contain the operator account {{ operator_user_name }}"
+    quiet: true
+
+# The block rolls everything back (our drop-in and the commented lines) when the syntax check or either
+# lockout guard fails. The second guard runs after the reload, over the still-open connection, so a
+# configuration that sshd -t accepts but that rejects the operator is reverted and reloaded.
+- name: Harden SSH
+  vars:
+    # The inventory SSH options (host key checking in the tests) are reused. They are split on whitespace,
+    # so they must not hold quoted values. The inventory must set ansible_ssh_private_key_file.
+    ssh_hardening_probe_argv: >-
+      {{ ['ssh', '-o', 'BatchMode=yes', '-o', 'PreferredAuthentications=publickey', '-o', 'IdentitiesOnly=yes',
+          '-o', 'ConnectTimeout=10']
+         + (hostvars[inventory_hostname].ansible_ssh_common_args | default('')).split()
+         + ['-i', hostvars[inventory_hostname].ansible_ssh_private_key_file,
+            '-p', hostvars[inventory_hostname].ansible_port | default(22) | string,
+            operator_user_name ~ '@' ~ hostvars[inventory_hostname].ansible_host | default(inventory_hostname),
+            'true'] }}
+  block:
+    - name: Install the SSH hardening drop-in
+      ansible.builtin.template:
+        src: 00-hardening.conf.j2
+        dest: /etc/ssh/sshd_config.d/00-hardening.conf
+        owner: root
+        group: root
+        mode: "0600"
+        backup: true
+      register: ssh_hardening_dropin
+      notify: Reload sshd
+
+    - name: Find the other SSH drop-ins
+      ansible.builtin.find:
+        paths: /etc/ssh/sshd_config.d
+        patterns: "*.conf"
+      register: ssh_hardening_dropins
+
+    # sshd keeps the first value it reads, but the order across files is not guaranteed to stay ours: comment
+    # the conflicting settings out so that sshd -T reflects the hardening whatever the file names.
+    - name: Comment out conflicting settings in the other drop-ins
+      ansible.builtin.replace:
+        path: "{{ item.path }}"
+        regexp: '^(\s*(?i:PermitRootLogin|PasswordAuthentication)(?:\s|=).*)$'
+        replace: '# \1'
+        backup: true
+      register: ssh_hardening_neutralized
+      loop: "{{ ssh_hardening_dropins.files }}"
+      loop_control:
+        label: "{{ item.path }}"
+      when: item.path != '/etc/ssh/sshd_config.d/00-hardening.conf'
+      notify: Reload sshd
+
+    - name: Check the sshd configuration syntax
+      ansible.builtin.command: /usr/sbin/sshd -t
+      changed_when: false
+
+    # The running sshd still has the old configuration here: this proves that the operator account and key
+    # work from the controller before anything is reloaded.
+    - name: Check operator key login from the controller
+      ansible.builtin.command:
+        argv: "{{ ssh_hardening_probe_argv }}"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    # Reload now so that the checks and the connection switch below see the new configuration.
+    - name: Apply the SSH configuration
+      ansible.builtin.meta: flush_handlers
+
+    - name: Check operator key login against the new configuration
+      ansible.builtin.command:
+        argv: "{{ ssh_hardening_probe_argv }}"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      register: ssh_hardening_probe
+      retries: 3
+      delay: 2
+      until: ssh_hardening_probe.rc == 0
+  # Every rollback step runs even when an earlier one fails, and the final message says what happened.
+  rescue:
+    - name: Restore the previous SSH hardening drop-in
+      ansible.builtin.copy:
+        src: "{{ ssh_hardening_dropin.backup_file }}"
+        dest: /etc/ssh/sshd_config.d/00-hardening.conf
+        remote_src: true
+        mode: preserve
+      register: ssh_hardening_rescue_restore
+      ignore_errors: true
+      when: ssh_hardening_dropin.backup_file | default('') | length > 0
+
+    # Only a file created by this run is removed: an unchanged earlier drop-in stays.
+    - name: Remove the SSH hardening drop-in created by this run
+      ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d/00-hardening.conf
+        state: absent
+      register: ssh_hardening_rescue_remove
+      ignore_errors: true
+      when:
+        - ssh_hardening_dropin is changed
+        - ssh_hardening_dropin.backup_file | default('') | length == 0
+
+    - name: Restore the drop-ins that were modified
+      ansible.builtin.copy:
+        src: "{{ item.backup_file }}"
+        dest: "{{ item.item.path }}"
+        remote_src: true
+        mode: preserve
+      register: ssh_hardening_rescue_dropins
+      ignore_errors: true
+      loop: "{{ ssh_hardening_neutralized.results | default([]) | selectattr('backup_file', 'defined') | list }}"
+      loop_control:
+        label: "{{ item.item.path }}"
+
+    - name: Reload the SSH daemon with the restored configuration
+      ansible.builtin.systemd_service:
+        name: ssh
+        state: reloaded
+      register: ssh_hardening_rescue_reload
+      ignore_errors: true
+
+    - name: Fail with the lockout guard message
+      vars:
+        ssh_hardening_rescue_steps: >-
+          {%- macro outcome(r) -%}
+          {{ (': FAILED ' ~ (r.msg | default(''))) if r is failed else ': done' }}
+          {%- endmacro -%}
+          {%- set ns = namespace(steps=[]) -%}
+          {%- set r = ssh_hardening_rescue_restore | default({}) -%}
+          {%- if r and r is not skipped -%}
+          {%- set ns.steps = ns.steps + ['restore 00-hardening.conf' ~ outcome(r)] -%}
+          {%- endif -%}
+          {%- set r = ssh_hardening_rescue_remove | default({}) -%}
+          {%- if r and r is not skipped -%}
+          {%- set ns.steps = ns.steps + ['remove 00-hardening.conf' ~ outcome(r)] -%}
+          {%- endif -%}
+          {%- for r in ssh_hardening_rescue_dropins.results | default([]) -%}
+          {%- set ns.steps = ns.steps + ['restore ' ~ r.item.item.path ~ outcome(r)] -%}
+          {%- endfor -%}
+          {%- set ns.steps = ns.steps + ['reload sshd' ~ outcome(ssh_hardening_rescue_reload)] -%}
+          {{ ns.steps | join('; ') }}
+      ansible.builtin.fail:
+        msg: >-
+          SSH hardening aborted and rolled back: either sshd -t rejected the configuration or the operator
+          could not log in with the key from the controller.
+          Rollback steps: {{ ssh_hardening_rescue_steps }}.
+
+# After the reload, new root logins are refused. The root connection of this run survives (existing session)
+# but a reset or an expired ControlPersist master would break the roles that follow, so move the rest of
+# the play to the operator, as bootstrap_connection does when it finds the operator account. The reset
+# runs in every mode (meta tasks cannot be conditional) and is harmless when the connection is unchanged.
+- name: Switch the rest of the play to the operator account
+  ansible.builtin.set_fact:
+    ansible_user: "{{ operator_user_name }}"
+    ansible_password: ""
+    ansible_become: true
+  when: bootstrap_connection_mode | default('') == 'root'
+
+- name: Reset the connection to use the operator account
+  ansible.builtin.meta: reset_connection

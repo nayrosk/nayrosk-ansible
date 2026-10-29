@@ -1,0 +1,33 @@
+# Managed by Ansible (role podman_monitoring).
+[Unit]
+Description=Caddy reverse proxy
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=docker.io/library/caddy:{{ podman_monitoring_caddy_version }}-alpine
+# pasta (not the monitoring bridge) so Caddy sees client source addresses: on a rootless bridge, podman 5
+# publishes ports with rootlessport, which hides them. --map-host-loopback lets this container only reach
+# node_exporter on the host loopback through host.containers.internal.
+Network=pasta:--map-host-loopback,{{ podman_monitoring_host_loopback_ip }}
+AddHost=host.containers.internal:{{ podman_monitoring_host_loopback_ip }}
+PublishPort=80:80
+PublishPort=443:443
+PublishPort=443:443/udp
+Volume=%h/.caddy/config/Caddyfile:/etc/caddy/Caddyfile:ro,Z
+Volume=%h/.caddy/certs:/certs:ro,Z
+Volume=%h/.caddy/data:/data:Z
+Volume=%h/.caddy/logs:/logs:Z
+RunInit=true
+NoNewPrivileges=true
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:8081/healthz
+HealthInterval=30s
+HealthTimeout=5s
+HealthRetries=3
+HealthOnFailure=kill
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,30 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy user dotfiles.
+    description:
+      - Writes a C(.vimrc) in the home directory of each listed user. The users must already exist.
+    options:
+      user_customization_vimrc:
+        type: str
+        description: Content of the C(.vimrc) written for every listed user. The default is a plain editing setup.
+      user_customization_users:
+        type: list
+        elements: dict
+        default:
+          - name: root
+            home: /root
+          - name: "{{ operator_user_name | default('operator') }}"
+            home: "{{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}"
+        description:
+          - Users receiving the C(.vimrc). The name is also the file owner and group.
+          - The default holds root and the operator account of the C(operator_user) role.
+        options:
+          name:
+            type: str
+            required: true
+            description: Account name, used as owner and group.
+          home:
+            type: str
+            required: true
+            description: Home directory holding the C(.vimrc).

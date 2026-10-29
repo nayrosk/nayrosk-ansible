@@ -1,0 +1,45 @@
+---
+# Included from main.yml with ansible_become and ansible_become_user set to the operator.
+- name: Point podman at the operator runtime directory
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ podman_monitoring_user_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ podman_monitoring_user_uid }}/bus"
+  block:
+    - name: Pull the Caddy image
+      containers.podman.podman_image:
+        name: docker.io/library/caddy
+        tag: "{{ podman_monitoring_caddy_version }}-alpine"
+        state: present
+
+    - name: Install the rootless quadlets
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: "{{ podman_monitoring_user_home }}/.config/containers/systemd/{{ item }}"
+        owner: "{{ podman_monitoring_user }}"
+        group: "{{ podman_monitoring_user }}"
+        mode: "0644"
+      loop:
+        - monitoring.network
+        - caddy.container
+      notify:
+        - Restart caddy
+        - Restart the monitoring network
+
+    # The candidate file is validated by the pinned Caddy image before it replaces the installed one, so
+    # a broken template keeps the running configuration. no_log: the file holds the basic auth hash.
+    - name: Install the validated Caddyfile
+      ansible.builtin.template:
+        src: Caddyfile.j2
+        dest: "{{ podman_monitoring_user_home }}/.caddy/config/Caddyfile"
+        owner: "{{ podman_monitoring_user }}"
+        group: "{{ podman_monitoring_user }}"
+        mode: "0640"
+        validate: >-
+          podman run --rm --pull=never --network=none
+          -v %s:/etc/caddy/Caddyfile:ro
+          -v {{ podman_monitoring_user_home }}/.caddy/certs:/certs:ro
+          --tmpfs /logs --tmpfs /data
+          docker.io/library/caddy:{{ podman_monitoring_caddy_version }}-alpine
+          caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      notify: Restart caddy
+      no_log: true

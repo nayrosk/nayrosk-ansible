@@ -1,0 +1,4 @@
+---
+profile: production
+offline: true
+exclude_paths: [.cache/, artifacts/, brag-output*/, .github/, inventories/*/group_vars/*/vault.yml]

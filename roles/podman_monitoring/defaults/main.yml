@@ -1,0 +1,25 @@
+---
+# Caddy image tag (docker.io/library/caddy:<version>-alpine).
+podman_monitoring_caddy_version: "2.11.7"
+# node_exporter image tag (quay.io/prometheus/node-exporter:v<version>).
+podman_monitoring_node_exporter_version: "1.12.1"
+# Address node_exporter listens on. Must stay a loopback address: Caddy reaches it through
+# host.containers.internal, which pasta maps to the host loopback.
+podman_monitoring_node_exporter_listen: 127.0.0.1:9100
+# Basic auth user protecting every Caddy route.
+podman_monitoring_caddy_basic_auth_user: admin
+# Bcrypt hash of the basic auth password (caddy hash-password). Aliases the vault variable.
+podman_monitoring_caddy_basic_auth_hash: "{{ vault_caddy_basic_auth_hash }}"
+# Site addresses served by Caddy in addition to the hostname, the local IP and the public IP.
+podman_monitoring_caddy_extra_site_addresses: []
+# Rootless account running Caddy. Aliases the operator_user role variables.
+podman_monitoring_user: "{{ operator_user_name }}"
+# Numeric id of podman_monitoring_user (sets XDG_RUNTIME_DIR).
+podman_monitoring_user_uid: "{{ operator_user_uid }}"
+# Home directory of podman_monitoring_user.
+podman_monitoring_user_home: "{{ operator_user_home }}"
+# Directory holding the server certificate and key. Aliases the local_ca role directory.
+podman_monitoring_cert_source_directory: "{{ local_ca_directory }}"
+# Link-local address that the Caddy container's pasta maps to the host loopback; host.containers.internal
+# resolves to it inside Caddy. Must differ from podman's own 169.254.1.2.
+podman_monitoring_host_loopback_ip: 169.254.1.3

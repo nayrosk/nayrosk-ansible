@@ -1,0 +1,14 @@
+---
+# Packages installed on first install.
+base_packages_list:
+  - ca-certificates
+  - tree
+  - vim
+  - curl
+  - fwupd
+  - ufw
+  - fail2ban
+  - podman
+  - unattended-upgrades
+# Reboot when /var/run/reboot-required exists after the upgrade.
+base_packages_reboot: true
