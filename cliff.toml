@@ -43,6 +43,9 @@ topo_order = false
 sort_commits = "newest"
 tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
 commit_preprocessors = [
+    # #2 landed as a merge commit before the repository allowed squash merges only:
+    # restore its Conventional Commit subject so it reaches the changelog.
+    { pattern = '^Merge pull request #2 from nayrosk/feat/1-install-base[\s\S]*', replace = "feat: bootstrap repository and install_base playbook (#2)" },
     { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/nayrosk/nayrosk-ansible/pull/${1}))" },
 ]
 commit_parsers = [
