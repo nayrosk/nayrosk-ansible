@@ -21,5 +21,3 @@ for file in .github/rulesets/*.json; do
     gh api --method POST "repos/$repo/rulesets" --input "$file" >/dev/null
   fi
 done
-
-echo "note: rulesets are stored but not enforced while the repository is private on the GitHub Free plan."
