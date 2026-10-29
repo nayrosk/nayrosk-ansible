@@ -37,7 +37,7 @@ Every change goes issue, branch, pull request. Nobody pushes to `main` directly,
 
 Dependency update pull requests and release pull requests (`chore/release-vX.Y.Z`) do not need an issue.
 
-The repository is private on the GitHub Free plan, so the rulesets in `.github/rulesets/` are stored but not enforced. The CI checks `lint`, `docs`, `e2e`, `title`, `issue`, `branch` and `commits` are the gate. The maintainer applies the rulesets with `make github-rulesets`.
+The rulesets in `.github/rulesets/` are enforced. `main` accepts only squash merges of pull requests that pass the CI checks `lint`, `docs`, `e2e`, `title`, `issue`, `branch` and `commits`, and every commit must be signed. The maintainer applies changes to the rulesets with `make github-rulesets`.
 
 ## Commits
 

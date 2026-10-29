@@ -69,7 +69,7 @@ Every change follows these steps.
    - English, no transcript, state which checks ran.
    - Diff in scope: no unrelated edits.
 7. **Review and CI.** Wait for CodeRabbit + CI, then fix:
-   - `main` ruleset requires 7 checks: `lint`, `docs`, `e2e`, `title`, `issue`, `branch`, `commits`. Missing check ≠ pass. Rulesets not enforced while repo private on Free plan: CI is the gate.
+   - `main` ruleset requires 7 checks: `lint`, `docs`, `e2e`, `title`, `issue`, `branch`, `commits`. Missing check ≠ pass. Rulesets enforced: squash only, signed commits.
    - Gather all findings of round, verify each, fix all, rerun checks, push once, reply in each thread + resolve.
    - During rate limit, don't repeat `@coderabbitai review`: wait for window it names.
 8. **Hand over.** All green + CodeRabbit approved → tag maintainer (`@nayrosk`) on PR. Agents never merge, tag, release, or publish unless maintainer asks. After merge: remove worktree, pull `main`.
