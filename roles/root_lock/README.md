@@ -7,7 +7,9 @@ Locks the root password once the operator has passwordless sudo.
 - Fails unless the play connects as the operator. A tagged run (`TAGS=root_lock`) skips `ssh_hardening`
   and its switch to the operator: if the operator probe failed, the play is still on the root password, and
   locking root would cut it.
-- Fails unless `sudo -l` for the operator shows a `NOPASSWD: ALL` rule, the one `operator_user` writes.
+- Fails unless the last rule in `sudo -l` for the operator is `NOPASSWD: ALL` (the one `operator_user`
+  writes; sudo applies the last matching rule) and `sudo -k -n id -u` returns 0. `-k` ignores cached
+  credentials, so a rule that needs a password cannot pass.
 - Locks the root password with `ansible.builtin.user` and `password_lock: true` (`usermod -L` on Linux). The
   hash is kept behind a `!` prefix, so `passwd -u root` restores it.
 - Runs after `ssh_hardening`. The first run connects as root with the password until that role switches the
