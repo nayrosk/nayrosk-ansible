@@ -65,6 +65,8 @@ jobs:
           echo "$rule" | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          # trigger returns before udev applies the rule: wait for the event queue (#14).
+          sudo udevadm settle
           test -w /dev/kvm || { echo "::error::no usable /dev/kvm on this runner"; exit 1; }
       - name: End-to-end test
         env:
