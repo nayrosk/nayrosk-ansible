@@ -309,6 +309,17 @@
       ansible.builtin.command: sudo -n -u operator sudo -n true
       changed_when: false
 
+    - name: Read the root password status
+      ansible.builtin.command: passwd -S root
+      register: verify_root_passwd_status
+      changed_when: false
+
+    - name: Check the root password is locked
+      ansible.builtin.assert:
+        that: verify_root_passwd_status.stdout.split()[1] == 'L'
+        fail_msg: "root password status is {{ verify_root_passwd_status.stdout.split()[1] }}, expected L"
+        quiet: true
+
     - name: Read the operator linger state
       ansible.builtin.command: loginctl show-user operator -p Linger
       register: verify_operator_linger

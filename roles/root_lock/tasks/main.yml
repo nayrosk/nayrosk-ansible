@@ -1,0 +1,46 @@
+---
+# Locking root removes the last password login: the play must already reach the host through the operator
+# key, and the operator must keep full administrative rights.
+- name: Lock the root password
+  when: root_lock_enabled | bool
+  block:
+    # A tagged run skips ssh_hardening and its switch to the operator. If the operator probe failed, the play
+    # still connects as root with the password and locking root would cut that connection.
+    - name: Check the play connects as the operator
+      ansible.builtin.assert:
+        that: ansible_user == root_lock_operator
+        fail_msg: >-
+          The play connects as {{ ansible_user }}, not as {{ root_lock_operator }}: refusing to lock root.
+          Run the full playbook, or fix the operator key login first.
+        quiet: true
+
+    # -k ignores cached sudo credentials, so a rule that needs a password cannot pass on a recent sudo.
+    - name: List the operator sudo rights
+      ansible.builtin.command:
+        argv: [sudo, -n, -u, "{{ root_lock_operator }}", sudo, -k, -n, -l]
+      register: root_lock_sudo_rights
+      changed_when: false
+
+    - name: Run an administrative command as the operator
+      ansible.builtin.command:
+        argv: [sudo, -n, -u, "{{ root_lock_operator }}", sudo, -k, -n, id, -u]
+      register: root_lock_sudo_id
+      changed_when: false
+
+    # sudo applies the last matching rule, so a later PASSWD rule would override NOPASSWD: ALL. sudo -n true
+    # alone would also pass with a rule limited to that command.
+    - name: Check the operator has passwordless sudo for every command
+      vars:
+        root_lock_sudo_rules: "{{ root_lock_sudo_rights.stdout_lines | select('match', '^\\s+\\(') | list }}"
+      ansible.builtin.assert:
+        that:
+          - root_lock_sudo_rules | length > 0
+          - root_lock_sudo_rules | last is match('^\\s+\\(ALL(\\s*:\\s*ALL)?\\)\\s+NOPASSWD:\\s*ALL\\s*$')
+          - root_lock_sudo_id.stdout | trim == '0'
+        fail_msg: "The last sudo rule of {{ root_lock_operator }} is not NOPASSWD: ALL: refusing to lock root."
+        quiet: true
+
+    - name: Lock the root password with usermod -L
+      ansible.builtin.user:
+        name: root
+        password_lock: true

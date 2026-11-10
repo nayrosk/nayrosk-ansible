@@ -117,8 +117,36 @@ operator_public_key: |
 4. After the reload it probes the operator login again. On failure it restores the previous files, reloads
    sshd over the connection that is still open and stops.
 
-If you are locked out anyway (wrong key in `operator_public_key`, for example), use the console of your
-provider or hypervisor and log in as root there. Two ways out:
+If you are locked out anyway (wrong key in `operator_public_key`, for example), you need a root shell on the
+host. `root_lock` locks the root password after `ssh_hardening`, and the operator password is locked too, so
+the console login does not work. Get a shell one of these ways:
+
+- Single-user mode from GRUB: add `init=/bin/bash` to the kernel line, boot, then run
+  `mount -o remount,rw /`. The shell runs on the installed system.
+- Rescue mode of your provider: it boots a separate system. Mount the installed root filesystem and chroot
+  into it before you change anything, or the commands below act on the rescue system:
+
+  ```bash
+  lsblk                                   # find the root partition of the host, for example /dev/sda1
+  mount /dev/sda1 /mnt
+  chroot /mnt
+  ```
+
+Run `passwd -u root` if you want the console login back, or `passwd root` when root never had a password
+(`passwd -u` then has nothing to restore). If you then rely on the root SSH fallback (option 2 below), use the
+value of `vault_root_password`. That vault sits in `group_vars/all` and serves every host, so do not change it
+for one host. To give this host its own root password, set `vault_root_password` in an encrypted vault for
+that host only, from the controller: `make vault-edit VAULT_FILE=inventories/prod/host_vars/<host>/vault.yml`
+(replace `inventories/prod` with your inventory). Encrypt it with the same vault password as the inventory
+vault: `make run` passes one password and cannot decrypt a file encrypted with another. Neither shell runs the
+systemd of the host, so `systemctl` does not work there: make the repairs below, then boot the host normally
+(leave the chroot and reboot from the rescue system, or `sync` then `reboot -f` in single-user mode).
+
+Log in as root on the console directly only when root has a password and it is unlocked:
+`root_lock_enabled: false` since the first run, or `passwd -u root` run since. Setting
+`root_lock_enabled: false` later does not unlock it.
+
+Two ways out:
 
 1. Fix the operator key. This is the simplest and keeps the hardening:
 
@@ -132,7 +160,7 @@ provider or hypervisor and log in as root there. Two ways out:
    enough: the role also commented out `PermitRootLogin` and `PasswordAuthentication` in the other files of
    `/etc/ssh/sshd_config.d/`, so sshd falls back to its own defaults, which refuse a root password. The role
    kept a copy of every file it changed, named `<file>.<number>.<date>~` next to it. Put the copies back,
-   then reload:
+   then reload (from a rescue or single-user shell, skip the reload and reboot the host instead):
 
    ```bash
    cd /etc/ssh/sshd_config.d
@@ -142,8 +170,8 @@ provider or hypervisor and log in as root there. Two ways out:
    sshd -t && systemctl reload ssh
    ```
 
-   Root can log in with its password again until the next run. Fix `operator_public_key`, then run the
-   playbook.
+   Root can log in with its password again until the next run, if its password is unlocked. Fix
+   `operator_public_key`, then run the playbook.
 
 Other quick checks on the host:
 

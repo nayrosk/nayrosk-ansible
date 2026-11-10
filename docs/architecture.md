@@ -5,7 +5,7 @@ Ansible connects to the host.
 
 ## Playbook flow
 
-`playbooks/install_base.yml` runs 15 roles in a fixed order. Each role has a tag equal to its name.
+`playbooks/install_base.yml` runs 16 roles in a fixed order. Each role has a tag equal to its name.
 `bootstrap_connection` always runs, so a tag filter still picks the right account.
 
 ```mermaid
@@ -26,7 +26,7 @@ flowchart TD
         L[podman_monitoring]
     end
     subgraph lockdown["Lockdown"]
-        M[ssh_hardening] --> N[firewall] --> O[fail2ban]
+        M[ssh_hardening] --> P[root_lock] --> N[firewall] --> O[fail2ban]
     end
     A --> B
     D --> E
@@ -43,6 +43,8 @@ Why this order:
 - `operator_user` runs before `podman_monitoring`, because Caddy runs rootless under that account.
 - `ssh_hardening` comes late. It checks that the operator can log in with the key, then refuses root and
   password logins. The rest of the play runs as the operator.
+- `root_lock` runs right after `ssh_hardening`. The first run connects as root with the password until
+  `ssh_hardening` switches to the operator, so locking root earlier would break a reconnection.
 - `firewall` enables UFW last, after the SSH rule exists. `fail2ban` follows because its ban action is UFW.
 
 ## Network layout
@@ -93,6 +95,7 @@ sequenceDiagram
     H-->>C: key login works
     Note over C,H: sshd now refuses root and password logins
     C->>H: reconnect as operator with the key, sudo for the rest
+    C->>H: root_lock checks sudo, then locks the root password
     Note over C,H: Later runs
     C->>H: probe SSH as operator with the key
     H-->>C: accepted

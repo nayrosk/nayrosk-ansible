@@ -1,0 +1,22 @@
+---
+argument_specs:
+  main:
+    short_description: Lock the root password once the operator has passwordless sudo.
+    description:
+      - >-
+        Checks that the play connects as the operator and that the operator has a C(NOPASSWD: ALL) sudo rule,
+        then locks the root password (C(usermod -L) on Linux).
+      - Runs after C(ssh_hardening), once the play has switched to the operator account.
+    options:
+      root_lock_enabled:
+        type: bool
+        default: true
+        description:
+          - Lock the root password.
+          - Setting it to C(false) skips the role. It does not unlock a password locked by an earlier run.
+      root_lock_operator:
+        type: str
+        default: "{{ operator_user_name | default('operator') }}"
+        description:
+          - Account whose passwordless sudo is checked before root is locked.
+          - Follows C(operator_user_name) when it is set.
