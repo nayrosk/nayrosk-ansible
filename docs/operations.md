@@ -134,9 +134,11 @@ the console login does not work. Get a shell one of these ways:
 
 Run `passwd -u root` if you want the console login back, or `passwd root` when root never had a password
 (`passwd -u` then has nothing to restore). If you then rely on the root SSH fallback (option 2 below), use the
-value of `vault_root_password`, or update the vault with `make vault-edit`. Neither shell runs the systemd of the host, so
-`systemctl` does not work there: make the repairs below, then boot the host normally (leave the chroot and
-reboot from the rescue system, or `sync` then `reboot -f` in single-user mode).
+value of `vault_root_password`, or store the new password in the vault of your inventory from the controller:
+`make vault-edit VAULT_FILE=inventories/prod/group_vars/all/vault.yml` (replace `inventories/prod` with your
+inventory). Neither shell runs the systemd of the host, so `systemctl` does not work there: make the repairs
+below, then boot the host normally (leave the chroot and reboot from the rescue system, or `sync` then
+`reboot -f` in single-user mode).
 
 Log in as root on the console directly only when root has a password and it is unlocked: `root_lock_enabled: false` since
 the first run, or `passwd -u root` run since. Setting `root_lock_enabled: false` later does not unlock it.
