@@ -143,6 +143,14 @@ Restrict SSH to key-based operator logins and refuse root and password logins.
 | --- | --- | --- | --- | --- |
 | `ssh_hardening_allow_users` | list of str | `[{{ operator_user_name }}]` | no | Accounts allowed to log in over SSH (`AllowUsers`). Defaults to the operator account only. |
 
+## root_lock
+
+Lock the root password once the operator has passwordless sudo.
+
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `root_lock_enabled` | bool | `true` | no | Lock the root password. Setting it to `false` skips the role. It does not unlock a password locked by an earlier run. |
+
 ## firewall
 
 Enable UFW with a default deny policy and the SSH and Caddy rules.

@@ -29,6 +29,8 @@
       tags: [podman_monitoring]
     - role: ssh_hardening
       tags: [ssh_hardening]
+    - role: root_lock
+      tags: [root_lock]
     - role: firewall
       tags: [firewall]
     - role: fail2ban

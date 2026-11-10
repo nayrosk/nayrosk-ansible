@@ -1,0 +1,3 @@
+---
+# Lock the root password. Set to false on hosts where the console login as root is the only way back in.
+root_lock_enabled: true

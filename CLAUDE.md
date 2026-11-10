@@ -6,7 +6,7 @@ nayrosk-ansible = Ansible playbooks. Turn fresh Ubuntu 26.04 LTS host into harde
 
 ## Layout
 
-- `playbooks/install_base.yml`: entry playbook, 15 roles in order.
+- `playbooks/install_base.yml`: entry playbook, 16 roles in order.
 - `roles/<name>/`: `defaults/`, `tasks/`, `handlers/`, `templates/`, `meta/argument_specs.yml`, `README.md`. Tag = role name.
 - `inventories/example/`: sample inventory + `group_vars/all/vault.yml` (Ansible Vault). `inventories/e2e/`: throwaway inventory for the VM test.
 - `tests/e2e/`: `run.sh` harness, `verify.yml`, `check-idempotence.sh`, `controller/provision.sh` (controller image), `vm/` (qemu/KVM host image), `cloud-init/`.

@@ -11,7 +11,7 @@ One command works for the first run and every later run. The first run connects 
 
 ## What it does
 
-The playbook runs 15 roles in this order. Each role has a tag equal to its name.
+The playbook runs 16 roles in this order. Each role has a tag equal to its name.
 
 - `bootstrap_connection`: picks the operator key or the root password for the connection.
 - `hostname`: sets the hostname and its `/etc/hosts` entry.
@@ -26,6 +26,7 @@ The playbook runs 15 roles in this order. Each role has a tag equal to its name.
 - `user_customization`: deploys user dotfiles.
 - `podman_monitoring`: runs node_exporter (rootful) and Caddy (rootless) as Podman quadlets. Caddy serves the metrics over HTTPS with basic auth.
 - `ssh_hardening`: allows only the operator, with a key, and checks the login before it reloads sshd.
+- `root_lock`: locks the root password once the operator has passwordless sudo.
 - `firewall`: enables UFW with a default deny policy.
 - `fail2ban`: bans repeated SSH and Caddy authentication failures through UFW.
 

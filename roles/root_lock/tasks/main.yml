@@ -1,0 +1,13 @@
+---
+# Locking root removes the last password login, so the operator sudo rule must work first.
+- name: Check the operator has passwordless sudo
+  ansible.builtin.command:
+    argv: [sudo, -n, -u, "{{ operator_user_name }}", sudo, -n, "true"]
+  changed_when: false
+  when: root_lock_enabled | bool
+
+- name: Lock the root password
+  ansible.builtin.user:
+    name: root
+    password_lock: true
+  when: root_lock_enabled | bool

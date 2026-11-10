@@ -117,8 +117,12 @@ operator_public_key: |
 4. After the reload it probes the operator login again. On failure it restores the previous files, reloads
    sshd over the connection that is still open and stops.
 
-If you are locked out anyway (wrong key in `operator_public_key`, for example), use the console of your
-provider or hypervisor and log in as root there. Two ways out:
+If you are locked out anyway (wrong key in `operator_public_key`, for example), you need a root shell on the
+host. `root_lock` locks the root password after `ssh_hardening`, and the operator password is locked too, so
+the console login does not work. Boot the host in the rescue mode of your provider, or in single-user mode
+from GRUB (add `init=/bin/bash` to the kernel line, then `mount -o remount,rw /`). Run `passwd -u root` if you
+want the console login back. On a host with `root_lock_enabled: false`, log in as root on the console
+directly. Two ways out:
 
 1. Fix the operator key. This is the simplest and keeps the hardening:
 
@@ -142,7 +146,7 @@ provider or hypervisor and log in as root there. Two ways out:
    sshd -t && systemctl reload ssh
    ```
 
-   Root can log in with its password again until the next run. Fix `operator_public_key`, then run the
+   Root can log in with its password again until the next run, if its password is unlocked. Fix `operator_public_key`, then run the
    playbook.
 
 Other quick checks on the host:
