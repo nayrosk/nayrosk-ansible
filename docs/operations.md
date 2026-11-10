@@ -119,10 +119,21 @@ operator_public_key: |
 
 If you are locked out anyway (wrong key in `operator_public_key`, for example), you need a root shell on the
 host. `root_lock` locks the root password after `ssh_hardening`, and the operator password is locked too, so
-the console login does not work. Boot the host in the rescue mode of your provider, or in single-user mode
-from GRUB (add `init=/bin/bash` to the kernel line, then `mount -o remount,rw /`). Run `passwd -u root` if you
-want the console login back. On a host with `root_lock_enabled: false`, log in as root on the console
-directly. Two ways out:
+the console login does not work. Get a shell one of these ways:
+
+- Single-user mode from GRUB: add `init=/bin/bash` to the kernel line, boot, then run
+  `mount -o remount,rw /`. The shell runs on the installed system.
+- Rescue mode of your provider: it boots a separate system. Mount the installed root filesystem and chroot
+  into it before you change anything, or the commands below act on the rescue system:
+
+  ```bash
+  lsblk                                   # find the root partition of the host, for example /dev/sda1
+  mount /dev/sda1 /mnt
+  chroot /mnt
+  ```
+
+Run `passwd -u root` if you want the console login back. On a host with `root_lock_enabled: false`, log in as
+root on the console directly. Two ways out:
 
 1. Fix the operator key. This is the simplest and keeps the hardening:
 
