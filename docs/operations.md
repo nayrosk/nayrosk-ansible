@@ -132,8 +132,14 @@ the console login does not work. Get a shell one of these ways:
   chroot /mnt
   ```
 
-Run `passwd -u root` if you want the console login back. On a host with `root_lock_enabled: false`, log in as
-root on the console directly. Two ways out:
+Run `passwd -u root` if you want the console login back. Neither shell runs the systemd of the host, so
+`systemctl` does not work there: make the repairs below, then boot the host normally (leave the chroot and
+reboot from the rescue system, or `sync` then `reboot -f` in single-user mode).
+
+Log in as root on the console directly only when its password is unlocked: `root_lock_enabled: false` since
+the first run, or `passwd -u root` run since. Setting `root_lock_enabled: false` later does not unlock it.
+
+Two ways out:
 
 1. Fix the operator key. This is the simplest and keeps the hardening:
 
@@ -147,7 +153,7 @@ root on the console directly. Two ways out:
    enough: the role also commented out `PermitRootLogin` and `PasswordAuthentication` in the other files of
    `/etc/ssh/sshd_config.d/`, so sshd falls back to its own defaults, which refuse a root password. The role
    kept a copy of every file it changed, named `<file>.<number>.<date>~` next to it. Put the copies back,
-   then reload:
+   then reload (from a rescue or single-user shell, skip the reload and reboot the host instead):
 
    ```bash
    cd /etc/ssh/sshd_config.d
@@ -157,8 +163,8 @@ root on the console directly. Two ways out:
    sshd -t && systemctl reload ssh
    ```
 
-   Root can log in with its password again until the next run, if its password is unlocked. Fix `operator_public_key`, then run the
-   playbook.
+   Root can log in with its password again until the next run, if its password is unlocked. Fix
+   `operator_public_key`, then run the playbook.
 
 Other quick checks on the host:
 

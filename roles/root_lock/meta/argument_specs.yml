@@ -12,3 +12,9 @@ argument_specs:
         description:
           - Lock the root password.
           - Setting it to C(false) skips the role. It does not unlock a password locked by an earlier run.
+      root_lock_operator:
+        type: str
+        default: "{{ operator_user_name | default('operator') }}"
+        description:
+          - Account whose passwordless sudo is checked before root is locked.
+          - Follows C(operator_user_name) when it is set.

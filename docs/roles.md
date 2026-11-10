@@ -150,6 +150,7 @@ Lock the root password once the operator has passwordless sudo.
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
 | `root_lock_enabled` | bool | `true` | no | Lock the root password. Setting it to `false` skips the role. It does not unlock a password locked by an earlier run. |
+| `root_lock_operator` | str | `{{ operator_user_name \| default('operator') }}` | no | Account whose passwordless sudo is checked before root is locked. Follows `operator_user_name` when it is set. |
 
 ## firewall
 

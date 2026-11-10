@@ -1,3 +1,5 @@
 ---
 # Lock the root password. Set to false on hosts where the console login as root is the only way back in.
 root_lock_enabled: true
+# Account whose passwordless sudo is checked before root is locked.
+root_lock_operator: "{{ operator_user_name | default('operator') }}"
