@@ -135,14 +135,16 @@ the console login does not work. Get a shell one of these ways:
 Run `passwd -u root` if you want the console login back, or `passwd root` when root never had a password
 (`passwd -u` then has nothing to restore). If you then rely on the root SSH fallback (option 2 below), use the
 value of `vault_root_password`. That vault sits in `group_vars/all` and serves every host, so do not change it
-for one host. To give this host its own root password, set `vault_root_password` in an encrypted vault for that
-host only, from the controller: `make vault-edit VAULT_FILE=inventories/prod/host_vars/<host>/vault.yml`
-(replace `inventories/prod` with your inventory). Neither shell runs the systemd of the host, so `systemctl`
-does not work there: make the repairs below, then boot the host normally (leave the chroot and reboot from
-the rescue system, or `sync` then `reboot -f` in single-user mode).
+for one host. To give this host its own root password, set `vault_root_password` in an encrypted vault for
+that host only, from the controller: `make vault-edit VAULT_FILE=inventories/prod/host_vars/<host>/vault.yml`
+(replace `inventories/prod` with your inventory). Encrypt it with the same vault password as the inventory
+vault: `make run` passes one password and cannot decrypt a file encrypted with another. Neither shell runs the
+systemd of the host, so `systemctl` does not work there: make the repairs below, then boot the host normally
+(leave the chroot and reboot from the rescue system, or `sync` then `reboot -f` in single-user mode).
 
-Log in as root on the console directly only when root has a password and it is unlocked: `root_lock_enabled: false` since
-the first run, or `passwd -u root` run since. Setting `root_lock_enabled: false` later does not unlock it.
+Log in as root on the console directly only when root has a password and it is unlocked:
+`root_lock_enabled: false` since the first run, or `passwd -u root` run since. Setting
+`root_lock_enabled: false` later does not unlock it.
 
 Two ways out:
 
