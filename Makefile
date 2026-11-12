@@ -23,9 +23,9 @@ CHECK     ?=
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-$(CONTROLLER_STAMP): tests/e2e/controller/provision.sh scripts/build-image.sh requirements.txt requirements.yml
+$(CONTROLLER_STAMP): tests/e2e/controller/provision.sh scripts/build-image.sh requirements.txt tests/e2e/controller/requirements.yml
 	rm -rf .cache/controller-provision && mkdir -p .cache/controller-provision
-	cp tests/e2e/controller/provision.sh requirements.txt requirements.yml .cache/controller-provision/
+	cp tests/e2e/controller/provision.sh tests/e2e/controller/requirements.yml requirements.txt .cache/controller-provision/
 	scripts/build-image.sh $(CONTROLLER_BASE) "$(CURDIR)/.cache/controller-provision" $(CONTROLLER_IMAGE)
 	@mkdir -p $(dir $@)
 	@touch $@
