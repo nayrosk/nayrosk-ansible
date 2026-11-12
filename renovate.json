@@ -2,9 +2,19 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": [
     "Dependabot owns GitHub Actions; Renovate owns everything else.",
+    "ignorePaths repeats the config:recommended value without **/tests/**: the Galaxy collections of the controller image live in tests/e2e/controller/requirements.yml.",
     "Manual steps: the cloud image (release-YYYYMMDD path plus SHA256 in tests/e2e/run.sh) and the git-cliff and actionlint versions with their checksums in tests/e2e/controller/provision.sh are updated by hand."
   ],
   "extends": ["config:recommended"],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/__fixtures__/**"
+  ],
   "minimumReleaseAge": "7 days",
   "dependencyDashboard": true,
   "labels": ["dependencies"],
