@@ -55,7 +55,7 @@ The target creates the file when it is missing and edits it otherwise.
 Produce the Caddy password hash with the pinned Caddy image:
 
 ```bash
-podman run --rm docker.io/library/caddy:2.11.7-alpine caddy hash-password --plaintext '<password>'
+podman run --rm docker.io/library/caddy:2.11.8-alpine caddy hash-password --plaintext '<password>'
 ```
 
 ## Certificate authority
