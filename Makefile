@@ -1,7 +1,8 @@
 # Every tool runs inside the controller image: the host needs only podman and make.
 CONTROLLER_IMAGE ?= localhost/nayrosk-ansible-controller:dev
 CONTROLLER_BASE  := docker.io/library/python:3.13-slim@sha256:aaf08c5490d52cd92bc27142a5215b1e47355a5eaf9adfad2a0fbc022d0b5490
-CONTROLLER_RUN   := podman run --rm --userns=keep-id -v "$(CURDIR):/work:Z" -w /work $(CONTROLLER_IMAGE)
+CONTROLLER_RUN_ENV := podman run --rm --userns=keep-id -v "$(CURDIR):/work:Z" -w /work
+CONTROLLER_RUN   := $(CONTROLLER_RUN_ENV) $(CONTROLLER_IMAGE)
 CONTROLLER_STAMP := .cache/controller.stamp
 
 E2E_VM_IMAGE ?= localhost/nayrosk-ansible-e2e-vm:dev
@@ -44,8 +45,11 @@ lint: yamllint ansible-lint shellcheck actionlint zizmor ## Run all linters
 yamllint: controller ## Run yamllint in strict mode
 	$(CONTROLLER_RUN) yamllint --strict .
 
+# ansible-lint loads every ansible-core plugin, and ansible-core 2.22 deprecates its oneline and tree callbacks,
+# which the playbooks do not use. Core deprecations are silenced for ansible-lint only: its deprecated-* rules
+# still check the code, and the e2e runs keep them on.
 ansible-lint: controller ## Run ansible-lint (production profile)
-	$(CONTROLLER_RUN) ansible-lint
+	$(CONTROLLER_RUN_ENV) -e ANSIBLE_DEPRECATION_WARNINGS=False $(CONTROLLER_IMAGE) ansible-lint
 
 shellcheck: controller ## Lint shell scripts
 	$(CONTROLLER_RUN) shellcheck scripts/*.sh .github/scripts/*.sh tests/e2e/*.sh tests/e2e/*/*.sh
