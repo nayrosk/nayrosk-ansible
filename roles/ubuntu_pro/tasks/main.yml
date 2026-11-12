@@ -1,8 +1,13 @@
 ---
+# pro status queries the Canonical contracts API on an unattached host. That API fails now and then (HTTP 502):
+# retry instead of failing the play.
 - name: Read the Ubuntu Pro status
   ansible.builtin.command: pro status --format json
   register: ubuntu_pro_status_raw
   changed_when: false
+  retries: 5
+  delay: 5
+  until: ubuntu_pro_status_raw.rc == 0
 
 - name: Parse the Ubuntu Pro status
   ansible.builtin.set_fact:
@@ -28,6 +33,9 @@
   ansible.builtin.command: pro status --format json
   register: ubuntu_pro_status_after
   changed_when: false
+  retries: 5
+  delay: 5
+  until: ubuntu_pro_status_after.rc == 0
   when: ubuntu_pro_livepatch | bool
 
 - name: Parse the Ubuntu Pro status after attaching
