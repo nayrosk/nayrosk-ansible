@@ -1,0 +1,7 @@
+---
+# Included from main.yml with the operator connection variables as include parameters.
+- name: Ping the host as the operator with the key
+  ansible.builtin.ping:
+  ignore_unreachable: true
+  register: operator_user_probe
+  changed_when: false

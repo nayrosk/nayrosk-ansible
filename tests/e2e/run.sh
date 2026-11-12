@@ -169,6 +169,12 @@ wait_for_vm() {
   done
   log "wait for cloud-init"
   ssh_probe login "cloud-init status --wait"
+  # Run 1 must escalate with the bootstrap password: fail early if sudo works without it.
+  if ssh_probe login "sudo -k -n true" >/dev/null 2>&1; then
+    echo "the bootstrap user has passwordless sudo: the become password path is not tested" >&2
+    return 1
+  fi
+  log "bootstrap user sudo needs a password"
 }
 
 # Expected bootstrap_connection_mode per run. Run 1 finds no operator account yet and connects as the

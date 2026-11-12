@@ -34,13 +34,23 @@
     ansible_password: ""
     ansible_become: true
     ansible_become_password: ""
+    ansible_become_exe: sudo
   when: bootstrap_connection_mode == 'operator'
+
+# The password is only read in this protected task: the assert below keeps its message visible.
+- name: Record whether the bootstrap password is set
+  vars:
+    ansible_password: ""
+  ansible.builtin.set_fact:
+    bootstrap_connection_password_set: "{{ bootstrap_connection_password | default('') | length > 0 }}"
+  when: bootstrap_connection_mode == 'bootstrap'
+  no_log: true
 
 - name: Check the bootstrap password is available for the fallback
   vars:
     ansible_password: ""
   ansible.builtin.assert:
-    that: bootstrap_connection_password | default('') | length > 0
+    that: bootstrap_connection_password_set | bool
     fail_msg: >-
       The operator key login failed and no bootstrap password is set: define vault_bootstrap_password (or the
       older vault_root_password) in the inventory vault for the first run, or fix the operator key.
@@ -48,12 +58,15 @@
   when: bootstrap_connection_mode == 'bootstrap'
 
 # A user other than root reaches root through sudo with its own password, as on a stock Ubuntu install.
+# Ubuntu 26.04 runs sudo-rs, which wraps the prompt Ansible passes with -p ("[sudo: <prompt>] Password:"), so
+# Ansible never sees its prompt and times out: escalate with bootstrap_connection_become_exe instead.
 - name: Use the bootstrap user with its password
   ansible.builtin.set_fact:
     ansible_user: "{{ bootstrap_connection_user }}"
     ansible_password: "{{ bootstrap_connection_password }}"
     ansible_become: "{{ bootstrap_connection_user != 'root' }}"
     ansible_become_password: "{{ bootstrap_connection_password if bootstrap_connection_user != 'root' else '' }}"
+    ansible_become_exe: "{{ bootstrap_connection_become_exe if bootstrap_connection_user != 'root' else 'sudo' }}"
   when: bootstrap_connection_mode == 'bootstrap'
   no_log: true
 

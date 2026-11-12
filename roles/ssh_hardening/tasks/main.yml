@@ -160,6 +160,7 @@
     ansible_password: ""
     ansible_become: true
     ansible_become_password: ""
+    ansible_become_exe: sudo
   when: bootstrap_connection_mode | default('') == 'bootstrap'
 
 - name: Reset the connection to use the operator account

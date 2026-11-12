@@ -43,8 +43,9 @@ flowchart LR
 ```
 
 - Run 1 connects as the `ubuntu` user with its password and `sudo`, as on a stock install, and asserts
-  `bootstrap_connection_mode=bootstrap`. cloud-init also gives root a password, so verify can check that root
-  is refused.
+  `bootstrap_connection_mode=bootstrap`. cloud-init makes `sudo` ask for the `ubuntu` password, as a stock
+  install does, and the harness checks it before run 1. cloud-init also gives root a password, so verify can
+  check that root is refused.
 - Run 2 must change nothing. `tests/e2e/check-idempotence.sh` fails when any task reports `changed`. It also
   asserts `bootstrap_connection_mode=operator`.
 - Logs go to `artifacts/e2e/` (`run1.log`, `run2.log`, `verify.log`, `vm-console.log`).

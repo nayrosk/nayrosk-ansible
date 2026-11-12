@@ -23,6 +23,13 @@ argument_specs:
           - Account used with a password while the operator key login does not work yet.
           - V(root), or a user with sudo rights such as the C(ubuntu) account of a stock install. The
             C(bootstrap_user_cleanup) role removes a user other than root once the operator works.
+      bootstrap_connection_become_exe:
+        type: str
+        default: sudo.ws
+        description:
+          - sudo binary used to escalate while the play connects as a bootstrap user other than root.
+          - Ubuntu 26.04 defaults to sudo-rs, which wraps the password prompt Ansible waits for, so the escalation
+            times out. C(sudo.ws) is the classic sudo that Ubuntu ships next to it.
       bootstrap_connection_password:
         type: str
         default: "{{ vault_bootstrap_password | default(vault_root_password | default('')) }}"

@@ -12,6 +12,7 @@ Choose how Ansible connects to the host, operator key or root password.
 | `bootstrap_connection_operator` | str | `{{ operator_user_name \| default('operator') }}` | no | Account probed with the SSH key. Follows `operator_user_name` when it is set. |
 | `bootstrap_connection_probe_timeout` | int | `10` | no | Seconds before the operator probe gives up. |
 | `bootstrap_connection_user` | str | `root` | no | Account used with a password while the operator key login does not work yet. `root`, or a user with sudo rights such as the `ubuntu` account of a stock install. The `bootstrap_user_cleanup` role removes a user other than root once the operator works. |
+| `bootstrap_connection_become_exe` | str | `sudo.ws` | no | sudo binary used to escalate while the play connects as a bootstrap user other than root. Ubuntu 26.04 defaults to sudo-rs, which wraps the password prompt Ansible waits for, so the escalation times out. `sudo.ws` is the classic sudo that Ubuntu ships next to it. |
 | `bootstrap_connection_password` | str | secret | no | Password of the bootstrap user, also used for sudo when that user is not root. Required only when the operator probe fails. |
 | `vault_bootstrap_password` | str | secret | no | Vault secret behind `bootstrap_connection_password`. |
 | `vault_root_password` | str | secret | no | Older name of `vault_bootstrap_password`, used when that one is not defined. |
