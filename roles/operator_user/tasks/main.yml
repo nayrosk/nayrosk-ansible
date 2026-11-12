@@ -16,6 +16,19 @@
     password_lock: true
     state: present
 
+# Tasks run as the operator (rootless Caddy) need a temporary directory in its home. With pipelining, the
+# first module that needs it creates it and warns about it: create it beforehand.
+- name: Create the Ansible temporary directory of the operator
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ operator_user_name }}"
+    group: "{{ operator_user_name }}"
+    mode: "0700"
+  loop:
+    - "{{ operator_user_home }}/.ansible"
+    - "{{ operator_user_home }}/.ansible/tmp"
+
 - name: Allow the operator passwordless sudo
   ansible.builtin.copy:
     content: "{{ operator_user_name }} ALL=(ALL) NOPASSWD:ALL\n"
