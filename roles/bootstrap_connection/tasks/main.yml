@@ -62,3 +62,16 @@
 
 - name: Gather facts
   ansible.builtin.setup:
+
+# Every mode reaches root, directly or through become. With pipelining, the first module that needs a
+# temporary directory creates /root/.ansible/tmp itself and warns about it: create it beforehand.
+- name: Create the Ansible temporary directory of root
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - /root/.ansible
+    - /root/.ansible/tmp

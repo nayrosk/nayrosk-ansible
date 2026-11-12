@@ -1,6 +1,6 @@
 #!/bin/sh
 # Provision the controller image. Runs inside python:3.13-slim with /provision mounted read-only
-# (requirements.txt, requirements.yml). Driven by scripts/build-image.sh.
+# (requirements.txt from the repository root, requirements.yml from this directory). Driven by scripts/build-image.sh.
 set -eu
 
 ACTIONLINT_VERSION=1.7.12

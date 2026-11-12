@@ -23,9 +23,9 @@ CHECK     ?=
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-$(CONTROLLER_STAMP): tests/e2e/controller/provision.sh scripts/build-image.sh requirements.txt requirements.yml
+$(CONTROLLER_STAMP): tests/e2e/controller/provision.sh scripts/build-image.sh requirements.txt tests/e2e/controller/requirements.yml
 	rm -rf .cache/controller-provision && mkdir -p .cache/controller-provision
-	cp tests/e2e/controller/provision.sh requirements.txt requirements.yml .cache/controller-provision/
+	cp tests/e2e/controller/provision.sh tests/e2e/controller/requirements.yml requirements.txt .cache/controller-provision/
 	scripts/build-image.sh $(CONTROLLER_BASE) "$(CURDIR)/.cache/controller-provision" $(CONTROLLER_IMAGE)
 	@mkdir -p $(dir $@)
 	@touch $@
@@ -59,11 +59,14 @@ zizmor: controller ## Audit GitHub workflows (no-op without .github/workflows)
 # ~/.ssh is mounted read-only and never relabeled: a :Z or :z option would change the SELinux label of the
 # real ~/.ssh. label=disable lets the container read it, and connect to the SSH agent socket, on SELinux
 # hosts instead. The agent is forwarded when SSH_AUTH_SOCK points at a socket (needed for passphrase keys).
+# OpenSSH resolves ~ from the passwd entry, not from HOME: keep-id would give it the working directory, so the
+# passwd home is set to /tmp to match HOME and the ~/.ssh mount.
 run: controller ## Run the playbook (INVENTORY=, LIMIT=, TAGS=)
 	@if [ -f .vault-pass ]; then vault_opt="--vault-password-file .vault-pass"; else vault_opt="--ask-vault-pass"; fi; \
 	if [ -n "$${SSH_AUTH_SOCK:-}" ] && [ -S "$${SSH_AUTH_SOCK}" ]; then \
 		set -- -v "$${SSH_AUTH_SOCK}:/tmp/ssh-agent.sock" -e SSH_AUTH_SOCK=/tmp/ssh-agent.sock; else set --; fi; \
-	podman run --rm -it --userns=keep-id --network host --security-opt label=disable -e HOME=/tmp "$$@" \
+	podman run --rm -it --userns=keep-id --passwd-entry '$$USERNAME:*:$$UID:$$GID::/tmp:/bin/sh' \
+		--network host --security-opt label=disable -e HOME=/tmp "$$@" \
 		-v "$(CURDIR):/work" -v "$$HOME/.ssh:/tmp/.ssh:ro" -w /work $(CONTROLLER_IMAGE) \
 		ansible-playbook -i "$(INVENTORY)" $$vault_opt \
 		$(if $(LIMIT),--limit "$(LIMIT)") $(if $(TAGS),--tags "$(TAGS)") playbooks/install_base.yml $(ARGS)
