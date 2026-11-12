@@ -45,7 +45,7 @@ See [architecture](docs/architecture.md) for the detailed flow, the network layo
 
 ## Quickstart
 
-Requirements on your workstation: `podman` and `make`. Running the tests also needs `/dev/kvm`. Every other tool runs in a container.
+Requirements on your workstation: `podman` 4.1 or later and `make`. Running the tests also needs `/dev/kvm`. Every other tool runs in a container.
 
 The target machine runs a fresh Ubuntu 26.04 and accepts root with a password over SSH.
 
