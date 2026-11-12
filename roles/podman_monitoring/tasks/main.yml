@@ -98,7 +98,7 @@
   notify: Restart node-exporter
 
 # Tasks for the rootless Caddy run as the operator. bootstrap_connection sets ansible_become as a host
-# fact (false in root mode), which beats the become keyword: include parameters are the only scoped way
+# fact (false when it connects as root), which beats the become keyword: include parameters are the only scoped way
 # to outrank it, so the switch to the operator is passed as include vars.
 - name: Configure the rootless Caddy as the operator
   ansible.builtin.include_tasks: caddy.yml

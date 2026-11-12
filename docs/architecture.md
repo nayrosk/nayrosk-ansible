@@ -40,7 +40,9 @@ Why this order:
 - `local_ca` runs before `podman_monitoring`, which needs the server certificate and the facts
   `local_ca_local_ip` and `local_ca_public_ip`.
 - `base_packages` installs podman, UFW and fail2ban before the roles that use them.
-- `operator_user` runs before `podman_monitoring`, because Caddy runs rootless under that account.
+- `operator_user` runs before `podman_monitoring`, because Caddy runs rootless under that account. When the
+  bootstrap user is not root, `operator_user` also moves the play to the operator: Ansible cannot hand that
+  user's temporary files to the operator for the rootless Caddy tasks.
 - `ssh_hardening` comes late. It checks that the operator can log in with the key, then refuses root and
   password logins. The rest of the play runs as the operator.
 - `root_lock` runs right after `ssh_hardening`. The first run connects as the bootstrap user with the password
@@ -93,6 +95,7 @@ sequenceDiagram
     H--xC: refused
     C->>H: connect as the bootstrap user (root, or a sudo user) with the vault password
     C->>H: roles up to operator_user (creates the operator and its key)
+    Note over C,H: a non-root bootstrap user hands over to the operator here
     C->>H: ssh_hardening checks the operator key login
     H-->>C: key login works
     Note over C,H: sshd now refuses root and password logins

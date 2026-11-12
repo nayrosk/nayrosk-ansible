@@ -55,3 +55,45 @@
   ansible.builtin.command: "loginctl enable-linger {{ operator_user_name }}"
   changed_when: true
   when: not operator_user_linger.stat.exists
+
+# A bootstrap user other than root reaches the operator through sudo, and Ansible cannot hand its temporary
+# files to the operator for tasks that become it (rootless Caddy). The operator key works from here, so move
+# the rest of the play to the operator now, as ssh_hardening does later for root. The probe is the one of
+# bootstrap_connection: key only, batch mode, never a password.
+- name: Move the play to the operator after a non-root bootstrap user
+  when:
+    - bootstrap_connection_mode | default('') == 'bootstrap'
+    - ansible_user != 'root'
+    - ansible_user != operator_user_name
+  block:
+    - name: Probe the operator key login
+      ansible.builtin.ping:
+      vars:
+        ansible_user: "{{ operator_user_name }}"
+        ansible_password: ""
+        ansible_become: false
+        ansible_ssh_common_args: >-
+          {{ hostvars[inventory_hostname].ansible_ssh_common_args | default('') }}
+          -o PreferredAuthentications=publickey -o BatchMode=yes
+      ignore_unreachable: true
+      register: operator_user_probe
+      changed_when: false
+
+    - name: Check the operator key login works
+      ansible.builtin.assert:
+        that: not (operator_user_probe.unreachable | default(false))
+        fail_msg: >-
+          {{ operator_user_name }} cannot log in with the key from the controller: check operator_public_key
+          and the controller key.
+        quiet: true
+
+    - name: Use the operator with become
+      ansible.builtin.set_fact:
+        ansible_user: "{{ operator_user_name }}"
+        ansible_password: ""
+        ansible_become: true
+        ansible_become_password: ""
+
+# meta tasks cannot be conditional: the reset is harmless when the connection is unchanged.
+- name: Reset the connection to use the operator account
+  ansible.builtin.meta: reset_connection
