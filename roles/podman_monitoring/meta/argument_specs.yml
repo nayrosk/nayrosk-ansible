@@ -10,7 +10,7 @@ argument_specs:
     options:
       podman_monitoring_caddy_version:
         type: str
-        default: "2.11.7"
+        default: "2.11.8"
         description: Caddy image tag (C(docker.io/library/caddy:<version>-alpine)).
       podman_monitoring_node_exporter_version:
         type: str

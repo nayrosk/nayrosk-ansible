@@ -122,7 +122,7 @@ Run node_exporter as a rootful quadlet and Caddy as a rootless quadlet in front 
 
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
-| `podman_monitoring_caddy_version` | str | `2.11.7` | no | Caddy image tag (`docker.io/library/caddy:<version>-alpine`). |
+| `podman_monitoring_caddy_version` | str | `2.11.8` | no | Caddy image tag (`docker.io/library/caddy:<version>-alpine`). |
 | `podman_monitoring_node_exporter_version` | str | `1.12.1` | no | node_exporter image tag (`quay.io/prometheus/node-exporter:v<version>`). |
 | `podman_monitoring_node_exporter_listen` | str | `127.0.0.1:9100` | no | Address and port node_exporter listens on. Must stay a loopback address. Caddy proxies to `host.containers.internal`, which pasta maps to the host loopback only. |
 | `podman_monitoring_caddy_basic_auth_user` | str | `admin` | no | Basic auth user protecting every Caddy route. |

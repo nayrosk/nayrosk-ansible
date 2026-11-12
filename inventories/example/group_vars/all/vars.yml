@@ -27,7 +27,7 @@ operator_public_key: "ssh-ed25519 AAAAREPLACE_WITH_YOUR_PUBLIC_KEY you@example.o
 # --- Monitoring front end -------------------------------------------------------------------
 # Basic auth user of Caddy. The password hash is vault_caddy_basic_auth_hash (see vault.yml.example).
 podman_monitoring_caddy_basic_auth_user: metrics
-# podman_monitoring_caddy_version: "2.11.7"
+# podman_monitoring_caddy_version: "2.11.8"
 # podman_monitoring_node_exporter_version: "1.12.1"
 # Extra names or addresses served by Caddy, for example a DNS name pointing at the machine.
 podman_monitoring_caddy_extra_site_addresses: []
