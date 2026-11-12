@@ -25,7 +25,8 @@ IMAGE_DIR=.cache/images
 LOG_DIR=artifacts/e2e
 INVENTORY=inventories/e2e
 VAULT_PASS_FILE=tests/e2e/vault-pass
-ROOT_PASSWORD=e2e-root-password
+BOOTSTRAP_USER=ubuntu
+BOOTSTRAP_PASSWORD=e2e-ubuntu-password
 SSH_TIMEOUT=300
 
 START=$(date +%s)
@@ -112,15 +113,15 @@ vm_running() {
   [ "$(podman container inspect -f '{{.State.Running}}' "$VM_NAME" 2>/dev/null)" = true ]
 }
 
-# One SSH probe from the controller: $1 is "keyscan" (host key served) or "login" (root password
-# login accepted). sshd answers before cloud-init has set the root password and allowed root login.
+# One SSH probe from the controller: $1 is "keyscan" (host key served) or "login" (bootstrap user password
+# login accepted). sshd answers before cloud-init has set the passwords and allowed password logins.
 ssh_probe() {
   # shellcheck disable=SC2016 # the script is expanded by the inner shell
-  controller env SSHPASS="$ROOT_PASSWORD" sh -eu -c '
+  controller env SSHPASS="$BOOTSTRAP_PASSWORD" BOOTSTRAP_USER="$BOOTSTRAP_USER" sh -eu -c '
     case $1 in
       keyscan) ssh-keyscan -T 5 -p 2222 127.0.0.1 2>/dev/null | grep -q ssh-ed25519 ;;
       login) sshpass -e ssh -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-               -o PubkeyAuthentication=no -o ConnectTimeout=5 -o LogLevel=ERROR root@127.0.0.1 "${2:-true}" ;;
+               -o PubkeyAuthentication=no -o ConnectTimeout=5 -o LogLevel=ERROR "$BOOTSTRAP_USER@127.0.0.1" "${2:-true}" ;;
     esac
   ' sh "$@"
 }
@@ -168,11 +169,29 @@ wait_for_vm() {
   done
   log "wait for cloud-init"
   ssh_probe login "cloud-init status --wait"
+  # Run 1 must escalate with the bootstrap password. sudo -n must refuse with a password or authentication
+  # message; any other outcome (SSH failure, passwordless sudo, another error) stops the test.
+  local out
+  out=$(ssh_probe login 'sudo -k -n true 2>&1; echo "sudo_rc=$?"' 2>&1) || true
+  case $out in
+    *sudo_rc=0*)
+      echo "the bootstrap user has passwordless sudo: the become password path is not tested" >&2
+      return 1 ;;
+    *sudo_rc=*)
+      if ! printf '%s\n' "$out" | grep -qiE 'password|authentication'; then
+        echo "unexpected sudo answer for the bootstrap user: $out" >&2
+        return 1
+      fi ;;
+    *)
+      echo "could not run sudo as the bootstrap user: $out" >&2
+      return 1 ;;
+  esac
+  log "bootstrap user sudo needs a password"
 }
 
-# Expected bootstrap_connection_mode per run. Run 1 finds no operator account yet and connects as root;
-# the operator_user role creates it, so run 2 connects as the operator.
-RUN_1_MODE=root
+# Expected bootstrap_connection_mode per run. Run 1 finds no operator account yet and connects as the
+# bootstrap user (ubuntu, through sudo); the operator_user role creates it, so run 2 connects as the operator.
+RUN_1_MODE=bootstrap
 RUN_2_MODE=operator
 
 # Assertions on a playbook run log ($1: run number, $2: log file, $3: expected bootstrap_connection_mode).

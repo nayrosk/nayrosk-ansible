@@ -149,16 +149,19 @@
           could not log in with the key from the controller.
           Rollback steps: {{ ssh_hardening_rescue_steps }}.
 
-# After the reload, new root logins are refused. The root connection of this run survives (existing session)
-# but a reset or an expired ControlPersist master would break the roles that follow, so move the rest of
-# the play to the operator, as bootstrap_connection does when it finds the operator account. The reset
-# runs in every mode (meta tasks cannot be conditional) and is harmless when the connection is unchanged.
+# After the reload, new logins of the bootstrap user are refused. Its connection of this run survives
+# (existing session) but a reset or an expired ControlPersist master would break the roles that follow, so
+# move the rest of the play to the operator, as bootstrap_connection does when it finds the operator account.
+# The reset runs in every mode (meta tasks cannot be conditional) and is harmless when the connection is
+# unchanged.
 - name: Switch the rest of the play to the operator account
   ansible.builtin.set_fact:
     ansible_user: "{{ operator_user_name }}"
     ansible_password: ""
     ansible_become: true
-  when: bootstrap_connection_mode | default('') == 'root'
+    ansible_become_password: ""
+    ansible_become_exe: sudo
+  when: bootstrap_connection_mode | default('') == 'bootstrap'
 
 - name: Reset the connection to use the operator account
   ansible.builtin.meta: reset_connection

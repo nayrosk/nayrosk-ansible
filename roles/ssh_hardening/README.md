@@ -18,9 +18,9 @@ Restricts SSH to key-based logins of the operator account.
   restored from their backups, sshd is reloaded over the still-open connection and the role fails.
 - The reload is a handler, only when the daemon is running (Ubuntu uses socket activation, a
   stopped daemon reads the new configuration at the next connection).
-- When the play connected as root with a password (`bootstrap_connection_mode=root`, first run), switches the
-  rest of the play to the operator with `become` and resets the connection, because new root logins are refused
-  after the reload. Roles placed after this one therefore run as the operator.
+- When the play connected as the bootstrap user with a password (`bootstrap_connection_mode=bootstrap`, first
+  run), switches the rest of the play to the operator with `become` and resets the connection, because new logins
+  of that user are refused after the reload. Roles placed after this one therefore run as the operator.
 
 ## Variables
 

@@ -42,7 +42,8 @@ not enough: `bootstrap_connection` sets `ansible_become` as a host fact (false w
 and a fact outranks keywords and task vars, while include vars outrank facts. Without this, the first run
 silently ran podman as root and `systemctl --user` failed with `Operation not permitted`. No
 world-readable temporary files are needed: in operator mode the connection user is the become user, and
-in root mode root hands the temporary files over with `chown`.
+in root mode root hands the temporary files over with `chown`. A bootstrap user other than root never reaches
+this role: `operator_user` moves the play to the operator first.
 
 The role needs the facts of `local_ca` from the same play; run it with `--tags local_ca,podman_monitoring`
 when filtering by tag.

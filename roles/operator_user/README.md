@@ -14,6 +14,11 @@ Creates the operator account used for every connection after the first run.
 
 `bootstrap_connection` probes this account with the key and switches the play to it with `become`.
 
+When the play connects as a bootstrap user other than root (`bootstrap_connection_user`), the role probes the
+operator key login at its end and moves the rest of the play to the operator. Ansible cannot hand the temporary
+files of a non-root user to another user, and `podman_monitoring` runs tasks as the operator. A failed probe
+stops the play with a message.
+
 ## Variables
 
 <!-- BEGIN VARIABLES -->

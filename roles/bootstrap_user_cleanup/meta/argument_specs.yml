@@ -1,0 +1,24 @@
+---
+argument_specs:
+  main:
+    short_description: Remove the bootstrap user once the operator key login works.
+    description:
+      - >-
+        Removes the account used for the first connection (C(bootstrap_connection_user)) with its home
+        directory, its processes and its sudoers rules. Does nothing when that account is root or the operator.
+      - Runs after C(ssh_hardening), once the play has switched to the operator account.
+    options:
+      bootstrap_user_cleanup_enabled:
+        type: bool
+        default: true
+        description: Remove the bootstrap user. Setting it to C(false) skips the role.
+      bootstrap_user_cleanup_user:
+        type: str
+        default: "{{ bootstrap_connection_user | default('root') }}"
+        description: Account removed. Follows C(bootstrap_connection_user).
+      bootstrap_user_cleanup_operator:
+        type: str
+        default: "{{ operator_user_name | default('operator') }}"
+        description:
+          - Account the play must connect as before anything is removed.
+          - Follows C(operator_user_name) when it is set.
