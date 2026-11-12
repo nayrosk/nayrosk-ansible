@@ -1,6 +1,6 @@
 ---
 # Caddy image tag (docker.io/library/caddy:<version>-alpine).
-podman_monitoring_caddy_version: "2.11.7"
+podman_monitoring_caddy_version: "2.11.8"
 # node_exporter image tag (quay.io/prometheus/node-exporter:v<version>).
 podman_monitoring_node_exporter_version: "1.12.1"
 # Address node_exporter listens on. Must stay a loopback address: Caddy reaches it through
