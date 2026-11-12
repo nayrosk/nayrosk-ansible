@@ -1,0 +1,7 @@
+---
+# Remove the bootstrap user once the operator key login works. Ignored when that user is root or the operator.
+bootstrap_user_cleanup_enabled: true
+# Account removed. Follows bootstrap_connection_user.
+bootstrap_user_cleanup_user: "{{ bootstrap_connection_user | default('root') }}"
+# Account the play must connect as before anything is removed.
+bootstrap_user_cleanup_operator: "{{ operator_user_name | default('operator') }}"

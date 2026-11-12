@@ -5,7 +5,7 @@ Ansible connects to the host.
 
 ## Playbook flow
 
-`playbooks/install_base.yml` runs 16 roles in a fixed order. Each role has a tag equal to its name.
+`playbooks/install_base.yml` runs 17 roles in a fixed order. Each role has a tag equal to its name.
 `bootstrap_connection` always runs, so a tag filter still picks the right account.
 
 ```mermaid
@@ -26,7 +26,7 @@ flowchart TD
         L[podman_monitoring]
     end
     subgraph lockdown["Lockdown"]
-        M[ssh_hardening] --> P[root_lock] --> N[firewall] --> O[fail2ban]
+        M[ssh_hardening] --> P[root_lock] --> Q[bootstrap_user_cleanup] --> N[firewall] --> O[fail2ban]
     end
     A --> B
     D --> E
@@ -43,8 +43,10 @@ Why this order:
 - `operator_user` runs before `podman_monitoring`, because Caddy runs rootless under that account.
 - `ssh_hardening` comes late. It checks that the operator can log in with the key, then refuses root and
   password logins. The rest of the play runs as the operator.
-- `root_lock` runs right after `ssh_hardening`. The first run connects as root with the password until
-  `ssh_hardening` switches to the operator, so locking root earlier would break a reconnection.
+- `root_lock` runs right after `ssh_hardening`. The first run connects as the bootstrap user with the password
+  until `ssh_hardening` switches to the operator, so locking root earlier would break a reconnection.
+- `bootstrap_user_cleanup` follows for the same reason: it removes the bootstrap user, when it is not root,
+  only once the play runs as the operator.
 - `firewall` enables UFW last, after the SSH rule exists. `fail2ban` follows because its ban action is UFW.
 
 ## Network layout
@@ -89,18 +91,23 @@ sequenceDiagram
     Note over C,H: First run, the operator does not exist yet
     C->>H: probe SSH as operator with the key
     H--xC: refused
-    C->>H: connect as root with the vault password
+    C->>H: connect as the bootstrap user (root, or a sudo user) with the vault password
     C->>H: roles up to operator_user (creates the operator and its key)
     C->>H: ssh_hardening checks the operator key login
     H-->>C: key login works
     Note over C,H: sshd now refuses root and password logins
     C->>H: reconnect as operator with the key, sudo for the rest
     C->>H: root_lock checks sudo, then locks the root password
+    C->>H: bootstrap_user_cleanup removes a bootstrap user other than root
     Note over C,H: Later runs
     C->>H: probe SSH as operator with the key
     H-->>C: accepted
     C->>H: all roles as operator with sudo
 ```
 
-The role sets the fact `bootstrap_connection_mode` to `root` or `operator`. The end-to-end test asserts it
-for both runs.
+The bootstrap user is `bootstrap_connection_user`: `root` by default, or an account with sudo rights, such
+as the `ubuntu` user of a stock install. Such a user logs in with its password and runs `sudo` with the same
+password, `vault_bootstrap_password`.
+
+The role sets the fact `bootstrap_connection_mode` to `bootstrap` or `operator`. The end-to-end test asserts
+it for both runs.

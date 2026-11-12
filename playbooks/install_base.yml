@@ -31,6 +31,8 @@
       tags: [ssh_hardening]
     - role: root_lock
       tags: [root_lock]
+    - role: bootstrap_user_cleanup
+      tags: [bootstrap_user_cleanup]
     - role: firewall
       tags: [firewall]
     - role: fail2ban

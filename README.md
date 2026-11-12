@@ -7,11 +7,11 @@ Ansible playbooks that turn a fresh Ubuntu 26.04 LTS machine into a hardened hos
 
 ![nayrosk-ansible](docs/images/hero.png)
 
-One command works for the first run and every later run. The first run connects as root with a password. The playbook then creates the operator account and switches to its SSH key.
+One command works for the first run and every later run. The first run connects with a password, as root or as a sudo user such as `ubuntu`. The playbook then creates the operator account and switches to its SSH key.
 
 ## What it does
 
-The playbook runs 16 roles in this order. Each role has a tag equal to its name.
+The playbook runs 17 roles in this order. Each role has a tag equal to its name.
 
 - `bootstrap_connection`: picks the operator key or the root password for the connection.
 - `hostname`: sets the hostname and its `/etc/hosts` entry.
@@ -27,6 +27,7 @@ The playbook runs 16 roles in this order. Each role has a tag equal to its name.
 - `podman_monitoring`: runs node_exporter (rootful) and Caddy (rootless) as Podman quadlets. Caddy serves the metrics over HTTPS with basic auth.
 - `ssh_hardening`: allows only the operator, with a key, and checks the login before it reloads sshd.
 - `root_lock`: locks the root password once the operator has passwordless sudo.
+- `bootstrap_user_cleanup`: removes the bootstrap user, when it is not root, once the operator works.
 - `firewall`: enables UFW with a default deny policy.
 - `fail2ban`: bans repeated SSH and Caddy authentication failures through UFW.
 
@@ -47,7 +48,9 @@ See [architecture](docs/architecture.md) for the detailed flow, the network layo
 
 Requirements on your workstation: `podman` 4.1 or later and `make`. Running the tests also needs `/dev/kvm`. Every other tool runs in a container.
 
-The target machine runs a fresh Ubuntu 26.04 and accepts root with a password over SSH.
+The target machine runs a fresh Ubuntu 26.04 and accepts a password login over SSH, either as root or as a user
+with sudo rights. For a user other than root, set `bootstrap_connection_user` in `vars.yml`: the playbook removes
+that user once the operator works.
 
 1. Copy the example inventory and edit it:
 
@@ -56,7 +59,8 @@ The target machine runs a fresh Ubuntu 26.04 and accepts root with a password ov
    $EDITOR inventories/prod/hosts.yml inventories/prod/group_vars/all/vars.yml
    ```
 
-   Set `ansible_host`, `hostname` and `operator_public_key`.
+   Set `ansible_host`, `hostname` and `operator_public_key`, and `bootstrap_connection_user` when the first
+   login is not root.
 
 2. Create the encrypted vault. The example file lists the secrets to put in it:
 

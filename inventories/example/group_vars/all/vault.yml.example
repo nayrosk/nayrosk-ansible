@@ -5,8 +5,9 @@
 #   2. Paste the content of this file and replace the placeholder values.
 #   3. Edit it later with the same command.
 
-# Root password of the fresh machine. Used only while the operator key login does not work yet.
-vault_root_password: REPLACE_WITH_THE_ROOT_PASSWORD
+# Password of the bootstrap user (bootstrap_connection_user, root by default) on the fresh machine. Used
+# only while the operator key login does not work yet, also for sudo when that user is not root.
+vault_bootstrap_password: REPLACE_WITH_THE_BOOTSTRAP_PASSWORD
 
 # Ubuntu Pro token from https://ubuntu.com/pro/dashboard. Leave empty to skip attaching.
 vault_ubuntu_pro_token: ""

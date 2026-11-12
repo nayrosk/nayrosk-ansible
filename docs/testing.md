@@ -36,13 +36,15 @@ A full run takes about 5 minutes once the images and the cloud image are cached.
 flowchart LR
     B[Build controller and VM images] --> V[Boot the VM in a podman container]
     V --> W[Wait for SSH and cloud-init]
-    W --> R1["Run 1<br/>first_install=true e2e=true<br/>root and password"]
+    W --> R1["Run 1<br/>first_install=true e2e=true<br/>ubuntu, password and sudo"]
     R1 --> R2["Run 2<br/>idempotence<br/>operator and key"]
     R2 --> VF[verify.yml]
     VF --> T[Teardown]
 ```
 
-- Run 1 connects as root with the password and asserts `bootstrap_connection_mode=root`.
+- Run 1 connects as the `ubuntu` user with its password and `sudo`, as on a stock install, and asserts
+  `bootstrap_connection_mode=bootstrap`. cloud-init also gives root a password, so verify can check that root
+  is refused.
 - Run 2 must change nothing. `tests/e2e/check-idempotence.sh` fails when any task reports `changed`. It also
   asserts `bootstrap_connection_mode=operator`.
 - Logs go to `artifacts/e2e/` (`run1.log`, `run2.log`, `verify.log`, `vm-console.log`).
@@ -55,6 +57,7 @@ flowchart LR
   node_exporter metrics including `node_systemd_unit_state`, port 80 redirects to HTTPS with 308 and the
   `alt-svc` header advertises HTTP/3.
 - SSH: root login and password login are refused, the operator key login works.
+- The bootstrap user `ubuntu` is gone: no account, no home directory, no sudoers rule, no password login.
 - UFW: default policies and the four commented rules. fail2ban: the `sshd` and `caddy-auth` jails.
 - Both containers report `healthy`.
 - DNS over TLS is active, chrony is synchronised, the time zone is UTC, the operator has UID and GID 10000,

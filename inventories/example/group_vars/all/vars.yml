@@ -3,10 +3,12 @@
 # See docs/roles.md for the full list of variables and their defaults.
 
 # --- Connection -----------------------------------------------------------------------------
-# A fresh machine only accepts root with a password. The bootstrap_connection role tries the
-# operator account with the key first and falls back to this root login on the first run.
-ansible_user: root
-ansible_password: "{{ vault_root_password }}"
+# A fresh machine only accepts a password login. The bootstrap_connection role tries the operator
+# account with the key first and falls back to this bootstrap user on the first run, with the password
+# vault_bootstrap_password. Use root, or a user with sudo rights such as the ubuntu account of a stock
+# install: that user logs in with its password, runs sudo with the same password, and is removed once
+# the operator works (bootstrap_user_cleanup).
+bootstrap_connection_user: root
 ansible_ssh_private_key_file: ~/.ssh/id_ed25519
 
 # --- Identity -------------------------------------------------------------------------------

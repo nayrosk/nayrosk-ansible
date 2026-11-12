@@ -11,7 +11,10 @@ Choose how Ansible connects to the host, operator key or root password.
 | --- | --- | --- | --- | --- |
 | `bootstrap_connection_operator` | str | `{{ operator_user_name \| default('operator') }}` | no | Account probed with the SSH key. Follows `operator_user_name` when it is set. |
 | `bootstrap_connection_probe_timeout` | int | `10` | no | Seconds before the operator probe gives up. |
-| `vault_root_password` | str | secret | no | Root password used by the fallback. Required only when the operator probe fails. |
+| `bootstrap_connection_user` | str | `root` | no | Account used with a password while the operator key login does not work yet. `root`, or a user with sudo rights such as the `ubuntu` account of a stock install. The `bootstrap_user_cleanup` role removes a user other than root once the operator works. |
+| `bootstrap_connection_password` | str | secret | no | Password of the bootstrap user, also used for sudo when that user is not root. Required only when the operator probe fails. |
+| `vault_bootstrap_password` | str | secret | no | Vault secret behind `bootstrap_connection_password`. |
+| `vault_root_password` | str | secret | no | Older name of `vault_bootstrap_password`, used when that one is not defined. |
 
 ## hostname
 
@@ -151,6 +154,16 @@ Lock the root password once the operator has passwordless sudo.
 | --- | --- | --- | --- | --- |
 | `root_lock_enabled` | bool | `true` | no | Lock the root password. Setting it to `false` skips the role. It does not unlock a password locked by an earlier run. |
 | `root_lock_operator` | str | `{{ operator_user_name \| default('operator') }}` | no | Account whose passwordless sudo is checked before root is locked. Follows `operator_user_name` when it is set. |
+
+## bootstrap_user_cleanup
+
+Remove the bootstrap user once the operator key login works.
+
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `bootstrap_user_cleanup_enabled` | bool | `true` | no | Remove the bootstrap user. Setting it to `false` skips the role. |
+| `bootstrap_user_cleanup_user` | str | `{{ bootstrap_connection_user \| default('root') }}` | no | Account removed. Follows `bootstrap_connection_user`. |
+| `bootstrap_user_cleanup_operator` | str | `{{ operator_user_name \| default('operator') }}` | no | Account the play must connect as before anything is removed. Follows `operator_user_name` when it is set. |
 
 ## firewall
 

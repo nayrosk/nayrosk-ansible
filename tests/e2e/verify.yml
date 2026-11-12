@@ -601,6 +601,78 @@
         quiet: true
       when: verify_zombie_check | bool
 
+    - name: Look up the bootstrap user
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ bootstrap_connection_user }}"
+        fail_key: false
+
+    - name: Check the bootstrap user is removed
+      ansible.builtin.assert:
+        that: (ansible_facts.getent_passwd[bootstrap_connection_user] | default(none)) is none
+        fail_msg: "{{ bootstrap_connection_user }} still exists"
+        quiet: true
+
+    - name: Read the bootstrap user home directory
+      ansible.builtin.stat:
+        path: "/home/{{ bootstrap_connection_user }}"
+      register: verify_bootstrap_home
+
+    - name: Check the bootstrap user home directory is removed
+      ansible.builtin.assert:
+        that: not verify_bootstrap_home.stat.exists
+        fail_msg: "/home/{{ bootstrap_connection_user }} still exists"
+        quiet: true
+
+    - name: Search the sudoers drop-ins for the bootstrap user
+      ansible.builtin.find:
+        paths: /etc/sudoers.d
+        contains: '^\s*{{ bootstrap_connection_user | regex_escape }}\s'
+      register: verify_bootstrap_sudoers
+
+    - name: Check no sudoers rule names the bootstrap user
+      ansible.builtin.assert:
+        that: verify_bootstrap_sudoers.matched == 0
+        fail_msg: >-
+          sudoers rules left for {{ bootstrap_connection_user }}:
+          {{ verify_bootstrap_sudoers.files | map(attribute='path') | list }}
+        quiet: true
+
+    - name: Attempt a bootstrap user login with the password from the controller
+      ansible.builtin.command:
+        argv:
+          - sshpass
+          - -e
+          - ssh
+          - -p
+          - "{{ ansible_port }}"
+          - -o
+          - PubkeyAuthentication=no
+          - -o
+          - ConnectTimeout=10
+          - -o
+          - StrictHostKeyChecking=no
+          - -o
+          - UserKnownHostsFile=/dev/null
+          - -o
+          - LogLevel=ERROR
+          - "{{ bootstrap_connection_user }}@{{ ansible_host }}"
+          - "true"
+      environment:
+        SSHPASS: "{{ vault_bootstrap_password }}"
+      delegate_to: localhost
+      become: false
+      no_log: true
+      register: verify_bootstrap_password_login
+      changed_when: false
+      failed_when: false
+
+    - name: Check the bootstrap user password login is refused
+      ansible.builtin.assert:
+        that: verify_bootstrap_password_login.rc != 0
+        fail_msg: "{{ bootstrap_connection_user }} can still log in with a password"
+        quiet: true
+
     - name: Attempt a root login with the password from the controller
       ansible.builtin.command:
         argv:

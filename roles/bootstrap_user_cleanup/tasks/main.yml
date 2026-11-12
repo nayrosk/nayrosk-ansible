@@ -1,0 +1,67 @@
+---
+- name: Remove the bootstrap user
+  when:
+    - bootstrap_user_cleanup_enabled | bool
+    - bootstrap_user_cleanup_user not in ['root', bootstrap_user_cleanup_operator]
+  block:
+    # A tagged run skips ssh_hardening and its switch to the operator. If the operator probe failed, the play
+    # still connects as the bootstrap user and removing it would cut that connection.
+    - name: Check the play connects as the operator
+      ansible.builtin.assert:
+        that: ansible_user == bootstrap_user_cleanup_operator
+        fail_msg: >-
+          The play connects as {{ ansible_user }}, not as {{ bootstrap_user_cleanup_operator }}: refusing to
+          remove {{ bootstrap_user_cleanup_user }}. Run the full playbook, or fix the operator key login first.
+        quiet: true
+
+    - name: Look up the bootstrap user
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ bootstrap_user_cleanup_user }}"
+        fail_key: false
+
+    - name: Remove the bootstrap user and its traces
+      when: (ansible_facts.getent_passwd[bootstrap_user_cleanup_user] | default(none)) is not none
+      block:
+        # userdel refuses a user with running processes: the first connection left a systemd user manager.
+        - name: Stop the sessions of the bootstrap user
+          ansible.builtin.command:
+            argv: [loginctl, terminate-user, "{{ bootstrap_user_cleanup_user }}"]
+          register: bootstrap_user_cleanup_terminate
+          changed_when: bootstrap_user_cleanup_terminate.rc == 0
+          failed_when: false
+
+        - name: Kill the remaining processes of the bootstrap user
+          ansible.builtin.command:
+            argv: [pkill, -KILL, -u, "{{ bootstrap_user_cleanup_user }}"]
+          register: bootstrap_user_cleanup_pkill
+          changed_when: bootstrap_user_cleanup_pkill.rc == 0
+          failed_when: bootstrap_user_cleanup_pkill.rc not in [0, 1]
+
+        - name: Remove the bootstrap user and its home directory
+          ansible.builtin.user:
+            name: "{{ bootstrap_user_cleanup_user }}"
+            state: absent
+            remove: true
+          register: bootstrap_user_cleanup_userdel
+          retries: 5
+          delay: 2
+          until: bootstrap_user_cleanup_userdel is succeeded
+
+    # Runs even when the account is already gone, so a rule left by an interrupted run is removed too.
+    # cloud-init writes the rule of its default user to /etc/sudoers.d/90-cloud-init-users.
+    - name: Find sudoers drop-ins naming the bootstrap user
+      ansible.builtin.find:
+        paths: /etc/sudoers.d
+        contains: '^\s*{{ bootstrap_user_cleanup_user | regex_escape }}\s'
+      register: bootstrap_user_cleanup_sudoers
+
+    - name: Remove the sudoers rules of the bootstrap user
+      ansible.builtin.lineinfile:
+        path: "{{ item.path }}"
+        regexp: '^\s*{{ bootstrap_user_cleanup_user | regex_escape }}\s'
+        state: absent
+        validate: visudo -cf %s
+      loop: "{{ bootstrap_user_cleanup_sudoers.files }}"
+      loop_control:
+        label: "{{ item.path }}"

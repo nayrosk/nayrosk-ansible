@@ -1,11 +1,12 @@
 ---
 argument_specs:
   main:
-    short_description: Choose how Ansible connects to the host, operator key or root password.
+    short_description: Choose how Ansible connects to the host, operator key or bootstrap password.
     description:
       - Probes an SSH key login as the operator account. When it works, the play continues as the
-        operator with privilege escalation. Otherwise it falls back to root with the vault password.
-      - Sets the fact C(bootstrap_connection_mode) to V(operator) or V(root).
+        operator with privilege escalation. Otherwise it falls back to the bootstrap user with its password.
+      - The bootstrap user is root by default. Another user reaches root through sudo with the same password.
+      - Sets the fact C(bootstrap_connection_mode) to V(operator) or V(bootstrap).
     options:
       bootstrap_connection_operator:
         type: str
@@ -15,8 +16,27 @@ argument_specs:
         type: int
         default: 10
         description: Seconds before the operator probe gives up.
+      bootstrap_connection_user:
+        type: str
+        default: root
+        description:
+          - Account used with a password while the operator key login does not work yet.
+          - V(root), or a user with sudo rights such as the C(ubuntu) account of a stock install. The
+            C(bootstrap_user_cleanup) role removes a user other than root once the operator works.
+      bootstrap_connection_password:
+        type: str
+        default: "{{ vault_bootstrap_password | default(vault_root_password | default('')) }}"
+        no_log: true
+        description:
+          - Password of the bootstrap user, also used for sudo when that user is not root.
+          - Required only when the operator probe fails.
+      vault_bootstrap_password:
+        type: str
+        required: false
+        no_log: true
+        description: Vault secret behind C(bootstrap_connection_password).
       vault_root_password:
         type: str
         required: false
         no_log: true
-        description: Root password used by the fallback. Required only when the operator probe fails.
+        description: Older name of C(vault_bootstrap_password), used when that one is not defined.

@@ -20,7 +20,7 @@ the agent socket into the container when `SSH_AUTH_SOCK` is set. Without an agen
 passphrase works.
 
 ```bash
-# First run on a fresh machine: root with the vault password, then the operator with the key.
+# First run on a fresh machine: the bootstrap user with the vault password, then the operator with the key.
 make run INVENTORY=inventories/prod ARGS="-e first_install=true"
 
 # Every later run: idempotent (the APT mirror chosen on the first run is kept), runs as the operator.
@@ -43,7 +43,10 @@ is ignored by git.
 ## Vault
 
 Secrets live in `group_vars/all/vault.yml` of the inventory, encrypted with Ansible Vault. The names are
-`vault_root_password`, `vault_ubuntu_pro_token` and `vault_caddy_basic_auth_hash`. The example is in
+`vault_bootstrap_password`, `vault_ubuntu_pro_token` and `vault_caddy_basic_auth_hash`.
+`vault_bootstrap_password` is the password of the bootstrap user (`bootstrap_connection_user`, root by
+default). `vault_root_password` is its older name and is still read when `vault_bootstrap_password` is not
+defined. The example is in
 `inventories/example/group_vars/all/vault.yml.example`.
 
 ```bash
@@ -134,8 +137,8 @@ the console login does not work. Get a shell one of these ways:
 
 Run `passwd -u root` if you want the console login back, or `passwd root` when root never had a password
 (`passwd -u` then has nothing to restore). If you then rely on the root SSH fallback (option 2 below), use the
-value of `vault_root_password`. That vault sits in `group_vars/all` and serves every host, so do not change it
-for one host. To give this host its own root password, set `vault_root_password` in an encrypted vault for
+value of `vault_bootstrap_password` (or `vault_root_password`). That vault sits in `group_vars/all` and serves every host, so do not change it
+for one host. To give this host its own root password, set `vault_bootstrap_password` in an encrypted vault for
 that host only, from the controller: `make vault-edit VAULT_FILE=inventories/prod/host_vars/<host>/vault.yml`
 (replace `inventories/prod` with your inventory). Encrypt it with the same vault password as the inventory
 vault: `make run` passes one password and cannot decrypt a file encrypted with another. Neither shell runs the
@@ -171,7 +174,9 @@ Two ways out:
    ```
 
    Root can log in with its password again until the next run, if its password is unlocked. Fix
-   `operator_public_key`, then run the playbook.
+   `operator_public_key`, then run the playbook. If the inventory sets another `bootstrap_connection_user`,
+   that account was removed by `bootstrap_user_cleanup`: set `bootstrap_connection_user: root` and the root
+   password in `vault_bootstrap_password` for this run.
 
 Other quick checks on the host:
 
