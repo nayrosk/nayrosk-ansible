@@ -169,11 +169,23 @@ wait_for_vm() {
   done
   log "wait for cloud-init"
   ssh_probe login "cloud-init status --wait"
-  # Run 1 must escalate with the bootstrap password: fail early if sudo works without it.
-  if ssh_probe login "sudo -k -n true" >/dev/null 2>&1; then
-    echo "the bootstrap user has passwordless sudo: the become password path is not tested" >&2
-    return 1
-  fi
+  # Run 1 must escalate with the bootstrap password. sudo -n must refuse with a password or authentication
+  # message; any other outcome (SSH failure, passwordless sudo, another error) stops the test.
+  local out
+  out=$(ssh_probe login 'sudo -k -n true 2>&1; echo "sudo_rc=$?"' 2>&1) || true
+  case $out in
+    *sudo_rc=0*)
+      echo "the bootstrap user has passwordless sudo: the become password path is not tested" >&2
+      return 1 ;;
+    *sudo_rc=*)
+      if ! printf '%s\n' "$out" | grep -qiE 'password|authentication'; then
+        echo "unexpected sudo answer for the bootstrap user: $out" >&2
+        return 1
+      fi ;;
+    *)
+      echo "could not run sudo as the bootstrap user: $out" >&2
+      return 1 ;;
+  esac
   log "bootstrap user sudo needs a password"
 }
 
