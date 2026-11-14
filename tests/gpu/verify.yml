@@ -12,6 +12,7 @@
     verify_gpu_card_model: AMD Radeon RX 7800 XT
     verify_gpu_gfx_target: gfx1101
     verify_gpu_ca_path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
+    verify_gpu_bs: "\\"
     verify_gpu_caddy_user: "{{ podman_monitoring_caddy_basic_auth_user | default('admin') }}"
     verify_gpu_caddy_password: "{{ lookup('ansible.builtin.env', 'VERIFY_GPU_CADDY_PASSWORD', default='') }}"
   roles:
@@ -50,7 +51,11 @@
           - -K
           - "-"
           - "https://{{ hostname }}/gpu_metrics"
-        stdin: 'user = "{{ verify_gpu_caddy_user }}:{{ verify_gpu_caddy_password }}"'
+        # curl config quoting: backslash first, then double quote.
+        stdin: >-
+          user = "{{ verify_gpu_caddy_user | replace(verify_gpu_bs, verify_gpu_bs ~ verify_gpu_bs)
+          | replace('"', verify_gpu_bs ~ '"') }}:{{ verify_gpu_caddy_password
+          | replace(verify_gpu_bs, verify_gpu_bs ~ verify_gpu_bs) | replace('"', verify_gpu_bs ~ '"') }}"
       delegate_to: localhost
       become: false
       register: verify_gpu_metrics

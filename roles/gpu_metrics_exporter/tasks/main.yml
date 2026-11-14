@@ -30,6 +30,9 @@
     group: root
     mode: "0755"
 
+- name: Check the exporter field selection
+  ansible.builtin.include_tasks: check_fields.yml
+
 - name: Build the exporter GPU configuration
   ansible.builtin.set_fact:
     gpu_metrics_exporter_gpu_config: >-
@@ -70,6 +73,7 @@
     tasks_from: route
   vars:
     podman_monitoring_route_name: gpu_metrics
+    podman_monitoring_user_home: "{{ gpu_metrics_exporter_operator_home }}"
     podman_monitoring_route_content: |
       handle_path /gpu_metrics* {
       	rewrite * /metrics

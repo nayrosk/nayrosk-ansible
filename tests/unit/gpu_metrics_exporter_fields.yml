@@ -29,3 +29,37 @@
           gpu_metrics_exporter_enabled_fields ==
           gpu_metrics_exporter_all_fields | shuffle | difference(gpu_metrics_exporter_disabled_fields) | sort
         quiet: true
+
+    - name: Assert disabling every field fails the field check
+      block:
+        - name: Include the field check with every field disabled
+          ansible.builtin.include_role:
+            name: gpu_metrics_exporter
+            tasks_from: check_fields
+          vars:
+            gpu_metrics_exporter_disabled_fields: "{{ gpu_metrics_exporter_all_fields }}"
+        - name: Record a pass
+          ansible.builtin.set_fact:
+            unit_all_disabled_outcome: pass
+      rescue:
+        - name: Record a failure
+          ansible.builtin.set_fact:
+            unit_all_disabled_outcome: fail
+
+    - name: Assert the all-disabled outcome is a failure
+      ansible.builtin.assert:
+        that: unit_all_disabled_outcome == 'fail'
+        fail_msg: Disabling every field must fail the field check.
+        quiet: true
+
+    - name: Assert an empty disabled list passes the field check
+      ansible.builtin.include_role:
+        name: gpu_metrics_exporter
+        tasks_from: check_fields
+      vars:
+        gpu_metrics_exporter_disabled_fields: []
+
+    - name: Assert the default disabled list passes the field check
+      ansible.builtin.include_role:
+        name: gpu_metrics_exporter
+        tasks_from: check_fields

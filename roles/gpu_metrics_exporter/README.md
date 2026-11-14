@@ -35,6 +35,6 @@ added by the new release stay off.
 | `gpu_metrics_exporter_version` | str | `1.5.3` | no | Image tag of `docker.io/rocm/device-metrics-exporter`, without the leading `v`. |
 | `gpu_metrics_exporter_listen_port` | int | `5000` | no | Loopback port the exporter is published on. The container always listens on 5000. |
 | `gpu_metrics_exporter_disabled_fields` | list of str | `[GPU_ECC_CORRECT_TOTAL, GPU_ECC_UNCORRECT_TOTAL, GPU_ECC_...` (76 entries, truncated, see `defaults/main.yml`) | no | GPUConfig fields excluded from the export, by their upstream names (for example `GPU_ECC_CORRECT_GFX`). The exporter only takes an allow-list, so the config file lists every known field except these. An empty list omits `Fields` and exports everything. |
-| `gpu_metrics_exporter_operator_home` | str | multi-line value, see `defaults/main.yml` | no | Home directory of the operator account that runs Caddy. Follows `podman_monitoring_user_home`, then the `operator_user` role variables. |
+| `gpu_metrics_exporter_operator_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy. Follows the `operator_user` role variables. It is passed to the `podman_monitoring` route entry point as `podman_monitoring_user_home`. |
 | `hostname` | str | none | yes | Hostname served by Caddy, also used as the `hostname` label of the GPU metrics. |
 <!-- END VARIABLES -->

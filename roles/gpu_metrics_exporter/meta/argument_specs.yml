@@ -101,12 +101,10 @@ argument_specs:
             list omits C(Fields) and exports everything.
       gpu_metrics_exporter_operator_home:
         type: str
-        default: >-
-          {{ podman_monitoring_user_home
-            | default(operator_user_home | default('/home/' ~ (operator_user_name | default('operator')))) }}
+        default: "{{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}"
         description: >-
-          Home directory of the operator account that runs Caddy. Follows C(podman_monitoring_user_home), then the
-          C(operator_user) role variables.
+          Home directory of the operator account that runs Caddy. Follows the C(operator_user) role variables.
+          It is passed to the C(podman_monitoring) route entry point as C(podman_monitoring_user_home).
       hostname:
         type: str
         required: true
