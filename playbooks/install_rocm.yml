@@ -8,3 +8,5 @@
       tags: [always, bootstrap_connection]
     - role: rocm
       tags: [rocm]
+    - role: gpu_metrics_exporter
+      tags: [gpu_metrics_exporter]

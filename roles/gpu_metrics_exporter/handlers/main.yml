@@ -1,0 +1,6 @@
+---
+- name: Restart device-metrics-exporter
+  ansible.builtin.systemd_service:
+    name: device-metrics-exporter.service
+    state: restarted
+    daemon_reload: true

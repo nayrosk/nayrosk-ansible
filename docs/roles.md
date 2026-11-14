@@ -201,4 +201,15 @@ Install the ROCm stack and the amdgpu DKMS driver with amdgpu-install.
 | `rocm_prerequisite_packages` | list of str | `[libatomic1, libquadmath0, python3.14, python3.14-venv]` | no | Packages installed before amdgpu-install. |
 | `rocm_supported_pci_ids` | list of str | `[75a3, 75a0, 74a5, 74a1, 74a0, 7408, 740c, 740f, 738c, 73...` (24 entries, truncated, see `defaults/main.yml`) | no | PCI device ids (vendor 1002, lowercase hex, no `0x`) of the GPUs the ROCm system requirements list. The role fails before any change when no AMD display device of the host is in this list. |
 | `rocm_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Existing account added to the render and video groups. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. |
+
+## gpu_metrics_exporter
+
+Run the AMD device metrics exporter in a Podman quadlet behind Caddy.
+
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `gpu_metrics_exporter_version` | str | `1.5.3` | no | Image tag of `docker.io/rocm/device-metrics-exporter`, without the leading `v`. |
+| `gpu_metrics_exporter_listen_port` | int | `5000` | no | Loopback port the exporter is published on. The container always listens on 5000. |
+| `gpu_metrics_exporter_disabled_fields` | list of str | `[GPU_ECC_CORRECT_TOTAL, GPU_ECC_UNCORRECT_TOTAL, GPU_ECC_...` (76 entries, truncated, see `defaults/main.yml`) | no | GPUConfig fields excluded from the export, by their upstream names (for example `GPU_ECC_CORRECT_GFX`). The exporter only takes an allow-list, so the config file lists every known field except these. An empty list omits `Fields` and exports everything. |
+| `gpu_metrics_exporter_operator_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy. Aliases the `operator_user` role variables. |
 <!-- END VARIABLES -->
