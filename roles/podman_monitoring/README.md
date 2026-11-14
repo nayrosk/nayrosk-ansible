@@ -31,7 +31,7 @@ account. Caddy serves the node_exporter metrics over HTTPS with basic auth.
   `podman_monitoring_route_name` (file stem, `^[a-z0-9_]+$`) and `podman_monitoring_route_content`
   (Caddyfile directives). The entry point validates the Caddyfile with the candidate snippet, installs
   `routes.d/<name>.caddy` (0640, operator-owned) and restarts Caddy only when the file changed. A snippet
-  that fails validation is not installed. The main entry point must have run first.
+  that fails validation is not installed, and the task failure shows Caddy's error for the snippet alone. The main entry point must have run first.
 - The rendered Caddyfile is validated with `caddy validate` in the pinned Caddy image (no network) before it
   replaces the installed file: a broken template fails the task and the running configuration stays.
 - Both containers have a healthcheck every 30s with `HealthOnFailure=kill` and `Restart=always`.

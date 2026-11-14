@@ -533,11 +533,15 @@
         - name: Record that the validation rejected the broken route
           ansible.builtin.set_fact:
             verify_broken_route_rejected: >-
-              {{ ansible_failed_task.name == 'Validate the Caddyfile with the candidate route' }}
+              {{ ansible_failed_task.name == 'Reject the candidate route' }}
+            verify_broken_route_explained: >-
+              {{ 'adapting config' in ansible_failed_result.msg or 'Error' in ansible_failed_result.msg }}
 
     - name: Check the broken route was rejected
       ansible.builtin.assert:
-        that: verify_broken_route_rejected | default(false) | bool
+        that:
+          - verify_broken_route_rejected | default(false) | bool
+          - verify_broken_route_explained | default(false) | bool
         quiet: true
 
     - name: Stat the broken route file

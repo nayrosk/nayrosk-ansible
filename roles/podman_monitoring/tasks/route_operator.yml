@@ -40,34 +40,95 @@
           changed_when: false
 
         # The installed Caddyfile imports the routes, so it is validated with the candidate set. no_log: the
-        # mounted Caddyfile holds the basic auth hash. The broken-route e2e check finds the rejection by task name.
-        - name: Validate the Caddyfile with the candidate route
-          ansible.builtin.command:
-            argv:
-              - podman
-              - run
-              - --rm
-              - --pull=never
-              - --network=none
-              - -v
-              - "{{ podman_monitoring_user_home }}/.caddy/config/Caddyfile:/etc/caddy/Caddyfile:ro"
-              - -v
-              - "{{ podman_monitoring_user_home }}/.caddy/certs:/certs:ro"
-              - -v
-              - "{{ podman_monitoring_route_tmp.path }}:/etc/caddy/routes.d:ro"
-              - --tmpfs
-              - /logs
-              - --tmpfs
-              - /data
-              - "docker.io/library/caddy:{{ podman_monitoring_caddy_version }}-alpine"
-              - caddy
-              - validate
-              - --config
-              - /etc/caddy/Caddyfile
-              - --adapter
-              - caddyfile
-          changed_when: false
-          no_log: true
+        # mounted Caddyfile holds the basic auth hash, so a failure is explained by the rescue below, which
+        # validates the snippet alone with a minimal Caddyfile that holds no secret.
+        - name: Validate the candidate route
+          block:
+            - name: Validate the Caddyfile with the candidate route
+              ansible.builtin.command:
+                argv:
+                  - podman
+                  - run
+                  - --rm
+                  - --pull=never
+                  - --network=none
+                  - -v
+                  - "{{ podman_monitoring_user_home }}/.caddy/config/Caddyfile:/etc/caddy/Caddyfile:ro"
+                  - -v
+                  - "{{ podman_monitoring_user_home }}/.caddy/certs:/certs:ro"
+                  - -v
+                  - "{{ podman_monitoring_route_tmp.path }}:/etc/caddy/routes.d:ro"
+                  - --tmpfs
+                  - /logs
+                  - --tmpfs
+                  - /data
+                  - "docker.io/library/caddy:{{ podman_monitoring_caddy_version }}-alpine"
+                  - caddy
+                  - validate
+                  - --config
+                  - /etc/caddy/Caddyfile
+                  - --adapter
+                  - caddyfile
+              changed_when: false
+              no_log: true
+          rescue:
+            # The second site block makes an unclosed brace in the snippet an error instead of a silent merge.
+            - name: Write a minimal Caddyfile that imports only the candidate route
+              ansible.builtin.copy:
+                content: |
+                  http://127.0.0.1:1 {
+                  	import /etc/caddy/routes.d/{{ podman_monitoring_route_name }}.caddy
+                  }
+
+                  http://127.0.0.1:2 {
+                  	respond 404
+                  }
+                dest: "{{ podman_monitoring_route_tmp.path }}/diagnostic.Caddyfile"
+                mode: "0640"
+              changed_when: false
+
+            # Mounts only the diagnostic Caddyfile and the candidate: no installed Caddyfile, certs or other routes.
+            - name: Validate the candidate route alone to explain the rejection
+              ansible.builtin.command:
+                argv:
+                  - podman
+                  - run
+                  - --rm
+                  - --pull=never
+                  - --network=none
+                  - -v
+                  - "{{ podman_monitoring_route_tmp.path }}/diagnostic.Caddyfile:/etc/caddy/Caddyfile:ro"
+                  - -v
+                  - "{{ podman_monitoring_route_tmp.path }}/{{ podman_monitoring_route_name }}.caddy:\
+                    /etc/caddy/routes.d/{{ podman_monitoring_route_name }}.caddy:ro"
+                  - --tmpfs
+                  - /logs
+                  - --tmpfs
+                  - /data
+                  - "docker.io/library/caddy:{{ podman_monitoring_caddy_version }}-alpine"
+                  - caddy
+                  - validate
+                  - --config
+                  - /etc/caddy/Caddyfile
+                  - --adapter
+                  - caddyfile
+              changed_when: false
+              failed_when: false
+              register: podman_monitoring_route_diagnostic
+
+            - name: Reject the candidate route
+              ansible.builtin.fail:
+                msg: >-
+                  {{ podman_monitoring_route_invalid_msg if podman_monitoring_route_diagnostic.rc != 0
+                  else podman_monitoring_route_conflict_msg }}
+              vars:
+                podman_monitoring_route_invalid_msg: >-
+                  The route snippet '{{ podman_monitoring_route_name }}' is invalid. Caddy reports:
+                  {{ (podman_monitoring_route_diagnostic.stderr | trim).splitlines()[-20:] | join('\n') }}
+                podman_monitoring_route_conflict_msg: >-
+                  The route snippet '{{ podman_monitoring_route_name }}' is valid on its own but conflicts with the
+                  installed configuration (for example a duplicate matcher). Run caddy validate by hand with the
+                  installed Caddyfile and the candidate snippet to see the conflict.
 
         - name: Install the route
           ansible.builtin.copy:
