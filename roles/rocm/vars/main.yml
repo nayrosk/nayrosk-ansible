@@ -1,0 +1,3 @@
+---
+# The EFI global variable GUID. Variables such as SecureBoot live in efivars as <Name>-<this GUID>.
+rocm_efi_global_guid: 8be4df61-93ca-11d2-aa0d-00e098032b8c
