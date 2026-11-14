@@ -1,0 +1,31 @@
+---
+# Checks that the gpu_metrics_exporter field list is stable and honours the disabled fields, on the controller,
+# without a target:
+#   make unit
+- name: Check the gpu_metrics_exporter field list
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../../roles/gpu_metrics_exporter/defaults/main.yml
+    - ../../roles/gpu_metrics_exporter/vars/main.yml
+  tasks:
+    - name: Assert the list is sorted, so the rendered config does not change between runs
+      ansible.builtin.assert:
+        that: gpu_metrics_exporter_enabled_fields == gpu_metrics_exporter_enabled_fields | sort
+        quiet: true
+
+    - name: Assert a disabled field is excluded and an enabled one is kept
+      ansible.builtin.assert:
+        that:
+          - "'GPU_ECC_CORRECT_GFX' not in gpu_metrics_exporter_enabled_fields"
+          - "'GPU_XGMI_LINK_RX' not in gpu_metrics_exporter_enabled_fields"
+          - "'GPU_EDGE_TEMPERATURE' in gpu_metrics_exporter_enabled_fields"
+        quiet: true
+
+    - name: Assert the shuffled input gives the same list
+      ansible.builtin.assert:
+        that: >-
+          gpu_metrics_exporter_enabled_fields ==
+          gpu_metrics_exporter_all_fields | shuffle | difference(gpu_metrics_exporter_disabled_fields) | sort
+        quiet: true

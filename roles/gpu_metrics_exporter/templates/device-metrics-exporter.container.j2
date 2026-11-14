@@ -14,6 +14,7 @@ Volume=/sys:/sys:ro
 Volume=/etc/device-metrics-exporter:/etc/metrics:ro
 PublishPort=127.0.0.1:{{ gpu_metrics_exporter_listen_port }}:5000
 HealthCmd=curl -fsS -o /dev/null http://127.0.0.1:5000/metrics
+HealthStartPeriod=60s
 HealthInterval=30s
 HealthTimeout=10s
 HealthRetries=3

@@ -197,3 +197,7 @@ gpu_metrics_exporter_all_fields:
   - GPU_VIOLATION_LOW_UTILIZATION_PERCENTAGE
   - GPU_VIOLATION_GFX_CLOCK_BELOW_HOST_LIMIT_TOTAL_PERCENTAGE
   - GPU_PROCESS_CU_OCCUPANCY
+# The fields written to the config. Sorted: difference() has no stable order and an unstable order would rewrite
+# the config file, and restart the exporter, on every run.
+gpu_metrics_exporter_enabled_fields: >-
+  {{ gpu_metrics_exporter_all_fields | difference(gpu_metrics_exporter_disabled_fields) | sort }}

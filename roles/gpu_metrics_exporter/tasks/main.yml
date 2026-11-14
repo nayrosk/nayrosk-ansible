@@ -33,7 +33,7 @@
 - name: Build the exporter GPU configuration
   ansible.builtin.set_fact:
     gpu_metrics_exporter_gpu_config: >-
-      {{ {'Fields': gpu_metrics_exporter_all_fields | difference(gpu_metrics_exporter_disabled_fields)}
+      {{ {'Fields': gpu_metrics_exporter_enabled_fields}
          if gpu_metrics_exporter_disabled_fields | length > 0 else {} }}
 
 - name: Install the exporter configuration
