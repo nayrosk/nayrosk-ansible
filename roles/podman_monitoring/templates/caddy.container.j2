@@ -16,6 +16,7 @@ PublishPort=443:443
 PublishPort=443:443/udp
 Volume=%h/.caddy/config/Caddyfile:/etc/caddy/Caddyfile:ro,Z
 Volume=%h/.caddy/certs:/certs:ro,Z
+Volume=%h/.caddy/routes.d:/etc/caddy/routes.d:ro,Z
 Volume=%h/.caddy/data:/data:Z
 Volume=%h/.caddy/logs:/logs:Z
 RunInit=true

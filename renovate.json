@@ -3,7 +3,7 @@
   "description": [
     "Dependabot owns GitHub Actions; Renovate owns everything else.",
     "ignorePaths repeats the config:recommended value without **/tests/**: the Galaxy collections of the controller image live in tests/e2e/controller/requirements.yml.",
-    "Manual steps: the cloud image (release-YYYYMMDD path plus SHA256 in tests/e2e/run.sh) and the git-cliff and actionlint versions with their checksums in tests/e2e/controller/provision.sh are updated by hand."
+    "Manual steps: the cloud image (release-YYYYMMDD path plus SHA256 in tests/e2e/run.sh) and the git-cliff and actionlint versions with their checksums in tests/e2e/controller/provision.sh, and the amdgpu-install version in roles/rocm/defaults/main.yml (repo.radeon.com has no Renovate datasource) are updated by hand."
   ],
   "extends": ["config:recommended"],
   "ignorePaths": [
@@ -44,6 +44,15 @@
       "extractVersionTemplate": "^v(?<version>.+)$"
     },
     {
+      "description": "AMD Device Metrics Exporter image tag (docker.io/rocm/device-metrics-exporter:v<version>)",
+      "customType": "regex",
+      "managerFilePatterns": ["/^roles/gpu_metrics_exporter/defaults/main\\.yml$/"],
+      "matchStrings": ["gpu_metrics_exporter_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "rocm/device-metrics-exporter",
+      "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+\\.\\d+)$"
+    },
+    {
       "description": "Base images pinned by tag and digest in the Makefile",
       "customType": "regex",
       "managerFilePatterns": ["/^Makefile$/"],
@@ -76,6 +85,13 @@
       "description": "The tool versions in provision.sh come with a SHA256 that Renovate cannot update (not self-hosted, no post-upgrade tasks). Bump them by hand together with the checksum.",
       "matchPackageNames": ["orhun/git-cliff", "rhysd/actionlint"],
       "enabled": false
+    },
+    {
+      "description": "A new exporter release can add fields. The field allow-list is pinned per release, so the reviewer compares it before merging.",
+      "matchPackageNames": ["rocm/device-metrics-exporter"],
+      "prBodyNotes": [
+        "Before merging, diff example/config.json of ROCm/device-metrics-exporter at the new tag against the Fields allow-list in roles/gpu_metrics_exporter/vars/main.yml. Add the fields the new release introduces, or they stay off."
+      ]
     },
     {
       "description": "Stay on the Ubuntu 26.04 LTS image; only its digest moves.",

@@ -1,0 +1,38 @@
+---
+- name: Gather the hardware and driver state
+  ansible.builtin.include_tasks: gather.yml
+
+# Nothing changes on the host before this check passes.
+- name: Check the hardware and the OS
+  ansible.builtin.include_tasks: hardware_check.yml
+
+# The account check runs before any change. ansible.builtin.user in install.yml never creates the account.
+- name: Look up the ROCm user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ rocm_user }}"
+    fail_key: false
+
+- name: Check that the ROCm user exists
+  ansible.builtin.assert:
+    that: getent_passwd[rocm_user] is defined and getent_passwd[rocm_user] is not none
+    fail_msg: "The {{ rocm_user }} account is missing. Run playbooks/install_base.yml first."
+    quiet: true
+
+- name: Install ROCm
+  ansible.builtin.include_tasks: install.yml
+
+- name: Gather the driver state after the install
+  ansible.builtin.include_tasks: gather.yml
+
+- name: Decide the driver state
+  ansible.builtin.include_tasks: driver_state.yml
+
+- name: Report that a reboot is needed
+  ansible.builtin.debug:
+    msg: Reboot the host to load the amdgpu DKMS driver; this role never reboots.
+  when: rocm_driver_state == 'reboot_needed'
+
+- name: Verify ROCm
+  ansible.builtin.include_tasks: verify.yml
+  when: rocm_driver_state == 'active'

@@ -1,0 +1,81 @@
+---
+- name: Check the prerequisites of install_base.yml
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /etc/containers/systemd
+    - "{{ gpu_metrics_exporter_operator_home }}/.caddy/routes.d"
+  register: gpu_metrics_exporter_prerequisites
+
+- name: Assert the prerequisites of install_base.yml
+  ansible.builtin.assert:
+    that: item.stat.isdir | default(false)
+    fail_msg: Run playbooks/install_base.yml first.
+    quiet: true
+  loop: "{{ gpu_metrics_exporter_prerequisites.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Pull the device metrics exporter image
+  containers.podman.podman_image:
+    name: docker.io/rocm/device-metrics-exporter
+    tag: "v{{ gpu_metrics_exporter_version }}"
+    state: present
+
+- name: Create the exporter configuration directory
+  ansible.builtin.file:
+    path: /etc/device-metrics-exporter
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Check the exporter field selection
+  ansible.builtin.include_tasks: check_fields.yml
+
+- name: Build the exporter GPU configuration
+  ansible.builtin.set_fact:
+    gpu_metrics_exporter_gpu_config: >-
+      {{ {'Fields': gpu_metrics_exporter_enabled_fields}
+         if gpu_metrics_exporter_disabled_fields | length > 0 else {} }}
+
+- name: Install the exporter configuration
+  ansible.builtin.template:
+    src: config.json.j2
+    dest: /etc/device-metrics-exporter/config.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart device-metrics-exporter
+
+- name: Install the exporter quadlet
+  ansible.builtin.template:
+    src: device-metrics-exporter.container.j2
+    dest: /etc/containers/systemd/device-metrics-exporter.container
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart device-metrics-exporter
+
+- name: Apply pending restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Start the device metrics exporter
+  ansible.builtin.systemd_service:
+    name: device-metrics-exporter.service
+    state: started
+    daemon_reload: true
+
+# The route entry point validates the Caddyfile and restarts Caddy when the route changed.
+- name: Install the Caddy route for the exporter
+  ansible.builtin.include_role:
+    name: podman_monitoring
+    tasks_from: route
+  vars:
+    podman_monitoring_route_name: gpu_metrics
+    podman_monitoring_user_home: "{{ gpu_metrics_exporter_operator_home }}"
+    podman_monitoring_route_content: |
+      handle_path /gpu_metrics* {
+      	rewrite * /metrics
+      	reverse_proxy host.containers.internal:{{ gpu_metrics_exporter_listen_port }}
+      }

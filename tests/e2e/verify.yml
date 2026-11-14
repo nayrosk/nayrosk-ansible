@@ -3,6 +3,9 @@
   hosts: all
   gather_facts: false
   vars:
+    verify_route_user: operator
+    verify_route_uid: 10000
+    verify_route_home: /home/operator
     verify_ca_path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
     verify_caddy_password: e2e-password
     # Set E2E_ZOMBIE_CHECK=1 (always set in CI) to wait five minutes and assert no zombie process.
@@ -422,6 +425,162 @@
       ansible.builtin.assert:
         that: verify_caddy_unknown.stdout == '404'
         quiet: true
+
+    # Another playbook adds a route through the route entry point. verify does not run the operator_user role,
+    # so the role defaults fall back to the operator account.
+    - name: Install a test route through the route entry point
+      ansible.builtin.include_role:
+        name: podman_monitoring
+        tasks_from: route
+      vars:
+        podman_monitoring_route_name: e2e_test
+        podman_monitoring_route_content: |
+          handle /e2e_route {
+            respond "e2e-route-ok" 200
+          }
+
+    - name: Request the test route through Caddy with credentials
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -w
+          - "\n%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - -u
+          - "{{ podman_monitoring_caddy_basic_auth_user }}:{{ verify_caddy_password }}"
+          - "https://{{ hostname }}:8443/e2e_route"
+      delegate_to: localhost
+      become: false
+      register: verify_route_test
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: verify_route_test.stdout_lines[-1] | default('') == '200'
+
+    - name: Check the test route answers with its body
+      ansible.builtin.assert:
+        that:
+          - verify_route_test.stdout_lines[-1] == '200'
+          - verify_route_test.stdout_lines[0] == 'e2e-route-ok'
+        quiet: true
+
+    # The entry point must be idempotent: a second call with the same content reports no change, which a
+    # restart would break (the next playbook run 2 must be changed=0). include_role gives no per-task result
+    # here, so check the effects: the snippet checksum is the same and Caddy was not restarted (StartedAt).
+    - name: Stat the test route before the second call
+      ansible.builtin.stat:
+        path: "{{ verify_route_home }}/.caddy/routes.d/e2e_test.caddy"
+        checksum_algorithm: sha256
+      register: verify_route_before
+
+    - name: Read the Caddy container start time before the second call
+      ansible.builtin.command: podman inspect --format {{ '{{.State.StartedAt}}' }} systemd-caddy
+      become: true
+      become_user: "{{ verify_route_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ verify_route_uid }}"
+      register: verify_route_started_before
+      changed_when: false
+
+    - name: Install the same test route a second time
+      ansible.builtin.include_role:
+        name: podman_monitoring
+        tasks_from: route
+      vars:
+        podman_monitoring_route_name: e2e_test
+        podman_monitoring_route_content: |
+          handle /e2e_route {
+            respond "e2e-route-ok" 200
+          }
+
+    - name: Stat the test route after the second call
+      ansible.builtin.stat:
+        path: "{{ verify_route_home }}/.caddy/routes.d/e2e_test.caddy"
+        checksum_algorithm: sha256
+      register: verify_route_after
+
+    - name: Read the Caddy container start time after the second call
+      ansible.builtin.command: podman inspect --format {{ '{{.State.StartedAt}}' }} systemd-caddy
+      become: true
+      become_user: "{{ verify_route_user }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ verify_route_uid }}"
+      register: verify_route_started_after
+      changed_when: false
+
+    - name: Check the second call changed nothing
+      ansible.builtin.assert:
+        that:
+          - verify_route_before.stat.checksum == verify_route_after.stat.checksum
+          - verify_route_before.stat.mtime == verify_route_after.stat.mtime
+          - verify_route_started_before.stdout == verify_route_started_after.stdout
+        quiet: true
+
+    - name: Try to install a broken route
+      block:
+        - name: Install a broken route through the route entry point
+          ansible.builtin.include_role:
+            name: podman_monitoring
+            tasks_from: route
+          vars:
+            podman_monitoring_route_name: broken
+            podman_monitoring_route_content: "handle /broken {"
+      rescue:
+        - name: Record that the validation rejected the broken route
+          ansible.builtin.set_fact:
+            verify_broken_route_rejected: >-
+              {{ ansible_failed_task.name == 'Reject the candidate route' }}
+            verify_broken_route_explained: >-
+              {{ 'adapting config' in ansible_failed_result.msg or 'Error' in ansible_failed_result.msg }}
+
+    - name: Check the broken route was rejected
+      ansible.builtin.assert:
+        that:
+          - verify_broken_route_rejected | default(false) | bool
+          - verify_broken_route_explained | default(false) | bool
+        quiet: true
+
+    - name: Stat the broken route file
+      ansible.builtin.stat:
+        path: "{{ verify_route_home }}/.caddy/routes.d/broken.caddy"
+      register: verify_route_broken_stat
+
+    - name: Check the broken route was not installed
+      ansible.builtin.assert:
+        that: not verify_route_broken_stat.stat.exists
+        quiet: true
+
+    - name: Request node_exporter through Caddy after the broken route
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -w
+          - "\n%{http_code}"
+          - --cacert
+          - "{{ verify_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:8443:127.0.0.1"
+          - -u
+          - "{{ podman_monitoring_caddy_basic_auth_user }}:{{ verify_caddy_password }}"
+          - "https://{{ hostname }}:8443/node_exporter"
+      delegate_to: localhost
+      become: false
+      register: verify_route_after_broken
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: verify_route_after_broken.stdout_lines[-1] | default('') == '200'
+
+    # Caddy is not restarted: the route file is only removed, which is harmless in the throwaway VM.
+    - name: Remove the test route so the run state stays clean
+      ansible.builtin.file:
+        path: "{{ verify_route_home }}/.caddy/routes.d/e2e_test.caddy"
+        state: absent
 
     # Two 401 answers for the caddy-auth filter checks below: one request without credentials (the basic auth
     # challenge every browser gets first, must not count) and one with a wrong password (must count). One

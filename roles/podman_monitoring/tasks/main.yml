@@ -54,6 +54,7 @@
     - {path: .config/containers/systemd, mode: "0750"}
     - {path: .caddy, mode: "0750"}
     - {path: .caddy/config, mode: "0750"}
+    - {path: .caddy/routes.d, mode: "0750"}
     - {path: .caddy/data, mode: "0750"}
     - {path: .caddy/logs, mode: "0750"}
     - {path: .caddy/certs, mode: "0700"}

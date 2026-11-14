@@ -1,0 +1,22 @@
+---
+- name: Run rocminfo
+  ansible.builtin.command:
+    argv: [rocminfo]
+  register: rocm_verify_rocminfo
+  changed_when: false
+
+- name: Check that rocminfo lists a GPU agent
+  ansible.builtin.assert:
+    that: rocm_verify_rocminfo.stdout is search('Name:\s+gfx')
+    fail_msg: rocminfo lists no GPU agent.
+    quiet: true
+
+- name: Run amd-smi version
+  ansible.builtin.command:
+    argv: [amd-smi, version]
+  register: rocm_verify_amd_smi
+  changed_when: false
+
+- name: Show the ROCm versions
+  ansible.builtin.debug:
+    msg: "{{ rocm_verify_amd_smi.stdout_lines }}"

@@ -1,0 +1,111 @@
+---
+argument_specs:
+  main:
+    short_description: Run the AMD device metrics exporter in a rootful Podman quadlet behind Caddy.
+    description:
+      - Pulls the exporter image, renders its configuration, installs the C(device-metrics-exporter) quadlet
+        and adds the Caddy route C(/gpu_metrics) through the C(route) entry point of C(podman_monitoring).
+      - Needs C(playbooks/install_base.yml) to have run. Works on the inbox amdgpu driver, without C(rocm).
+    options:
+      gpu_metrics_exporter_version:
+        type: str
+        default: "1.5.3"
+        description: Image tag of C(docker.io/rocm/device-metrics-exporter), without the leading C(v).
+      gpu_metrics_exporter_listen_port:
+        type: int
+        default: 5000
+        description: Loopback port the exporter is published on. The container always listens on 5000.
+      gpu_metrics_exporter_disabled_fields:
+        type: list
+        elements: str
+        default:
+          - GPU_ECC_CORRECT_TOTAL
+          - GPU_ECC_UNCORRECT_TOTAL
+          - GPU_ECC_CORRECT_SDMA
+          - GPU_ECC_UNCORRECT_SDMA
+          - GPU_ECC_CORRECT_GFX
+          - GPU_ECC_UNCORRECT_GFX
+          - GPU_ECC_CORRECT_MMHUB
+          - GPU_ECC_UNCORRECT_MMHUB
+          - GPU_ECC_CORRECT_ATHUB
+          - GPU_ECC_UNCORRECT_ATHUB
+          - GPU_ECC_CORRECT_BIF
+          - GPU_ECC_UNCORRECT_BIF
+          - GPU_ECC_CORRECT_HDP
+          - GPU_ECC_UNCORRECT_HDP
+          - GPU_ECC_CORRECT_XGMI_WAFL
+          - GPU_ECC_UNCORRECT_XGMI_WAFL
+          - GPU_ECC_CORRECT_DF
+          - GPU_ECC_UNCORRECT_DF
+          - GPU_ECC_CORRECT_SMN
+          - GPU_ECC_UNCORRECT_SMN
+          - GPU_ECC_CORRECT_SEM
+          - GPU_ECC_UNCORRECT_SEM
+          - GPU_ECC_CORRECT_MP0
+          - GPU_ECC_UNCORRECT_MP0
+          - GPU_ECC_CORRECT_MP1
+          - GPU_ECC_UNCORRECT_MP1
+          - GPU_ECC_CORRECT_FUSE
+          - GPU_ECC_UNCORRECT_FUSE
+          - GPU_ECC_CORRECT_UMC
+          - GPU_ECC_UNCORRECT_UMC
+          - GPU_XGMI_NBR_0_NOP_TX
+          - GPU_XGMI_NBR_0_REQ_TX
+          - GPU_XGMI_NBR_0_RESP_TX
+          - GPU_XGMI_NBR_0_BEATS_TX
+          - GPU_XGMI_NBR_1_NOP_TX
+          - GPU_XGMI_NBR_1_REQ_TX
+          - GPU_XGMI_NBR_1_RESP_TX
+          - GPU_XGMI_NBR_1_BEATS_TX
+          - GPU_XGMI_NBR_0_TX_THRPUT
+          - GPU_XGMI_NBR_1_TX_THRPUT
+          - GPU_XGMI_NBR_2_TX_THRPUT
+          - GPU_XGMI_NBR_3_TX_THRPUT
+          - GPU_XGMI_NBR_4_TX_THRPUT
+          - GPU_XGMI_NBR_5_TX_THRPUT
+          - GPU_ECC_CORRECT_MCA
+          - GPU_ECC_UNCORRECT_MCA
+          - GPU_ECC_CORRECT_VCN
+          - GPU_ECC_UNCORRECT_VCN
+          - GPU_ECC_CORRECT_JPEG
+          - GPU_ECC_UNCORRECT_JPEG
+          - GPU_ECC_CORRECT_IH
+          - GPU_ECC_UNCORRECT_IH
+          - GPU_ECC_CORRECT_MPIO
+          - GPU_ECC_UNCORRECT_MPIO
+          - GPU_ECC_DEFERRED_TOTAL
+          - GPU_ECC_DEFERRED_SDMA
+          - GPU_ECC_DEFERRED_GFX
+          - GPU_ECC_DEFERRED_MMHUB
+          - GPU_ECC_DEFERRED_ATHUB
+          - GPU_ECC_DEFERRED_BIF
+          - GPU_ECC_DEFERRED_HDP
+          - GPU_ECC_DEFERRED_XGMI_WAFL
+          - GPU_ECC_DEFERRED_DF
+          - GPU_ECC_DEFERRED_SMN
+          - GPU_ECC_DEFERRED_SEM
+          - GPU_ECC_DEFERRED_MP0
+          - GPU_ECC_DEFERRED_MP1
+          - GPU_ECC_DEFERRED_FUSE
+          - GPU_ECC_DEFERRED_UMC
+          - GPU_ECC_DEFERRED_MCA
+          - GPU_ECC_DEFERRED_VCN
+          - GPU_ECC_DEFERRED_JPEG
+          - GPU_ECC_DEFERRED_IH
+          - GPU_ECC_DEFERRED_MPIO
+          - GPU_XGMI_LINK_RX
+          - GPU_XGMI_LINK_TX
+        description:
+          - GPUConfig fields excluded from the export, by their upstream names (for example C(GPU_ECC_CORRECT_GFX)).
+          - The exporter only takes an allow-list, so the config file lists every known field except these. An empty
+            list omits C(Fields) and exports everything.
+      gpu_metrics_exporter_operator_home:
+        type: str
+        default: "{{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}"
+        description: >-
+          Home directory of the operator account that runs Caddy. Follows the C(operator_user) role variables.
+          It is passed to the C(podman_monitoring) route entry point as C(podman_monitoring_user_home).
+      hostname:
+        type: str
+        required: true
+        description: Hostname served by Caddy, also used as the C(hostname) label of the GPU metrics.

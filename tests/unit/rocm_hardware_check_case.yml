@@ -1,0 +1,34 @@
+---
+- name: Run the hardware check
+  block:
+    - name: Include the hardware check
+      ansible.builtin.include_role:
+        name: rocm
+        tasks_from: hardware_check
+      vars:
+        rocm_pci_devices: "{{ unit_case.devices }}"
+        rocm_secure_boot_enabled: "{{ unit_case.secure_boot }}"
+        rocm_uefi_boot: "{{ unit_case.uefi | default(true) }}"
+        rocm_secure_boot_known: "{{ unit_case.sb_known | default(true) }}"
+        rocm_os_codename: "{{ unit_case.codename }}"
+
+    - name: Record a pass
+      ansible.builtin.set_fact:
+        unit_outcome: pass
+  rescue:
+    - name: Record a failure
+      ansible.builtin.set_fact:
+        unit_outcome: fail
+
+- name: Check the outcome
+  ansible.builtin.assert:
+    that: unit_outcome == unit_case.expected
+    fail_msg: "{{ unit_case.name }}: expected {{ unit_case.expected }}, got {{ unit_outcome }}"
+    success_msg: "{{ unit_case.name }}: {{ unit_outcome }}"
+
+- name: Check the supported GPUs
+  ansible.builtin.assert:
+    that: rocm_supported_gpus | length == unit_case.supported_count
+    fail_msg: "{{ unit_case.name }}: got {{ rocm_supported_gpus }}"
+    success_msg: "{{ unit_case.name }}: {{ rocm_supported_gpus }}"
+  when: unit_case.expected == 'pass'

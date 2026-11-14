@@ -1,0 +1,27 @@
+# Managed by Ansible (role gpu_metrics_exporter).
+[Unit]
+Description=AMD device metrics exporter
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=docker.io/rocm/device-metrics-exporter:v{{ gpu_metrics_exporter_version }}
+HostName={{ hostname }}
+PodmanArgs=--privileged
+AddDevice=/dev/dri
+AddDevice=/dev/kfd
+Volume=/sys:/sys:ro
+Volume=/etc/device-metrics-exporter:/etc/metrics:ro
+PublishPort=127.0.0.1:{{ gpu_metrics_exporter_listen_port }}:5000
+HealthCmd=curl -fsS -o /dev/null http://127.0.0.1:5000/metrics
+HealthStartPeriod=60s
+HealthInterval=30s
+HealthTimeout=10s
+HealthRetries=3
+HealthOnFailure=kill
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

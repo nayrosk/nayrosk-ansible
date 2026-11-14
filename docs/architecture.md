@@ -77,6 +77,10 @@ flowchart LR
   process. UFW rules and fail2ban bans therefore apply, and Caddy sees the real client address.
 - Caddy terminates TLS with the certificate issued by `local_ca`, asks for basic auth on every route and
   proxies `/node_exporter` to node_exporter.
+- Other playbooks add Caddy routes without editing this role. The site block imports
+  `~/.caddy/routes.d/*.caddy`, and the `route` entry point of `podman_monitoring` (set
+  `podman_monitoring_route_name` and `podman_monitoring_route_content`, then
+  `include_role` with `tasks_from: route`) validates and installs one snippet and restarts Caddy.
 - The `monitoring` network exists for future rootless services. Caddy is not on it yet. See
   [operations](operations.md#decisions-and-known-limits).
 - fail2ban reads the Caddy JSON access log and bans clients that fail basic auth, and bans SSH brute force.

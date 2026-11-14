@@ -1,0 +1,11 @@
+---
+# Decides whether amdgpu-install must run. Inputs (set by install.yml or a unit check):
+# rocm_installed_packages (installed package names), rocm_amdgpu_install_changed (new amdgpu-install deb).
+# ROCm 10.1 ships no "rocm" package: the stack counts as installed with amdgpu-dkms and an
+# amdrocm<version>-gfx<target> package.
+- name: Decide whether amdgpu-install must run
+  ansible.builtin.set_fact:
+    rocm_install_needed: >-
+      {{ 'amdgpu-dkms' not in rocm_installed_packages
+         or rocm_installed_packages | select('match', '^amdrocm[0-9.]+-gfx[0-9a-f]+$') | list | length == 0
+         or rocm_amdgpu_install_changed | bool }}

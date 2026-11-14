@@ -1,0 +1,12 @@
+---
+# Installs ROCm on the hosts of the gpu group. Run playbooks/install_base.yml on them first.
+- name: Install ROCm on GPU hosts
+  hosts: gpu
+  gather_facts: false
+  roles:
+    - role: bootstrap_connection
+      tags: [always, bootstrap_connection]
+    - role: rocm
+      tags: [rocm]
+    - role: gpu_metrics_exporter
+      tags: [gpu_metrics_exporter]

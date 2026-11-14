@@ -207,6 +207,56 @@ Set `vault_ubuntu_pro_token` to attach the host on the first install. The role r
 `ubuntu_pro_livepatch` is true. An empty token skips the whole step. To attach later, run once with
 `-e first_install=true` and the token set.
 
+## ROCm and GPU metrics
+
+`playbooks/install_rocm.yml` targets the `gpu` group of the inventory. Run `install_base.yml` first: the
+exporter needs the Caddy routes directory it creates. Add the host to `gpu` and run:
+
+```bash
+make run PLAYBOOK=playbooks/install_rocm.yml INVENTORY=inventories/prod LIMIT=server1
+```
+
+The `rocm` role checks the hardware before it changes anything and never reboots. After the first install,
+reboot the host by hand, then run the playbook again. The second run verifies the stack with `rocminfo` and
+`amd-smi`. While the DKMS module is built but not loaded, the role reports that a reboot is needed. When DKMS
+has no module for the running kernel, it fails and names the kernel.
+
+Prometheus scrapes the exporter through Caddy, with the same basic auth and certificate as node_exporter (see
+[architecture](architecture.md) for the `routes.d` extension point):
+
+```yaml
+scrape_configs:
+  - job_name: gpu_metrics
+    scheme: https
+    metrics_path: /gpu_metrics
+    basic_auth:
+      username: admin
+      password_file: /etc/prometheus/gpu_metrics.password
+    tls_config:
+      ca_file: /etc/prometheus/server1-ca.crt
+    static_configs:
+      - targets: ["server1.example.com"]
+```
+
+`username` is `podman_monitoring_caddy_basic_auth_user`. `ca_file` is the `artifacts/<host>/ca.crt` fetched by
+`local_ca`.
+
+Bump `amdgpu-install` by hand. repo.radeon.com has no Renovate datasource. Find the new release under
+`https://repo.radeon.com/amdgpu-install/`, then set `rocm_amdgpu_install_version` and
+`rocm_amdgpu_install_package_version` in the inventory (defaults live in `roles/rocm/defaults/main.yml`) and run
+the playbook. Reboot, run it again, and check the result with `tests/gpu/verify.yml` (see
+[testing](testing.md#gpu-host-test)).
+
+When `amdgpu-install` fails, the role stops and never uninstalls. Recover by hand, then rerun:
+
+```bash
+sudo amdgpu-install --uninstall
+sudo reboot
+```
+
+The exporter image is tracked by Renovate. Its pull request notes ask you to diff the upstream
+`example/config.json` against the field allow-list in `roles/gpu_metrics_exporter/vars/main.yml`.
+
 ## Decisions and known limits
 
 - Caddy runs on pasta, not on the `monitoring` network. A rootless bridge network publishes ports through

@@ -11,6 +11,7 @@ E2E_VM_STAMP := .cache/e2e-vm-image.stamp
 KEEP         ?= 0
 
 INVENTORY ?= inventories/example
+PLAYBOOK  ?= playbooks/install_base.yml
 LIMIT     ?=
 TAGS      ?=
 ARGS      ?=
@@ -65,7 +66,7 @@ zizmor: controller ## Audit GitHub workflows (no-op without .github/workflows)
 # hosts instead. The agent is forwarded when SSH_AUTH_SOCK points at a socket (needed for passphrase keys).
 # OpenSSH resolves ~ from the passwd entry, not from HOME: keep-id would give it the working directory, so the
 # passwd home is set to /tmp to match HOME and the ~/.ssh mount.
-run: controller ## Run the playbook (INVENTORY=, LIMIT=, TAGS=)
+run: controller ## Run a playbook (INVENTORY=, LIMIT=, TAGS=, PLAYBOOK=)
 	@if [ -f .vault-pass ]; then vault_opt="--vault-password-file .vault-pass"; else vault_opt="--ask-vault-pass"; fi; \
 	if [ -n "$${SSH_AUTH_SOCK:-}" ] && [ -S "$${SSH_AUTH_SOCK}" ]; then \
 		set -- -v "$${SSH_AUTH_SOCK}:/tmp/ssh-agent.sock" -e SSH_AUTH_SOCK=/tmp/ssh-agent.sock; else set --; fi; \
@@ -73,10 +74,11 @@ run: controller ## Run the playbook (INVENTORY=, LIMIT=, TAGS=)
 		--network host --security-opt label=disable -e HOME=/tmp "$$@" \
 		-v "$(CURDIR):/work" -v "$$HOME/.ssh:/tmp/.ssh:ro" -w /work $(CONTROLLER_IMAGE) \
 		ansible-playbook -i "$(INVENTORY)" $$vault_opt \
-		$(if $(LIMIT),--limit "$(LIMIT)") $(if $(TAGS),--tags "$(TAGS)") playbooks/install_base.yml $(ARGS)
+		$(if $(LIMIT),--limit "$(LIMIT)") $(if $(TAGS),--tags "$(TAGS)") "$(PLAYBOOK)" $(ARGS)
 
 unit: controller ## Run the unit checks on the controller (no VM)
-	$(CONTROLLER_RUN) ansible-playbook -i localhost, tests/unit/fail2ban_ignoreip.yml
+	$(CONTROLLER_RUN) ansible-playbook -i localhost, tests/unit/fail2ban_ignoreip.yml \
+		tests/unit/rocm_hardware_check.yml tests/unit/rocm_driver_state.yml tests/unit/gpu_metrics_exporter_fields.yml tests/unit/rocm_install_needed.yml
 
 vault-edit: controller ## Edit the inventory vault, creating it when missing (VAULT_FILE=)
 	@if [ -f .vault-pass ]; then vault_opt="--vault-password-file .vault-pass"; else vault_opt="--ask-vault-pass"; fi; \

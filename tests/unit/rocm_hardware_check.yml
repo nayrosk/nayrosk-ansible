@@ -1,0 +1,76 @@
+---
+# Checks the rocm hardware check on the controller, without a target:
+#   make unit
+- name: Check the rocm hardware check
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    unit_lab_devices:
+      - {vendor: "0x1002", device: "0x747e", class: "0x030000"}
+      - {vendor: "0x1002", device: "0x13c0", class: "0x030000"}
+    unit_cases:
+      - name: lab host, RX 7800 XT and unsupported iGPU
+        devices: "{{ unit_lab_devices }}"
+        secure_boot: false
+        codename: resolute
+        expected: pass
+        supported_count: 1
+      - name: only the unsupported iGPU
+        devices:
+          - {vendor: "0x1002", device: "0x13c0", class: "0x030000"}
+        secure_boot: false
+        codename: resolute
+        expected: fail
+      - name: NVIDIA GPU only
+        devices:
+          - {vendor: "0x10de", device: "0x2684", class: "0x030000"}
+        secure_boot: false
+        codename: resolute
+        expected: fail
+      - name: supported device id on a non display class
+        devices:
+          - {vendor: "0x1002", device: "0x747e", class: "0x040300"}
+        secure_boot: false
+        codename: resolute
+        expected: fail
+      - name: lab host with Secure Boot enabled
+        devices: "{{ unit_lab_devices }}"
+        secure_boot: true
+        codename: resolute
+        expected: fail
+      - name: UEFI boot with an unreadable Secure Boot state
+        devices: "{{ unit_lab_devices }}"
+        secure_boot: false
+        uefi: true
+        sb_known: false
+        codename: resolute
+        expected: fail
+      - name: legacy BIOS boot, no Secure Boot variable
+        devices: "{{ unit_lab_devices }}"
+        secure_boot: false
+        uefi: false
+        sb_known: true
+        codename: resolute
+        expected: pass
+        supported_count: 1
+      - name: UEFI boot with efivarfs mounted and Secure Boot disabled
+        devices: "{{ unit_lab_devices }}"
+        secure_boot: false
+        uefi: true
+        sb_known: true
+        codename: resolute
+        expected: pass
+        supported_count: 1
+      - name: lab host on Ubuntu 24.04
+        devices: "{{ unit_lab_devices }}"
+        secure_boot: false
+        codename: noble
+        expected: fail
+  tasks:
+    - name: Run each case
+      ansible.builtin.include_tasks: rocm_hardware_check_case.yml
+      loop: "{{ unit_cases }}"
+      loop_control:
+        loop_var: unit_case
+        label: "{{ unit_case.name }}"

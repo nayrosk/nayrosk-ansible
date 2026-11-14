@@ -1,0 +1,88 @@
+---
+# Image tag of docker.io/rocm/device-metrics-exporter, without the leading v.
+gpu_metrics_exporter_version: "1.5.3"
+# Loopback port the exporter is published on (the container always listens on 5000).
+gpu_metrics_exporter_listen_port: 5000
+# GPUConfig fields excluded from the export: the ECC and XGMI series, which read zero on Radeon.
+gpu_metrics_exporter_disabled_fields:
+  - GPU_ECC_CORRECT_TOTAL
+  - GPU_ECC_UNCORRECT_TOTAL
+  - GPU_ECC_CORRECT_SDMA
+  - GPU_ECC_UNCORRECT_SDMA
+  - GPU_ECC_CORRECT_GFX
+  - GPU_ECC_UNCORRECT_GFX
+  - GPU_ECC_CORRECT_MMHUB
+  - GPU_ECC_UNCORRECT_MMHUB
+  - GPU_ECC_CORRECT_ATHUB
+  - GPU_ECC_UNCORRECT_ATHUB
+  - GPU_ECC_CORRECT_BIF
+  - GPU_ECC_UNCORRECT_BIF
+  - GPU_ECC_CORRECT_HDP
+  - GPU_ECC_UNCORRECT_HDP
+  - GPU_ECC_CORRECT_XGMI_WAFL
+  - GPU_ECC_UNCORRECT_XGMI_WAFL
+  - GPU_ECC_CORRECT_DF
+  - GPU_ECC_UNCORRECT_DF
+  - GPU_ECC_CORRECT_SMN
+  - GPU_ECC_UNCORRECT_SMN
+  - GPU_ECC_CORRECT_SEM
+  - GPU_ECC_UNCORRECT_SEM
+  - GPU_ECC_CORRECT_MP0
+  - GPU_ECC_UNCORRECT_MP0
+  - GPU_ECC_CORRECT_MP1
+  - GPU_ECC_UNCORRECT_MP1
+  - GPU_ECC_CORRECT_FUSE
+  - GPU_ECC_UNCORRECT_FUSE
+  - GPU_ECC_CORRECT_UMC
+  - GPU_ECC_UNCORRECT_UMC
+  - GPU_XGMI_NBR_0_NOP_TX
+  - GPU_XGMI_NBR_0_REQ_TX
+  - GPU_XGMI_NBR_0_RESP_TX
+  - GPU_XGMI_NBR_0_BEATS_TX
+  - GPU_XGMI_NBR_1_NOP_TX
+  - GPU_XGMI_NBR_1_REQ_TX
+  - GPU_XGMI_NBR_1_RESP_TX
+  - GPU_XGMI_NBR_1_BEATS_TX
+  - GPU_XGMI_NBR_0_TX_THRPUT
+  - GPU_XGMI_NBR_1_TX_THRPUT
+  - GPU_XGMI_NBR_2_TX_THRPUT
+  - GPU_XGMI_NBR_3_TX_THRPUT
+  - GPU_XGMI_NBR_4_TX_THRPUT
+  - GPU_XGMI_NBR_5_TX_THRPUT
+  - GPU_ECC_CORRECT_MCA
+  - GPU_ECC_UNCORRECT_MCA
+  - GPU_ECC_CORRECT_VCN
+  - GPU_ECC_UNCORRECT_VCN
+  - GPU_ECC_CORRECT_JPEG
+  - GPU_ECC_UNCORRECT_JPEG
+  - GPU_ECC_CORRECT_IH
+  - GPU_ECC_UNCORRECT_IH
+  - GPU_ECC_CORRECT_MPIO
+  - GPU_ECC_UNCORRECT_MPIO
+  - GPU_ECC_DEFERRED_TOTAL
+  - GPU_ECC_DEFERRED_SDMA
+  - GPU_ECC_DEFERRED_GFX
+  - GPU_ECC_DEFERRED_MMHUB
+  - GPU_ECC_DEFERRED_ATHUB
+  - GPU_ECC_DEFERRED_BIF
+  - GPU_ECC_DEFERRED_HDP
+  - GPU_ECC_DEFERRED_XGMI_WAFL
+  - GPU_ECC_DEFERRED_DF
+  - GPU_ECC_DEFERRED_SMN
+  - GPU_ECC_DEFERRED_SEM
+  - GPU_ECC_DEFERRED_MP0
+  - GPU_ECC_DEFERRED_MP1
+  - GPU_ECC_DEFERRED_FUSE
+  - GPU_ECC_DEFERRED_UMC
+  - GPU_ECC_DEFERRED_MCA
+  - GPU_ECC_DEFERRED_VCN
+  - GPU_ECC_DEFERRED_JPEG
+  - GPU_ECC_DEFERRED_IH
+  - GPU_ECC_DEFERRED_MPIO
+  - GPU_XGMI_LINK_RX
+  - GPU_XGMI_LINK_TX
+# Home directory of the operator account that runs Caddy. Follows the operator_user role variables and falls back to
+# the operator_user defaults. The route entry point of podman_monitoring receives it as podman_monitoring_user_home,
+# so both always agree. Do not make it follow podman_monitoring_user_home: that would recurse.
+gpu_metrics_exporter_operator_home: >-
+  {{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}

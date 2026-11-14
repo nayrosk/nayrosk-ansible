@@ -133,9 +133,9 @@ Run node_exporter as a rootful quadlet and Caddy as a rootless quadlet in front 
 | `podman_monitoring_caddy_basic_auth_hash` | str | secret | no | Bcrypt hash of the basic auth password, as printed by `caddy hash-password`. Defaults to the vault variable `vault_caddy_basic_auth_hash`, which must then be set. |
 | `podman_monitoring_caddy_extra_site_addresses` | list of str | `[]` | no | Site addresses served by Caddy in addition to the hostname, the local IP and the public IP. |
 | `podman_monitoring_host_loopback_ip` | str | `169.254.1.3` | no | Link-local address that the pasta instance of the Caddy container maps to the host loopback. `host.containers.internal` resolves to it inside Caddy. It must differ from podman's own `169.254.1.2`. |
-| `podman_monitoring_user` | str | `{{ operator_user_name }}` | no | Rootless account running Caddy. Defaults to the operator_user role account. |
-| `podman_monitoring_user_uid` | int | `{{ operator_user_uid }}` | no | Numeric id of `podman_monitoring_user`. |
-| `podman_monitoring_user_home` | str | `{{ operator_user_home }}` | no | Home directory of `podman_monitoring_user`. |
+| `podman_monitoring_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Rootless account running Caddy. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. |
+| `podman_monitoring_user_uid` | int | `{{ operator_user_uid \| default(10000) }}` | no | Numeric id of `podman_monitoring_user`. Falls back to 10000 without the operator_user role. |
+| `podman_monitoring_user_home` | str | `{{ operator_user_home \| default('/home/' ~ podman_monitor...` (truncated, see `defaults/main.yml`) | no | Home directory of `podman_monitoring_user`. Falls back to `/home/<user>` without the operator_user role. |
 | `podman_monitoring_cert_source_directory` | path | `{{ local_ca_directory }}` | no | Directory holding `server.crt` and `server.key`. Defaults to the local_ca role directory. |
 | `hostname` | str | none | yes | Hostname served by Caddy, also the first name of the server certificate. |
 
@@ -186,4 +186,31 @@ Ban repeated SSH and Caddy authentication failures through UFW.
 | `fail2ban_ignoreip_extra` | list of str | `[]` | no | Extra addresses or networks never banned, public ones included. |
 | `fail2ban_caddy_log_owner` | str | `{{ podman_monitoring_user \| default(operator_user_name \|...` (truncated, see `defaults/main.yml`) | no | Account running Caddy, owner and group of the access log created when missing. |
 | `fail2ban_caddy_log` | str | `{{ podman_monitoring_user_home \| default(operator_user_ho...` (truncated, see `defaults/main.yml`) | no | Caddy JSON access log watched by the `caddy-auth` jail. |
+
+## rocm
+
+Install the ROCm stack and the amdgpu DKMS driver with amdgpu-install.
+
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `rocm_amdgpu_install_version` | str | `31.60` | no | amdgpu-install release, the directory under `repo.radeon.com/amdgpu-install/`. |
+| `rocm_amdgpu_install_package_version` | str | `31.60.316000-1` | no | Exact version of the amdgpu-install `.deb` in that release. |
+| `rocm_amdgpu_install_url` | str | `https://repo.radeon.com/amdgpu-install/{{ rocm_amdgpu_ins...` (truncated, see `defaults/main.yml`) | no | URL of the amdgpu-install `.deb`, built from the two version variables. |
+| `rocm_usecases` | list of str | `[rocm, graphics]` | no | Usecases passed to `amdgpu-install --usecase`. |
+| `rocm_gfxversion` | str | `auto` | no | Value passed to `amdgpu-install --gfxversion`. |
+| `rocm_prerequisite_packages` | list of str | `[libatomic1, libquadmath0, python3.14, python3.14-venv]` | no | Packages installed before amdgpu-install. |
+| `rocm_supported_pci_ids` | list of str | `[75a3, 75a0, 74a5, 74a1, 74a0, 7408, 740c, 740f, 738c, 73...` (24 entries, truncated, see `defaults/main.yml`) | no | PCI device ids (vendor 1002, lowercase hex, no `0x`) of the GPUs the ROCm system requirements list. The role fails before any change when no AMD display device of the host is in this list. |
+| `rocm_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Existing account added to the render and video groups. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. |
+
+## gpu_metrics_exporter
+
+Run the AMD device metrics exporter in a Podman quadlet behind Caddy.
+
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `gpu_metrics_exporter_version` | str | `1.5.3` | no | Image tag of `docker.io/rocm/device-metrics-exporter`, without the leading `v`. |
+| `gpu_metrics_exporter_listen_port` | int | `5000` | no | Loopback port the exporter is published on. The container always listens on 5000. |
+| `gpu_metrics_exporter_disabled_fields` | list of str | `[GPU_ECC_CORRECT_TOTAL, GPU_ECC_UNCORRECT_TOTAL, GPU_ECC_...` (76 entries, truncated, see `defaults/main.yml`) | no | GPUConfig fields excluded from the export, by their upstream names (for example `GPU_ECC_CORRECT_GFX`). The exporter only takes an allow-list, so the config file lists every known field except these. An empty list omits `Fields` and exports everything. |
+| `gpu_metrics_exporter_operator_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy. Follows the `operator_user` role variables. It is passed to the `podman_monitoring` route entry point as `podman_monitoring_user_home`. |
+| `hostname` | str | none | yes | Hostname served by Caddy, also used as the `hostname` label of the GPU metrics. |
 <!-- END VARIABLES -->

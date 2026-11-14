@@ -1,0 +1,105 @@
+---
+# Read-only checks for a GPU host after install_base.yml and install_rocm.yml. Run it against a real host:
+#   VERIFY_GPU_CADDY_PASSWORD=... ansible-playbook -i <inventory> --limit <host> tests/gpu/verify.yml
+# The Caddy password is not in the repository (the vault holds only its bcrypt hash), so pass it in the environment.
+# ansible_host must be an IP address because curl --resolve needs one.
+# The expected card and gfx target default to the lab GPU. Override them with
+#   -e verify_gpu_card_model="AMD Radeon ..." -e verify_gpu_gfx_target=gfxNNNN
+- name: Verify the GPU host
+  hosts: gpu
+  gather_facts: false
+  vars:
+    verify_gpu_card_model: AMD Radeon RX 7800 XT
+    verify_gpu_gfx_target: gfx1101
+    verify_gpu_ca_path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
+    verify_gpu_bs: "\\"
+    verify_gpu_caddy_user: "{{ podman_monitoring_caddy_basic_auth_user | default('admin') }}"
+    verify_gpu_caddy_password: "{{ lookup('ansible.builtin.env', 'VERIFY_GPU_CADDY_PASSWORD', default='') }}"
+  roles:
+    - role: bootstrap_connection
+      tags: [always, bootstrap_connection]
+  tasks:
+    - name: Check the Caddy password is provided
+      ansible.builtin.assert:
+        that: verify_gpu_caddy_password | length > 0
+        fail_msg: Set the VERIFY_GPU_CADDY_PASSWORD environment variable to the Caddy basic auth password.
+        quiet: true
+
+    - name: Read the device-metrics-exporter service state
+      ansible.builtin.systemd_service:
+        name: device-metrics-exporter.service
+      register: verify_gpu_exporter
+      changed_when: false
+
+    - name: Check device-metrics-exporter is active
+      ansible.builtin.assert:
+        that: verify_gpu_exporter.status.ActiveState == 'active'
+        fail_msg: device-metrics-exporter.service is not active.
+        quiet: true
+
+    - name: Request the GPU metrics through Caddy with credentials
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -s
+          - -w
+          - "\n%{http_code}"
+          - --cacert
+          - "{{ verify_gpu_ca_path }}"
+          - --resolve
+          - "{{ hostname }}:443:{{ ansible_host | default(inventory_hostname) }}"
+          - -K
+          - "-"
+          - "https://{{ hostname }}/gpu_metrics"
+        # curl config quoting: backslash first, then double quote.
+        stdin: >-
+          user = "{{ verify_gpu_caddy_user | replace(verify_gpu_bs, verify_gpu_bs ~ verify_gpu_bs)
+          | replace('"', verify_gpu_bs ~ '"') }}:{{ verify_gpu_caddy_password
+          | replace(verify_gpu_bs, verify_gpu_bs ~ verify_gpu_bs) | replace('"', verify_gpu_bs ~ '"') }}"
+      delegate_to: localhost
+      become: false
+      register: verify_gpu_metrics
+      changed_when: false
+      no_log: true
+      retries: 10
+      delay: 3
+      # Stop on 401 too: a wrong password must not be retried, fail2ban bans after 3 failures outside the LAN.
+      until: verify_gpu_metrics.stdout_lines[-1] | default('') in ['200', '401']
+
+    - name: Check Caddy accepted the credentials
+      ansible.builtin.assert:
+        that: verify_gpu_metrics.stdout_lines[-1] | default('') == '200'
+        fail_msg: "Caddy answered 401: check VERIFY_GPU_CADDY_PASSWORD."
+        quiet: true
+
+    - name: Check the metrics body names the card and the host
+      ansible.builtin.assert:
+        that:
+          - "'card_model=\"' ~ verify_gpu_card_model ~ '\"' in verify_gpu_metrics.stdout"
+          - "'hostname=\"' ~ hostname ~ '\"' in verify_gpu_metrics.stdout"
+        fail_msg: The /gpu_metrics body lacks the expected card_model or hostname label.
+        quiet: true
+
+    - name: Gather the loaded amdgpu module state
+      ansible.builtin.include_role:
+        name: rocm
+        tasks_from: gather
+
+    - name: Run rocminfo
+      ansible.builtin.command:
+        argv: [rocminfo]
+      register: verify_gpu_rocminfo
+      changed_when: false
+      when: rocm_loaded_is_dkms | bool
+
+    - name: Check rocminfo lists the expected gfx agent
+      ansible.builtin.assert:
+        that: verify_gpu_rocminfo.stdout is search('Name:\s+' ~ verify_gpu_gfx_target)
+        fail_msg: rocminfo lists no {{ verify_gpu_gfx_target }} agent.
+        quiet: true
+      when: rocm_loaded_is_dkms | bool
+
+    - name: Report the skipped rocminfo check
+      ansible.builtin.debug:
+        msg: The loaded amdgpu module is not the DKMS one, so the rocminfo check is skipped until the reboot.
+      when: not (rocm_loaded_is_dkms | bool)

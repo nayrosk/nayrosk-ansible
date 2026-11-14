@@ -25,6 +25,13 @@ account. Caddy serves the node_exporter metrics over HTTPS with basic auth.
   - HSTS, `X-Content-Type-Options nosniff`, `Referrer-Policy no-referrer`;
   - JSON access log in `~/.caddy/logs/access.log` (read by the fail2ban `caddy-auth` jail);
   - health endpoint `http://127.0.0.1:8081/healthz`, bound to the container loopback, not published.
+- Route extension point: the site block imports `/etc/caddy/routes.d/*.caddy` before the final 404. The
+  directory is `~/.caddy/routes.d` (0750), mounted read-only in the container. Another playbook adds a
+  route with `ansible.builtin.include_role: {name: podman_monitoring, tasks_from: route}` and the variables
+  `podman_monitoring_route_name` (file stem, `^[a-z0-9_]+$`) and `podman_monitoring_route_content`
+  (Caddyfile directives). The entry point validates the Caddyfile with the candidate snippet, installs
+  `routes.d/<name>.caddy` (0640, operator-owned) and restarts Caddy only when the file changed. A snippet
+  that fails validation is not installed, and the task failure shows Caddy's error for the snippet alone. The main entry point must have run first.
 - The rendered Caddyfile is validated with `caddy validate` in the pinned Caddy image (no network) before it
   replaces the installed file: a broken template fails the task and the running configuration stays.
 - Both containers have a healthcheck every 30s with `HealthOnFailure=kill` and `Restart=always`.
@@ -115,9 +122,9 @@ it is harmless.
 | `podman_monitoring_caddy_basic_auth_hash` | str | secret | no | Bcrypt hash of the basic auth password, as printed by `caddy hash-password`. Defaults to the vault variable `vault_caddy_basic_auth_hash`, which must then be set. |
 | `podman_monitoring_caddy_extra_site_addresses` | list of str | `[]` | no | Site addresses served by Caddy in addition to the hostname, the local IP and the public IP. |
 | `podman_monitoring_host_loopback_ip` | str | `169.254.1.3` | no | Link-local address that the pasta instance of the Caddy container maps to the host loopback. `host.containers.internal` resolves to it inside Caddy. It must differ from podman's own `169.254.1.2`. |
-| `podman_monitoring_user` | str | `{{ operator_user_name }}` | no | Rootless account running Caddy. Defaults to the operator_user role account. |
-| `podman_monitoring_user_uid` | int | `{{ operator_user_uid }}` | no | Numeric id of `podman_monitoring_user`. |
-| `podman_monitoring_user_home` | str | `{{ operator_user_home }}` | no | Home directory of `podman_monitoring_user`. |
+| `podman_monitoring_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Rootless account running Caddy. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. |
+| `podman_monitoring_user_uid` | int | `{{ operator_user_uid \| default(10000) }}` | no | Numeric id of `podman_monitoring_user`. Falls back to 10000 without the operator_user role. |
+| `podman_monitoring_user_home` | str | `{{ operator_user_home \| default('/home/' ~ podman_monitor...` (truncated, see `defaults/main.yml`) | no | Home directory of `podman_monitoring_user`. Falls back to `/home/<user>` without the operator_user role. |
 | `podman_monitoring_cert_source_directory` | path | `{{ local_ca_directory }}` | no | Directory holding `server.crt` and `server.key`. Defaults to the local_ca role directory. |
 | `hostname` | str | none | yes | Hostname served by Caddy, also the first name of the server certificate. |
 <!-- END VARIABLES -->

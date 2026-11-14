@@ -38,6 +38,7 @@
           podman run --rm --pull=never --network=none
           -v %s:/etc/caddy/Caddyfile:ro
           -v {{ podman_monitoring_user_home }}/.caddy/certs:/certs:ro
+          -v {{ podman_monitoring_user_home }}/.caddy/routes.d:/etc/caddy/routes.d:ro
           --tmpfs /logs --tmpfs /data
           docker.io/library/caddy:{{ podman_monitoring_caddy_version }}-alpine
           caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile

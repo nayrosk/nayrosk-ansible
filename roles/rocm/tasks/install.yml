@@ -1,0 +1,49 @@
+---
+- name: Install the ROCm prerequisites
+  ansible.builtin.apt:
+    name: "{{ rocm_prerequisite_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+    lock_timeout: 600
+
+- name: Add the ROCm user to the render and video groups
+  ansible.builtin.user:
+    name: "{{ rocm_user }}"
+    groups: [render, video]
+    append: true
+
+- name: Install the amdgpu-install package
+  ansible.builtin.apt:
+    deb: "{{ rocm_amdgpu_install_url }}"
+    lock_timeout: 600
+  register: rocm_amdgpu_install_package
+
+- name: Gather the installed packages
+  ansible.builtin.package_facts:
+
+- name: Decide whether amdgpu-install must run
+  ansible.builtin.include_tasks: install_needed.yml
+  vars:
+    rocm_installed_packages: "{{ ansible_facts.packages.keys() | list }}"
+    rocm_amdgpu_install_changed: "{{ rocm_amdgpu_install_package is changed }}"
+
+# amdgpu-install 31.60 resolves its gfx package names with apt-cache before its own apt-get update. The
+# repositories the amdgpu-install deb just added have no lists yet, so the lookup fails without this refresh.
+- name: Refresh the apt cache for the amdgpu-install repositories
+  ansible.builtin.apt:
+    update_cache: true
+    lock_timeout: 600
+  when: rocm_install_needed | bool
+
+# Runs on first install and when a new amdgpu-install release was installed. An upgrade interrupted after
+# the deb bump is not retried on the next run: see "Recovery when amdgpu-install fails" in the README.
+- name: Install the ROCm stack with amdgpu-install
+  ansible.builtin.command:
+    argv:
+      - amdgpu-install
+      - -y
+      - --usecase={{ rocm_usecases | join(',') }}
+      - --gfxversion={{ rocm_gfxversion }}
+  changed_when: true
+  when: rocm_install_needed | bool

@@ -1,0 +1,12 @@
+---
+# Entry point of the field list check. Runs before the configuration is rendered.
+# DME v1.5.3 treats an empty Fields list as "export everything", the opposite of what disabling every field means.
+- name: Check that the disabled fields leave at least one field enabled
+  ansible.builtin.assert:
+    that: >-
+      gpu_metrics_exporter_disabled_fields | length == 0
+      or gpu_metrics_exporter_enabled_fields | length > 0
+    fail_msg: >-
+      gpu_metrics_exporter_disabled_fields removes every known field. The exporter would then export everything.
+      Keep at least one field enabled, or set the list to empty to export everything on purpose.
+    quiet: true

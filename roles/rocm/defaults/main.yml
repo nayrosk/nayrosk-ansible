@@ -1,0 +1,41 @@
+---
+# amdgpu-install release (ROCm 10.1.0) and the exact package version of its .deb.
+rocm_amdgpu_install_version: "31.60"
+rocm_amdgpu_install_package_version: "31.60.316000-1"
+rocm_amdgpu_install_url: >-
+  https://repo.radeon.com/amdgpu-install/{{ rocm_amdgpu_install_version }}/ubuntu/resolute/amdgpu-install_{{
+  rocm_amdgpu_install_package_version }}_all.deb
+rocm_usecases: [rocm, graphics]
+rocm_gfxversion: auto
+rocm_prerequisite_packages: [libatomic1, libquadmath0, python3.14, python3.14-venv]
+# PCI device ids (vendor 1002) of the GPUs listed as supported in the ROCm system requirements.
+# Sources: rocm.docs.amd.com install-on-linux system requirements, names from the pci.ids database.
+rocm_supported_pci_ids:
+  # AMD Instinct
+  - "75a3" # MI355X (gfx950)
+  - "75a0" # MI350X (gfx950)
+  - "74a5" # MI325X (gfx942)
+  - "74a1" # MI300X (gfx942)
+  - "74a0" # MI300A (gfx942)
+  - "7408" # MI250X (gfx90a)
+  - "740c" # MI250X / MI250 (gfx90a)
+  - "740f" # MI210 (gfx90a)
+  - "738c" # MI100 (gfx908)
+  - "738e" # MI100 (gfx908)
+  # AMD Radeon PRO
+  - "7551" # Radeon AI PRO R9700 (gfx1201)
+  - "7460" # Radeon PRO V710 (gfx1101)
+  - "7461" # Radeon PRO V710 (gfx1101)
+  - "7448" # Radeon PRO W7900 (gfx1100)
+  - "744a" # Radeon PRO W7900 Dual Slot (gfx1100)
+  - "7449" # Radeon PRO W7800 48GB (gfx1100)
+  - "745e" # Radeon PRO W7800 (gfx1100)
+  - "7470" # Radeon PRO W7700 (gfx1101)
+  - "73a3" # Radeon PRO W6800 (gfx1030)
+  - "73a1" # Radeon PRO V620 (gfx1030)
+  # AMD Radeon
+  - "7550" # Radeon RX 9070 XT / 9070 GRE / 9070 (gfx1201)
+  - "7590" # Radeon RX 9060 XT (gfx1200)
+  - "744c" # Radeon RX 7900 XTX / 7900 XT / 7900 GRE (gfx1100)
+  - "747e" # Radeon RX 7800 XT / 7700 XT (gfx1101)
+rocm_user: "{{ operator_user_name | default('operator') }}"

@@ -12,12 +12,13 @@ podman_monitoring_caddy_basic_auth_user: admin
 podman_monitoring_caddy_basic_auth_hash: "{{ vault_caddy_basic_auth_hash }}"
 # Site addresses served by Caddy in addition to the hostname, the local IP and the public IP.
 podman_monitoring_caddy_extra_site_addresses: []
-# Rootless account running Caddy. Aliases the operator_user role variables.
-podman_monitoring_user: "{{ operator_user_name }}"
+# Rootless account running Caddy. Aliases the operator_user role variables; falls back to the operator_user
+# defaults when that role did not run in the play (as bootstrap_connection does).
+podman_monitoring_user: "{{ operator_user_name | default('operator') }}"
 # Numeric id of podman_monitoring_user (sets XDG_RUNTIME_DIR).
-podman_monitoring_user_uid: "{{ operator_user_uid }}"
+podman_monitoring_user_uid: "{{ operator_user_uid | default(10000) }}"
 # Home directory of podman_monitoring_user.
-podman_monitoring_user_home: "{{ operator_user_home }}"
+podman_monitoring_user_home: "{{ operator_user_home | default('/home/' ~ podman_monitoring_user) }}"
 # Directory holding the server certificate and key. Aliases the local_ca role directory.
 podman_monitoring_cert_source_directory: "{{ local_ca_directory }}"
 # Link-local address that the Caddy container's pasta maps to the host loopback; host.containers.internal
