@@ -42,6 +42,17 @@ flowchart LR
     G --> H[fail2ban]
 ```
 
+Hosts with a supported AMD GPU also get a second playbook, `playbooks/install_rocm.yml`. It runs
+`bootstrap_connection`, `rocm` and `gpu_metrics_exporter` on the `gpu` inventory group, after `install_base.yml`:
+
+```bash
+make run PLAYBOOK=playbooks/install_rocm.yml INVENTORY=inventories/prod LIMIT=server1
+```
+
+`rocm` installs the ROCm stack with `amdgpu-install` and never reboots. `gpu_metrics_exporter` runs the AMD Device
+Metrics Exporter as a Podman quadlet and serves it at `https://<host>/gpu_metrics`. See
+[operations](docs/operations.md#rocm-and-gpu-metrics).
+
 See [architecture](docs/architecture.md) for the detailed flow, the network layout and the connection model.
 
 ## Quickstart

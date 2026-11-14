@@ -90,6 +90,22 @@ CI always sets it. The default run skips the wait to stay short.
   throwaway VM would take one machine slot of the Pro subscription. The attach task is checked to be
   skipped. The attach path is therefore not tested automatically.
 
+## GPU host test
+
+CI cannot test `install_rocm.yml`: the e2e VM has no GPU, so the hardware check of the `rocm` role fails by
+design. The maintainer runs the test by hand on a real GPU host that already ran `install_base.yml`. Use
+`make run PLAYBOOK=playbooks/install_rocm.yml INVENTORY=... LIMIT=...` and pipe a run through
+`tests/e2e/check-idempotence.sh` to check it:
+
+1. Run `install_base.yml` (`make run INVENTORY=... LIMIT=...`).
+2. Run 1 of `install_rocm.yml`. It installs the stack and reports that a reboot is needed.
+3. Run 2 of `install_rocm.yml`, piped through `tests/e2e/check-idempotence.sh`. It must change nothing.
+4. Run `tests/gpu/verify.yml`, the file that holds the GPU checks.
+5. Reboot the host by hand.
+6. Run 3 of `install_rocm.yml`, piped through `check-idempotence.sh`. It must change nothing and now verifies
+   `rocminfo` and `amd-smi`.
+7. Run `tests/gpu/verify.yml` again.
+
 ## Unit checks
 
 `make unit` runs `tests/unit/` on the controller, without a VM. It checks the fail2ban `ignoreip` logic
