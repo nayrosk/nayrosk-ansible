@@ -39,8 +39,8 @@
             mode: "0640"
           changed_when: false
 
-        # The installed Caddyfile imports the routes, so it is validated with the candidate set. validate
-        # prints errors with file and line, not the Caddyfile content, so the basic auth hash is not echoed.
+        # The installed Caddyfile imports the routes, so it is validated with the candidate set. no_log: the
+        # mounted Caddyfile holds the basic auth hash. The broken-route e2e check finds the rejection by task name.
         - name: Validate the Caddyfile with the candidate route
           ansible.builtin.command:
             argv:
@@ -67,6 +67,7 @@
               - --adapter
               - caddyfile
           changed_when: false
+          no_log: true
 
         - name: Install the route
           ansible.builtin.copy:
