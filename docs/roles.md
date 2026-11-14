@@ -186,4 +186,19 @@ Ban repeated SSH and Caddy authentication failures through UFW.
 | `fail2ban_ignoreip_extra` | list of str | `[]` | no | Extra addresses or networks never banned, public ones included. |
 | `fail2ban_caddy_log_owner` | str | `{{ podman_monitoring_user \| default(operator_user_name \|...` (truncated, see `defaults/main.yml`) | no | Account running Caddy, owner and group of the access log created when missing. |
 | `fail2ban_caddy_log` | str | `{{ podman_monitoring_user_home \| default(operator_user_ho...` (truncated, see `defaults/main.yml`) | no | Caddy JSON access log watched by the `caddy-auth` jail. |
+
+## rocm
+
+Install the ROCm stack and the amdgpu DKMS driver with amdgpu-install.
+
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `rocm_amdgpu_install_version` | str | `31.60` | no | amdgpu-install release, the directory under `repo.radeon.com/amdgpu-install/`. |
+| `rocm_amdgpu_install_package_version` | str | `31.60.316000-1` | no | Exact version of the amdgpu-install `.deb` in that release. |
+| `rocm_amdgpu_install_url` | str | `https://repo.radeon.com/amdgpu-install/{{ rocm_amdgpu_ins...` (truncated, see `defaults/main.yml`) | no | URL of the amdgpu-install `.deb`, built from the two version variables. |
+| `rocm_usecases` | list of str | `[rocm, graphics]` | no | Usecases passed to `amdgpu-install --usecase`. |
+| `rocm_gfxversion` | str | `auto` | no | Value passed to `amdgpu-install --gfxversion`. |
+| `rocm_prerequisite_packages` | list of str | `[libatomic1, libquadmath0, python3.14, python3.14-venv]` | no | Packages installed before amdgpu-install. |
+| `rocm_supported_pci_ids` | list of str | `[75a3, 75a0, 74a5, 74a1, 74a0, 7408, 740c, 740f, 738c, 73...` (24 entries, truncated, see `defaults/main.yml`) | no | PCI device ids (vendor 1002, lowercase hex, no `0x`) of the GPUs the ROCm system requirements list. The role fails before any change when no AMD display device of the host is in this list. |
+| `rocm_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Existing account added to the render and video groups. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. |
 <!-- END VARIABLES -->

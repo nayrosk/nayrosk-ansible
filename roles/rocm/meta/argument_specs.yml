@@ -1,0 +1,75 @@
+---
+argument_specs:
+  main:
+    short_description: Install the ROCm stack and the amdgpu DKMS driver with amdgpu-install.
+    description:
+      - Checks the hardware and the OS before any change, installs the prerequisites, adds C(rocm_user) to the
+        render and video groups, installs the amdgpu-install package and runs it with C(rocm_usecases).
+      - Reports when a reboot is needed to load the DKMS driver and never reboots. Verifies the stack with
+        rocminfo and amd-smi once the DKMS driver is loaded.
+    options:
+      rocm_amdgpu_install_version:
+        type: str
+        default: "31.60"
+        description: amdgpu-install release, the directory under C(repo.radeon.com/amdgpu-install/).
+      rocm_amdgpu_install_package_version:
+        type: str
+        default: "31.60.316000-1"
+        description: Exact version of the amdgpu-install C(.deb) in that release.
+      rocm_amdgpu_install_url:
+        type: str
+        default: >-
+          https://repo.radeon.com/amdgpu-install/{{ rocm_amdgpu_install_version }}/ubuntu/resolute/amdgpu-install_{{
+          rocm_amdgpu_install_package_version }}_all.deb
+        description: URL of the amdgpu-install C(.deb), built from the two version variables.
+      rocm_usecases:
+        type: list
+        elements: str
+        default: [rocm, graphics]
+        description: Usecases passed to C(amdgpu-install --usecase).
+      rocm_gfxversion:
+        type: str
+        default: auto
+        description: Value passed to C(amdgpu-install --gfxversion).
+      rocm_prerequisite_packages:
+        type: list
+        elements: str
+        default: [libatomic1, libquadmath0, python3.14, python3.14-venv]
+        description: Packages installed before amdgpu-install.
+      rocm_supported_pci_ids:
+        type: list
+        elements: str
+        default:
+          - "75a3"
+          - "75a0"
+          - "74a5"
+          - "74a1"
+          - "74a0"
+          - "7408"
+          - "740c"
+          - "740f"
+          - "738c"
+          - "738e"
+          - "7551"
+          - "7460"
+          - "7461"
+          - "7448"
+          - "744a"
+          - "7449"
+          - "745e"
+          - "7470"
+          - "73a3"
+          - "73a1"
+          - "7550"
+          - "7590"
+          - "744c"
+          - "747e"
+        description:
+          - PCI device ids (vendor 1002, lowercase hex, no C(0x)) of the GPUs the ROCm system requirements list.
+          - The role fails before any change when no AMD display device of the host is in this list.
+      rocm_user:
+        type: str
+        default: "{{ operator_user_name | default('operator') }}"
+        description:
+          - Existing account added to the render and video groups. Defaults to the operator_user role account.
+          - Falls back to C(operator) when the operator_user role did not run in the play.

@@ -1,0 +1,43 @@
+---
+- name: Install the ROCm prerequisites
+  ansible.builtin.apt:
+    name: "{{ rocm_prerequisite_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+    lock_timeout: 600
+
+# getent fails when the account is missing, so ansible.builtin.user never creates it here.
+- name: Check that the ROCm user exists
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ rocm_user }}"
+
+- name: Add the ROCm user to the render and video groups
+  ansible.builtin.user:
+    name: "{{ rocm_user }}"
+    groups: [render, video]
+    append: true
+
+- name: Install the amdgpu-install package
+  ansible.builtin.apt:
+    deb: "{{ rocm_amdgpu_install_url }}"
+    lock_timeout: 600
+  register: rocm_amdgpu_install_package
+
+- name: Gather the installed packages
+  ansible.builtin.package_facts:
+
+# Runs on first install, after an interrupted install, and when a new amdgpu-install release was installed.
+- name: Install the ROCm stack with amdgpu-install
+  ansible.builtin.command:
+    argv:
+      - amdgpu-install
+      - -y
+      - --usecase={{ rocm_usecases | join(',') }}
+      - --gfxversion={{ rocm_gfxversion }}
+  changed_when: true
+  when: >-
+    'rocm' not in ansible_facts.packages
+    or 'amdgpu-dkms' not in ansible_facts.packages
+    or rocm_amdgpu_install_package is changed

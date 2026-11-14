@@ -1,0 +1,15 @@
+---
+# Decides the amdgpu driver state. Inputs (set by gather.yml or a unit check): rocm_running_kernel,
+# rocm_dkms_built_kernels (kernels with an installed amdgpu DKMS build), rocm_loaded_is_dkms.
+- name: Check that the amdgpu DKMS module is built for the running kernel
+  ansible.builtin.assert:
+    that: rocm_running_kernel in rocm_dkms_built_kernels
+    fail_msg: >-
+      The amdgpu DKMS module is not built for the running kernel {{ rocm_running_kernel }}
+      (built for: {{ rocm_dkms_built_kernels | join(', ') if rocm_dkms_built_kernels else 'none' }}).
+      ROCm cannot work until it is. Check "dkms status amdgpu" and the DKMS make.log.
+    quiet: true
+
+- name: Set the driver state
+  ansible.builtin.set_fact:
+    rocm_driver_state: "{{ 'active' if rocm_loaded_is_dkms | bool else 'reboot_needed' }}"

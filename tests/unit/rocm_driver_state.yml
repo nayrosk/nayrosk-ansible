@@ -1,0 +1,36 @@
+---
+# Checks the rocm driver state decision on the controller, without a target:
+#   make unit
+- name: Check the rocm driver state
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    unit_cases:
+      - name: DKMS module built and loaded
+        kernel: 7.0.0-43-generic
+        built: [7.0.0-43-generic]
+        loaded_is_dkms: true
+        expected: active
+      - name: DKMS module built, inbox module still loaded
+        kernel: 7.0.0-43-generic
+        built: [7.0.0-43-generic]
+        loaded_is_dkms: false
+        expected: reboot_needed
+      - name: kernel updated, DKMS module not built for it
+        kernel: 7.0.0-50-generic
+        built: [7.0.0-43-generic]
+        loaded_is_dkms: false
+        expected: fail
+      - name: no DKMS module built at all
+        kernel: 7.0.0-43-generic
+        built: []
+        loaded_is_dkms: false
+        expected: fail
+  tasks:
+    - name: Run each case
+      ansible.builtin.include_tasks: rocm_driver_state_case.yml
+      loop: "{{ unit_cases }}"
+      loop_control:
+        loop_var: unit_case
+        label: "{{ unit_case.name }}"

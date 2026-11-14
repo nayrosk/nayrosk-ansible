@@ -28,11 +28,15 @@ def load_yaml(path):
 
 
 def playbook_roles():
-    plays = load_yaml(ROOT / "playbooks" / "install_base.yml")
+    """Roles of install_base.yml in play order, then the roles only the other playbooks use."""
     names = []
-    for play in plays:
-        for item in play.get("roles", []):
-            names.append(item["role"] if isinstance(item, dict) else item)
+    playbooks = sorted((ROOT / "playbooks").glob("*.yml"), key=lambda p: (p.name != "install_base.yml", p.name))
+    for playbook in playbooks:
+        for play in load_yaml(playbook) or []:
+            for item in play.get("roles", []):
+                name = item["role"] if isinstance(item, dict) else item
+                if name not in names:
+                    names.append(name)
     return names
 
 

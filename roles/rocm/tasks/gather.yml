@@ -1,0 +1,83 @@
+---
+# Read-only. Fills the inputs of hardware_check.yml and driver_state.yml from the host.
+- name: List the PCI devices
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      for dev in /sys/bus/pci/devices/*; do
+        printf '{"vendor": "%s", "device": "%s", "class": "%s"}\n' \
+          "$(cat "$dev/vendor")" "$(cat "$dev/device")" "$(cat "$dev/class")"
+      done
+  register: rocm_gather_pci
+  changed_when: false
+
+# The SecureBoot EFI variable holds 4 attribute bytes, then 1 when Secure Boot is enabled.
+- name: Check for the Secure Boot EFI variable
+  ansible.builtin.stat:
+    path: /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-e0ab4e1d3d58
+  register: rocm_gather_sb_var
+
+- name: Read the Secure Boot state
+  ansible.builtin.command:
+    argv: [od, -An, -tu1, -j4, -N1, /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-e0ab4e1d3d58]
+  register: rocm_gather_sb
+  changed_when: false
+  when: rocm_gather_sb_var.stat.exists
+
+- name: Read the OS release
+  ansible.builtin.slurp:
+    src: /etc/os-release
+  register: rocm_gather_os_release
+
+- name: Read the running kernel
+  ansible.builtin.command:
+    argv: [uname, -r]
+  register: rocm_gather_kernel
+  changed_when: false
+
+# Absent before the first install: a missing dkms or amdgpu module is not an error here.
+- name: List the amdgpu DKMS builds
+  ansible.builtin.command:
+    argv: [dkms, status, amdgpu]
+  register: rocm_gather_dkms
+  changed_when: false
+  failed_when: false
+
+- name: Describe the amdgpu module the running kernel would load
+  ansible.builtin.command:
+    argv: [modinfo, amdgpu]
+  register: rocm_gather_modinfo
+  changed_when: false
+  failed_when: false
+
+- name: Check for the loaded amdgpu module
+  ansible.builtin.stat:
+    path: /sys/module/amdgpu/srcversion
+  register: rocm_gather_loaded_var
+
+- name: Read the srcversion of the loaded amdgpu module
+  ansible.builtin.slurp:
+    src: /sys/module/amdgpu/srcversion
+  register: rocm_gather_loaded
+  when: rocm_gather_loaded_var.stat.exists
+
+# dkms status lines look like "amdgpu/6.16.6-2238411.24.04, 7.0.0-43-generic, x86_64: installed".
+# The loaded module is the DKMS one when modinfo resolves amdgpu to updates/dkms and the srcversions match.
+- name: Set the hardware and driver inputs
+  ansible.builtin.set_fact:
+    rocm_pci_devices: "{{ rocm_gather_pci.stdout_lines | map('from_json') | list }}"
+    rocm_secure_boot_enabled: "{{ rocm_gather_sb.stdout | default('0') | trim == '1' }}"
+    rocm_os_codename: >-
+      {{ rocm_gather_os_release.content | b64decode
+         | regex_search('^VERSION_CODENAME=\"?([^\"\n]*)', '\1', multiline=True) | default([''], true) | first }}
+    rocm_running_kernel: "{{ rocm_gather_kernel.stdout | trim }}"
+    rocm_dkms_built_kernels: >-
+      {{ rocm_gather_dkms.stdout_lines | default([]) | select('search', ':\s*installed')
+         | map('split', ',') | map(attribute=1) | map('trim') | list }}
+    rocm_loaded_is_dkms: >-
+      {{ rocm_gather_loaded_var.stat.exists
+         and '/updates/' in (rocm_gather_modinfo.stdout
+           | regex_search('^filename:\s*(\S+)', '\1', multiline=True) | default([''], true) | first)
+         and (rocm_gather_loaded.content | default('') | b64decode | trim)
+           == (rocm_gather_modinfo.stdout
+             | regex_search('^srcversion:\s*(\S+)', '\1', multiline=True) | default([''], true) | first) }}
