@@ -1,6 +1,8 @@
 ---
 # Decides whether the host can run ROCm. Runs before any change. Inputs (set by gather.yml or a unit check):
-# rocm_pci_devices (list of {vendor, device, class} as in sysfs), rocm_secure_boot_enabled, rocm_os_codename.
+# rocm_pci_devices (list of {vendor, device, class} as in sysfs), rocm_secure_boot_enabled, rocm_os_codename,
+# rocm_uefi_boot and rocm_secure_boot_known (bool). The state is unknown when the host booted with UEFI but the
+# SecureBoot EFI variable cannot be read (efivarfs not mounted). A legacy BIOS boot counts as known and disabled.
 - name: Reset the supported GPU list
   ansible.builtin.set_fact:
     rocm_supported_gpus: []
@@ -26,6 +28,12 @@
          | map(attribute='device') | list }}. Add the device id to rocm_supported_pci_ids only if
       the ROCm system requirements list the GPU.
     success_msg: "Supported AMD GPUs: {{ rocm_supported_gpus | map(attribute='device') | list }}"
+
+- name: Check that the Secure Boot state is readable
+  ansible.builtin.assert:
+    that: rocm_secure_boot_known | bool or not (rocm_uefi_boot | bool)
+    fail_msg: "Secure Boot state is unreadable: mount efivarfs (mount -t efivarfs efivarfs /sys/firmware/efi/efivars)."
+    quiet: true
 
 - name: Check that Secure Boot is disabled
   ansible.builtin.assert:

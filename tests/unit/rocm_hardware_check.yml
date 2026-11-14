@@ -39,6 +39,29 @@
         secure_boot: true
         codename: resolute
         expected: fail
+      - name: UEFI boot with an unreadable Secure Boot state
+        devices: "{{ unit_lab_devices }}"
+        secure_boot: false
+        uefi: true
+        sb_known: false
+        codename: resolute
+        expected: fail
+      - name: legacy BIOS boot, no Secure Boot variable
+        devices: "{{ unit_lab_devices }}"
+        secure_boot: false
+        uefi: false
+        sb_known: true
+        codename: resolute
+        expected: pass
+        supported_count: 1
+      - name: UEFI boot with efivarfs mounted and Secure Boot disabled
+        devices: "{{ unit_lab_devices }}"
+        secure_boot: false
+        uefi: true
+        sb_known: true
+        codename: resolute
+        expected: pass
+        supported_count: 1
       - name: lab host on Ubuntu 24.04
         devices: "{{ unit_lab_devices }}"
         secure_boot: false

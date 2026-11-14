@@ -8,6 +8,8 @@
       vars:
         rocm_pci_devices: "{{ unit_case.devices }}"
         rocm_secure_boot_enabled: "{{ unit_case.secure_boot }}"
+        rocm_uefi_boot: "{{ unit_case.uefi | default(true) }}"
+        rocm_secure_boot_known: "{{ unit_case.sb_known | default(true) }}"
         rocm_os_codename: "{{ unit_case.codename }}"
 
     - name: Record a pass

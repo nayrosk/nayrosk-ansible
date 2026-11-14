@@ -11,7 +11,13 @@
   register: rocm_gather_pci
   changed_when: false
 
-# The SecureBoot EFI variable holds 4 attribute bytes, then 1 when Secure Boot is enabled.
+# /sys/firmware/efi exists only after a UEFI boot. The SecureBoot EFI variable lives under efivars, which needs
+# efivarfs mounted, and holds 4 attribute bytes, then 1 when Secure Boot is enabled.
+- name: Check for a UEFI boot
+  ansible.builtin.stat:
+    path: /sys/firmware/efi
+  register: rocm_gather_efi
+
 - name: Check for the Secure Boot EFI variable
   ansible.builtin.stat:
     path: /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-e0ab4e1d3d58
@@ -66,6 +72,8 @@
 - name: Set the hardware and driver inputs
   ansible.builtin.set_fact:
     rocm_pci_devices: "{{ rocm_gather_pci.stdout_lines | map('from_json') | list }}"
+    rocm_uefi_boot: "{{ rocm_gather_efi.stat.exists }}"
+    rocm_secure_boot_known: "{{ rocm_gather_sb_var.stat.exists or not rocm_gather_efi.stat.exists }}"
     rocm_secure_boot_enabled: "{{ rocm_gather_sb.stdout | default('0') | trim == '1' }}"
     rocm_os_codename: >-
       {{ rocm_gather_os_release.content | b64decode
