@@ -22,7 +22,7 @@
     that: rocm_supported_gpus | length > 0
     fail_msg: >-
       No supported AMD GPU found. AMD display devices:
-      {{ rocm_pci_devices | selectattr('vendor', 'equalto', '0x1002')
+      {{ rocm_pci_devices | selectattr('vendor', 'equalto', '0x1002') | selectattr('class', 'match', '0x03')
          | map(attribute='device') | list }}. Add the device id to rocm_supported_pci_ids only if
       the ROCm system requirements list the GPU.
     success_msg: "Supported AMD GPUs: {{ rocm_supported_gpus | map(attribute='device') | list }}"

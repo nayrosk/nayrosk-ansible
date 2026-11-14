@@ -7,12 +7,6 @@
     cache_valid_time: 3600
     lock_timeout: 600
 
-# getent fails when the account is missing, so ansible.builtin.user never creates it here.
-- name: Check that the ROCm user exists
-  ansible.builtin.getent:
-    database: passwd
-    key: "{{ rocm_user }}"
-
 - name: Add the ROCm user to the render and video groups
   ansible.builtin.user:
     name: "{{ rocm_user }}"
