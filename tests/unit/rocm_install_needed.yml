@@ -1,0 +1,32 @@
+---
+# Checks the rocm decision to run amdgpu-install on the controller, without a target:
+#   make unit
+- name: Check the rocm install decision
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    unit_cases:
+      - name: nothing installed
+        packages: [amdgpu-install]
+        deb_changed: false
+        expected: true
+      - name: DKMS driver and gfx ROCm package installed
+        packages: [amdgpu-install, amdgpu-dkms, amdrocm, amdrocm10.1, amdrocm10.1-gfx1101]
+        deb_changed: false
+        expected: false
+      - name: only the DKMS driver installed
+        packages: [amdgpu-install, amdgpu-dkms, amdrocm]
+        deb_changed: false
+        expected: true
+      - name: stack installed, new amdgpu-install deb
+        packages: [amdgpu-install, amdgpu-dkms, amdrocm10.1-gfx1101]
+        deb_changed: true
+        expected: true
+  tasks:
+    - name: Run each case
+      ansible.builtin.include_tasks: rocm_install_needed_case.yml
+      loop: "{{ unit_cases }}"
+      loop_control:
+        loop_var: unit_case
+        label: "{{ unit_case.name }}"

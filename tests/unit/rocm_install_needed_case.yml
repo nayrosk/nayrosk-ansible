@@ -1,0 +1,14 @@
+---
+- name: Include the install decision
+  ansible.builtin.include_role:
+    name: rocm
+    tasks_from: install_needed
+  vars:
+    rocm_installed_packages: "{{ unit_case.packages }}"
+    rocm_amdgpu_install_changed: "{{ unit_case.deb_changed }}"
+
+- name: Check the decision
+  ansible.builtin.assert:
+    that: (rocm_install_needed | bool) == unit_case.expected
+    fail_msg: "{{ unit_case.name }}: expected {{ unit_case.expected }}, got {{ rocm_install_needed }}"
+    success_msg: "{{ unit_case.name }}: {{ rocm_install_needed }}"

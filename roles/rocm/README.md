@@ -13,9 +13,11 @@ Installs the ROCm stack and the amdgpu DKMS driver with AMD's `amdgpu-install` t
 3. Installs `rocm_prerequisite_packages` and adds `rocm_user` to the `render` and `video` groups. The
    account must exist.
 4. Installs the `amdgpu-install` package from `rocm_amdgpu_install_url`.
-5. Runs `amdgpu-install -y --usecase=<rocm_usecases> --gfxversion=<rocm_gfxversion>` when the `rocm` or
-   `amdgpu-dkms` package is missing, or when a new `amdgpu-install` release was just installed. Otherwise
-   it does nothing, so a second run reports no change.
+5. Runs `amdgpu-install -y --usecase=<rocm_usecases> --gfxversion=<rocm_gfxversion>` when `amdgpu-dkms`
+   or every `amdrocm<version>-gfx<target>` package is missing, or when a new `amdgpu-install` release was
+   just installed. It refreshes the apt cache first: `amdgpu-install` 31.60 looks up its package names
+   before it updates the lists of the repositories it added. Otherwise it does nothing, so a second run
+   reports no change.
 6. Checks the driver state:
    - No `amdgpu` DKMS build for the running kernel, for example after a kernel update whose DKMS build
      failed: the role fails and names the kernel. The host still boots on the inbox driver.
@@ -29,7 +31,9 @@ verify the stack.
 
 ## Recovery when amdgpu-install fails
 
-The role stops and never uninstalls. Clean up by hand, then rerun:
+The role stops and never uninstalls. The same applies to an upgrade interrupted after a new
+`amdgpu-install` release was installed: the next run sees the new package unchanged and the old stack
+present, so it does not retry. In both cases clean up by hand, then rerun:
 
 ```sh
 sudo amdgpu-install --uninstall
