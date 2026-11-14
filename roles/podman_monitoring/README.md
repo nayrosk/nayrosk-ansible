@@ -122,9 +122,9 @@ it is harmless.
 | `podman_monitoring_caddy_basic_auth_hash` | str | secret | no | Bcrypt hash of the basic auth password, as printed by `caddy hash-password`. Defaults to the vault variable `vault_caddy_basic_auth_hash`, which must then be set. |
 | `podman_monitoring_caddy_extra_site_addresses` | list of str | `[]` | no | Site addresses served by Caddy in addition to the hostname, the local IP and the public IP. |
 | `podman_monitoring_host_loopback_ip` | str | `169.254.1.3` | no | Link-local address that the pasta instance of the Caddy container maps to the host loopback. `host.containers.internal` resolves to it inside Caddy. It must differ from podman's own `169.254.1.2`. |
-| `podman_monitoring_user` | str | `{{ operator_user_name }}` | no | Rootless account running Caddy. Defaults to the operator_user role account. |
-| `podman_monitoring_user_uid` | int | `{{ operator_user_uid }}` | no | Numeric id of `podman_monitoring_user`. |
-| `podman_monitoring_user_home` | str | `{{ operator_user_home }}` | no | Home directory of `podman_monitoring_user`. |
+| `podman_monitoring_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Rootless account running Caddy. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. |
+| `podman_monitoring_user_uid` | int | `{{ operator_user_uid \| default(10000) }}` | no | Numeric id of `podman_monitoring_user`. Falls back to 10000 without the operator_user role. |
+| `podman_monitoring_user_home` | str | `{{ operator_user_home \| default('/home/' ~ podman_monitor...` (truncated, see `defaults/main.yml`) | no | Home directory of `podman_monitoring_user`. Falls back to `/home/<user>` without the operator_user role. |
 | `podman_monitoring_cert_source_directory` | path | `{{ local_ca_directory }}` | no | Directory holding `server.crt` and `server.key`. Defaults to the local_ca role directory. |
 | `hostname` | str | none | yes | Hostname served by Caddy, also the first name of the server certificate. |
 <!-- END VARIABLES -->

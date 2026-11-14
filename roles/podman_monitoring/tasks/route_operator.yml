@@ -9,6 +9,7 @@
       ansible.builtin.tempfile:
         state: directory
         prefix: caddy-routes.
+      changed_when: false
       register: podman_monitoring_route_tmp
 
     - name: Validate and install the route
@@ -28,6 +29,7 @@
           loop: "{{ podman_monitoring_route_installed.files }}"
           loop_control:
             label: "{{ item.path | basename }}"
+          changed_when: false
           when: item.path | basename != podman_monitoring_route_name + '.caddy'
 
         - name: Write the candidate route to the temporary directory
@@ -35,6 +37,7 @@
             content: "{{ podman_monitoring_route_content }}"
             dest: "{{ podman_monitoring_route_tmp.path }}/{{ podman_monitoring_route_name }}.caddy"
             mode: "0640"
+          changed_when: false
 
         # The installed Caddyfile imports the routes, so it is validated with the candidate set. validate
         # prints errors with file and line, not the Caddyfile content, so the basic auth hash is not echoed.
@@ -78,6 +81,7 @@
           ansible.builtin.file:
             path: "{{ podman_monitoring_route_tmp.path }}"
             state: absent
+          changed_when: false
 
     - name: Restart Caddy to load the route
       ansible.builtin.meta: flush_handlers
