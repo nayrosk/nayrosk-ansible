@@ -102,6 +102,12 @@ argument_specs:
       gpu_metrics_exporter_operator_home:
         type: str
         default: >-
-          {{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}
+          {{ podman_monitoring_user_home
+            | default(operator_user_home | default('/home/' ~ (operator_user_name | default('operator')))) }}
         description: >-
-          Home directory of the operator account that runs Caddy. Aliases the C(operator_user) role variables.
+          Home directory of the operator account that runs Caddy. Follows C(podman_monitoring_user_home), then the
+          C(operator_user) role variables.
+      hostname:
+        type: str
+        required: true
+        description: Hostname served by Caddy, also used as the C(hostname) label of the GPU metrics.

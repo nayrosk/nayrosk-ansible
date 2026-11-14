@@ -81,7 +81,8 @@ gpu_metrics_exporter_disabled_fields:
   - GPU_ECC_DEFERRED_MPIO
   - GPU_XGMI_LINK_RX
   - GPU_XGMI_LINK_TX
-# Home directory of the operator account that runs Caddy. Aliases the operator_user role variables; falls back to
-# the operator_user defaults when that role did not run in the play.
+# Home directory of the operator account that runs Caddy. Follows podman_monitoring_user_home, then the operator_user
+# role variables; falls back to the operator_user defaults when neither role ran in the play.
 gpu_metrics_exporter_operator_home: >-
-  {{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}
+  {{ podman_monitoring_user_home
+     | default(operator_user_home | default('/home/' ~ (operator_user_name | default('operator')))) }}

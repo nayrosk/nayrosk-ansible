@@ -2,10 +2,15 @@
 # Read-only checks for a GPU host after install_base.yml and install_rocm.yml. Run it against a real host:
 #   VERIFY_GPU_CADDY_PASSWORD=... ansible-playbook -i <inventory> --limit <host> tests/gpu/verify.yml
 # The Caddy password is not in the repository (the vault holds only its bcrypt hash), so pass it in the environment.
+# ansible_host must be an IP address because curl --resolve needs one.
+# The expected card and gfx target default to the lab GPU. Override them with
+#   -e verify_gpu_card_model="AMD Radeon ..." -e verify_gpu_gfx_target=gfxNNNN
 - name: Verify the GPU host
   hosts: gpu
   gather_facts: false
   vars:
+    verify_gpu_card_model: AMD Radeon RX 7800 XT
+    verify_gpu_gfx_target: gfx1101
     verify_gpu_ca_path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
     verify_gpu_caddy_user: "{{ podman_monitoring_caddy_basic_auth_user | default('admin') }}"
     verify_gpu_caddy_password: "{{ lookup('ansible.builtin.env', 'VERIFY_GPU_CADDY_PASSWORD', default='') }}"
@@ -42,9 +47,10 @@
           - "{{ verify_gpu_ca_path }}"
           - --resolve
           - "{{ hostname }}:443:{{ ansible_host | default(inventory_hostname) }}"
-          - -u
-          - "{{ verify_gpu_caddy_user }}:{{ verify_gpu_caddy_password }}"
+          - -K
+          - "-"
           - "https://{{ hostname }}/gpu_metrics"
+        stdin: 'user = "{{ verify_gpu_caddy_user }}:{{ verify_gpu_caddy_password }}"'
       delegate_to: localhost
       become: false
       register: verify_gpu_metrics
@@ -52,12 +58,19 @@
       no_log: true
       retries: 10
       delay: 3
-      until: verify_gpu_metrics.stdout_lines[-1] | default('') == '200'
+      # Stop on 401 too: a wrong password must not be retried, fail2ban bans after 3 failures outside the LAN.
+      until: verify_gpu_metrics.stdout_lines[-1] | default('') in ['200', '401']
+
+    - name: Check Caddy accepted the credentials
+      ansible.builtin.assert:
+        that: verify_gpu_metrics.stdout_lines[-1] | default('') == '200'
+        fail_msg: "Caddy answered 401: check VERIFY_GPU_CADDY_PASSWORD."
+        quiet: true
 
     - name: Check the metrics body names the card and the host
       ansible.builtin.assert:
         that:
-          - "'card_model=\"AMD Radeon RX 7800 XT\"' in verify_gpu_metrics.stdout"
+          - "'card_model=\"' ~ verify_gpu_card_model ~ '\"' in verify_gpu_metrics.stdout"
           - "'hostname=\"' ~ hostname ~ '\"' in verify_gpu_metrics.stdout"
         fail_msg: The /gpu_metrics body lacks the expected card_model or hostname label.
         quiet: true
@@ -74,10 +87,10 @@
       changed_when: false
       when: rocm_loaded_is_dkms | bool
 
-    - name: Check rocminfo lists a gfx1101 agent
+    - name: Check rocminfo lists the expected gfx agent
       ansible.builtin.assert:
-        that: verify_gpu_rocminfo.stdout is search('Name:\s+gfx1101')
-        fail_msg: rocminfo lists no gfx1101 agent.
+        that: verify_gpu_rocminfo.stdout is search('Name:\s+' ~ verify_gpu_gfx_target)
+        fail_msg: rocminfo lists no {{ verify_gpu_gfx_target }} agent.
         quiet: true
       when: rocm_loaded_is_dkms | bool
 

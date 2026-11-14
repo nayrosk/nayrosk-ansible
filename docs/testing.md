@@ -100,7 +100,9 @@ design. The maintainer runs the test by hand on a real GPU host that already ran
 1. Run `install_base.yml` (`make run INVENTORY=... LIMIT=...`).
 2. Run 1 of `install_rocm.yml`. It installs the stack and reports that a reboot is needed.
 3. Run 2 of `install_rocm.yml`, piped through `tests/e2e/check-idempotence.sh`. It must change nothing.
-4. Run `tests/gpu/verify.yml`, the file that holds the GPU checks.
+4. Run `tests/gpu/verify.yml`, the file that holds the GPU checks. It expects the card model
+   `AMD Radeon RX 7800 XT` and the target `gfx1101`; for another card pass `-e verify_gpu_card_model=...` and
+   `-e verify_gpu_gfx_target=...`. `ansible_host` must be an IP address (curl `--resolve` needs one).
 5. Reboot the host by hand.
 6. Run 3 of `install_rocm.yml`, piped through `check-idempotence.sh`. It must change nothing and now verifies
    `rocminfo` and `amd-smi`.
@@ -108,8 +110,13 @@ design. The maintainer runs the test by hand on a real GPU host that already ran
 
 ## Unit checks
 
-`make unit` runs `tests/unit/` on the controller, without a VM. It checks the fail2ban `ignoreip` logic
-(which detected networks count as private) on fixed IPv4 and IPv6 cases.
+`make unit` runs `tests/unit/` on the controller, without a VM, on fixed cases:
+
+- `fail2ban_ignoreip.yml`: the fail2ban `ignoreip` logic (which detected networks count as private).
+- `rocm_hardware_check.yml`: the `rocm` hardware check (supported GPU, Secure Boot, OS release).
+- `rocm_driver_state.yml`: the `rocm` driver state decision.
+- `rocm_install_needed.yml`: the decision whether `amdgpu-install` must run.
+- `gpu_metrics_exporter_fields.yml`: the field allow-list built for the `gpu_metrics_exporter` config.
 
 ## Lint
 
