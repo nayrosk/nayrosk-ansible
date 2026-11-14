@@ -26,6 +26,7 @@ http:// {
 		rewrite * /metrics
 		reverse_proxy host.containers.internal:{{ podman_monitoring_node_exporter_listen.split(':')[-1] }}
 	}
+	import /etc/caddy/routes.d/*.caddy
 	handle {
 		respond 404
 	}

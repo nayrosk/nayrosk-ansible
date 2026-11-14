@@ -1,0 +1,16 @@
+---
+# Entry point for other playbooks: ansible.builtin.include_role with tasks_from: route. Installs one Caddy
+# route snippet and restarts Caddy when it changed. The restart flushes pending handlers, including the
+# caller's, because the restart runs through a handler.
+- name: Check the route name
+  ansible.builtin.assert:
+    that: podman_monitoring_route_name is match('^[a-z0-9_]+$')
+    fail_msg: podman_monitoring_route_name must match ^[a-z0-9_]+$.
+    quiet: true
+
+# See tasks/main.yml: include vars are the only scoped way to outrank the ansible_become host fact.
+- name: Install the Caddy route as the operator
+  ansible.builtin.include_tasks: route_operator.yml
+  vars:
+    ansible_become: true
+    ansible_become_user: "{{ podman_monitoring_user }}"

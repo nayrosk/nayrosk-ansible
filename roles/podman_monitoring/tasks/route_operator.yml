@@ -1,0 +1,83 @@
+---
+# Included from route.yml with ansible_become and ansible_become_user set to the operator.
+- name: Point podman at the operator runtime directory
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ podman_monitoring_user_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ podman_monitoring_user_uid }}/bus"
+  block:
+    - name: Create a temporary directory for the route candidate
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: caddy-routes.
+      register: podman_monitoring_route_tmp
+
+    - name: Validate and install the route
+      block:
+        - name: Find the installed routes
+          ansible.builtin.find:
+            paths: "{{ podman_monitoring_user_home }}/.caddy/routes.d"
+            patterns: "*.caddy"
+          register: podman_monitoring_route_installed
+
+        - name: Copy the other installed routes to the temporary directory
+          ansible.builtin.copy:
+            src: "{{ item.path }}"
+            dest: "{{ podman_monitoring_route_tmp.path }}/{{ item.path | basename }}"
+            remote_src: true
+            mode: "0640"
+          loop: "{{ podman_monitoring_route_installed.files }}"
+          loop_control:
+            label: "{{ item.path | basename }}"
+          when: item.path | basename != podman_monitoring_route_name + '.caddy'
+
+        - name: Write the candidate route to the temporary directory
+          ansible.builtin.copy:
+            content: "{{ podman_monitoring_route_content }}"
+            dest: "{{ podman_monitoring_route_tmp.path }}/{{ podman_monitoring_route_name }}.caddy"
+            mode: "0640"
+
+        # The installed Caddyfile imports the routes, so it is validated with the candidate set. validate
+        # prints errors with file and line, not the Caddyfile content, so the basic auth hash is not echoed.
+        - name: Validate the Caddyfile with the candidate route
+          ansible.builtin.command:
+            argv:
+              - podman
+              - run
+              - --rm
+              - --pull=never
+              - --network=none
+              - -v
+              - "{{ podman_monitoring_user_home }}/.caddy/config/Caddyfile:/etc/caddy/Caddyfile:ro"
+              - -v
+              - "{{ podman_monitoring_user_home }}/.caddy/certs:/certs:ro"
+              - -v
+              - "{{ podman_monitoring_route_tmp.path }}:/etc/caddy/routes.d:ro"
+              - --tmpfs
+              - /logs
+              - --tmpfs
+              - /data
+              - "docker.io/library/caddy:{{ podman_monitoring_caddy_version }}-alpine"
+              - caddy
+              - validate
+              - --config
+              - /etc/caddy/Caddyfile
+              - --adapter
+              - caddyfile
+          changed_when: false
+
+        - name: Install the route
+          ansible.builtin.copy:
+            content: "{{ podman_monitoring_route_content }}"
+            dest: "{{ podman_monitoring_user_home }}/.caddy/routes.d/{{ podman_monitoring_route_name }}.caddy"
+            owner: "{{ podman_monitoring_user }}"
+            group: "{{ podman_monitoring_user }}"
+            mode: "0640"
+          notify: Restart caddy
+      always:
+        - name: Remove the temporary directory
+          ansible.builtin.file:
+            path: "{{ podman_monitoring_route_tmp.path }}"
+            state: absent
+
+    - name: Restart Caddy to load the route
+      ansible.builtin.meta: flush_handlers

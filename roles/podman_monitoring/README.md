@@ -25,6 +25,13 @@ account. Caddy serves the node_exporter metrics over HTTPS with basic auth.
   - HSTS, `X-Content-Type-Options nosniff`, `Referrer-Policy no-referrer`;
   - JSON access log in `~/.caddy/logs/access.log` (read by the fail2ban `caddy-auth` jail);
   - health endpoint `http://127.0.0.1:8081/healthz`, bound to the container loopback, not published.
+- Route extension point: the site block imports `/etc/caddy/routes.d/*.caddy` before the final 404. The
+  directory is `~/.caddy/routes.d` (0750), mounted read-only in the container. Another playbook adds a
+  route with `ansible.builtin.include_role: {name: podman_monitoring, tasks_from: route}` and the variables
+  `podman_monitoring_route_name` (file stem, `^[a-z0-9_]+$`) and `podman_monitoring_route_content`
+  (Caddyfile directives). The entry point validates the Caddyfile with the candidate snippet, installs
+  `routes.d/<name>.caddy` (0640, operator-owned) and restarts Caddy only when the file changed. A snippet
+  that fails validation is not installed. The main entry point must have run first.
 - The rendered Caddyfile is validated with `caddy validate` in the pinned Caddy image (no network) before it
   replaces the installed file: a broken template fails the task and the running configuration stays.
 - Both containers have a healthcheck every 30s with `HealthOnFailure=kill` and `Restart=always`.

@@ -65,3 +65,37 @@ argument_specs:
         type: str
         required: true
         description: Hostname served by Caddy, also the first name of the server certificate.
+  route:
+    short_description: Add one Caddy route snippet served by the rootless Caddy and restart Caddy when it changes.
+    description:
+      - Entry point for other playbooks, called with C(ansible.builtin.include_role) and C(tasks_from) set to
+        C(route). The main entry point must have run on the host before.
+      - Writes the content to C(~/.caddy/routes.d/<name>.caddy) of the operator, after validating the whole
+        Caddyfile with the candidate in the pinned Caddy image. A snippet that fails validation is not installed.
+    options:
+      podman_monitoring_route_name:
+        type: str
+        required: true
+        description: File stem of the snippet. Must match C(^[a-z0-9_]+$).
+      podman_monitoring_route_content:
+        type: str
+        required: true
+        description:
+          - Caddyfile directives imported into the site block, for example a C(handle) block.
+          - They run after the basic auth of the site and before the final 404.
+      podman_monitoring_caddy_version:
+        type: str
+        default: "2.11.8"
+        description: Caddy image tag (C(docker.io/library/caddy:<version>-alpine)) used to validate the route.
+      podman_monitoring_user:
+        type: str
+        default: "{{ operator_user_name }}"
+        description: Rootless account running Caddy. Defaults to the operator_user role account.
+      podman_monitoring_user_uid:
+        type: int
+        default: "{{ operator_user_uid }}"
+        description: Numeric id of C(podman_monitoring_user).
+      podman_monitoring_user_home:
+        type: str
+        default: "{{ operator_user_home }}"
+        description: Home directory of C(podman_monitoring_user).
