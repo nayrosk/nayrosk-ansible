@@ -50,6 +50,7 @@
           {{ obsidian_vault_directory }}/.obsidian/plugins/{{ obsidian_rest_api_plugin_id }}/data.json
         obsidian_merge_content:
           apiKey: "{{ obsidian_api_key }}"
+          authorizationHeaderName: Authorization
           enableInsecureServer: true
           insecurePort: 27123
           enableSecureServer: false
@@ -109,7 +110,7 @@
     # answers once the application has loaded the vault.
     - name: Read the restricted mode of the vault
       ansible.builtin.command:
-        argv: "{{ obsidian_cli_argv + ['plugins:restrict'] }}"
+        argv: "{{ obsidian_cli_argv + ['vault=' ~ obsidian_vault_name, 'plugins:restrict'] }}"
       register: obsidian_restricted_mode
       changed_when: false
       retries: 30
@@ -118,7 +119,7 @@
 
     - name: Disable the restricted mode of the vault
       ansible.builtin.command:
-        argv: "{{ obsidian_cli_argv + ['plugins:restrict', 'off'] }}"
+        argv: "{{ obsidian_cli_argv + ['vault=' ~ obsidian_vault_name, 'plugins:restrict', 'off'] }}"
       changed_when: true
       when: obsidian_restricted_mode.stdout | trim == 'on'
 
