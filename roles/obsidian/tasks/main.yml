@@ -15,3 +15,30 @@
   loop: "{{ obsidian_prerequisites.results }}"
   loop_control:
     label: "{{ item.item }}"
+
+- name: Check the Local REST API key
+  ansible.builtin.include_tasks: check_api_key.yml
+
+# Obsidian runs rootless as the operator. bootstrap_connection sets ansible_become as a host fact (false when
+# it connects as root), which beats the become keyword: include parameters are the only scoped way to outrank
+# it, so the switch to the operator is passed as include vars.
+- name: Install Obsidian as the operator
+  ansible.builtin.include_tasks: operator.yml
+  vars:
+    ansible_become: true
+    ansible_become_user: "{{ obsidian_user }}"
+
+# The route entry point validates the Caddyfile and restarts Caddy when the route changed. The container is
+# told its subfolder (SUBFOLDER), so the prefix is kept (handle, not handle_path).
+- name: Install the Caddy route for the web interface
+  ansible.builtin.include_role:
+    name: podman_monitoring
+    tasks_from: route
+  vars:
+    podman_monitoring_route_name: obsidian
+    podman_monitoring_user_home: "{{ obsidian_user_home }}"
+    podman_monitoring_route_content: |
+      redir /obsidian /obsidian/ 308
+      handle /obsidian/* {
+      	reverse_proxy host.containers.internal:{{ obsidian_web_port }}
+      }
