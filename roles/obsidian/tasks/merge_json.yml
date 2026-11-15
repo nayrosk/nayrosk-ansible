@@ -43,6 +43,15 @@
   notify: "{{ obsidian_merge_notify | default(['Restart obsidian']) }}"
   no_log: "{{ obsidian_merge_secret | default(false) | bool }}"
 
+# The content comparison above skips the write when nothing differs: owner and mode are enforced on their own,
+# so a restored or loosened file gets them back.
+- name: Set the owner and mode of {{ obsidian_merge_path | basename }}
+  ansible.builtin.file:
+    path: "{{ obsidian_merge_path }}"
+    owner: "{{ obsidian_user }}"
+    group: "{{ obsidian_user }}"
+    mode: "{{ obsidian_merge_mode }}"
+
 - name: Record the change of {{ obsidian_merge_path | basename }}
   ansible.builtin.set_fact:
     obsidian_merge_changed: "{{ obsidian_merge_write is changed }}"

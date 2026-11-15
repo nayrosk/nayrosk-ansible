@@ -111,12 +111,27 @@
               nested: {keep: true, added: 1}
               apiKey: unit-key
 
+        - name: Loosen the mode of the settings file without changing its content
+          ansible.builtin.file:
+            path: "{{ unit_tmp.path }}/data.json"
+            mode: "0644"
+
+        - name: Merge the same content into the loosened file
+          ansible.builtin.include_role:
+            name: obsidian
+            tasks_from: merge_json
+          vars:
+            obsidian_merge_path: "{{ unit_tmp.path }}/data.json"
+            obsidian_merge_content: {apiKey: unit-key, insecurePort: 27123, nested: {added: 1}}
+            obsidian_merge_mode: "0600"
+            obsidian_merge_secret: true
+
         - name: Read the mode of the settings file
           ansible.builtin.stat:
             path: "{{ unit_tmp.path }}/data.json"
           register: unit_data_stat
 
-        - name: Check the settings file kept its mode
+        - name: Check the settings file is back to its managed mode
           ansible.builtin.assert:
             that: unit_data_stat.stat.mode == '0600'
             quiet: true
