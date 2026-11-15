@@ -6,8 +6,9 @@
     that:
       - obsidian_api_key is defined
       - obsidian_api_key is string
-      - obsidian_api_key | length >= 32
+      - obsidian_api_key is match('^[!-~]{32,}$')
+      - obsidian_api_key == obsidian_api_key | trim
     fail_msg: >-
       Set vault_obsidian_api_key in the inventory vault (make vault-edit) to a string of at least 32
-      characters, for example the output of openssl rand -hex 32.
+      printable characters without spaces or newlines, for example the output of openssl rand -hex 32.
     quiet: true
