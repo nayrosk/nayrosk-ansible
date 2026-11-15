@@ -29,7 +29,8 @@
     ansible_become_user: "{{ obsidian_user }}"
 
 # The route entry point validates the Caddyfile and restarts Caddy when the route changed. The container is
-# told its subfolder (SUBFOLDER), so the prefix is kept (handle, not handle_path).
+# told its subfolder (SUBFOLDER), so the prefix is kept (handle, not handle_path). The redirect sits in a handle
+# block because a bare redir is ordered before basic_auth and would answer without credentials.
 - name: Install the Caddy route for the web interface
   ansible.builtin.include_role:
     name: podman_monitoring
@@ -38,7 +39,9 @@
     podman_monitoring_route_name: obsidian
     podman_monitoring_user_home: "{{ obsidian_user_home }}"
     podman_monitoring_route_content: |
-      redir /obsidian /obsidian/ 308
+      handle /obsidian {
+      	redir * /obsidian/ 308
+      }
       handle /obsidian/* {
       	reverse_proxy host.containers.internal:{{ obsidian_web_port }}
       }

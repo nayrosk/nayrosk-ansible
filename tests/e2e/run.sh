@@ -2,7 +2,8 @@
 # End-to-end test: boot a fresh Ubuntu cloud image in a qemu/KVM VM hosted by a podman container,
 # then drive it from the controller container over SSH.
 #
-#   tests/e2e/run.sh          run 1 (first_install), run 2 (must be idempotent), verify, teardown
+#   tests/e2e/run.sh          run 1 (first_install), run 2 (must be idempotent), verify, then
+#                             install_obsidian.yml twice (the second run must be idempotent), verify, teardown
 #   tests/e2e/run.sh clean    remove the VM container and its overlay disk
 #
 # Environment: CONTROLLER_IMAGE, VM_IMAGE (built by make), KEEP=1 keeps the VM running afterwards,
@@ -219,6 +220,21 @@ verify() {
   playbook tests/e2e/verify.yml 2>&1 | tee "$LOG_DIR/verify.log"
 }
 
+obsidian_run_1() {
+  log "obsidian run 1"
+  playbook playbooks/install_obsidian.yml 2>&1 | tee "$LOG_DIR/obsidian-run1.log"
+}
+
+obsidian_run_2() {
+  log "obsidian run 2 (idempotence)"
+  playbook playbooks/install_obsidian.yml 2>&1 | tee "$LOG_DIR/obsidian-run2.log" | tests/e2e/check-idempotence.sh
+}
+
+verify_obsidian() {
+  log "verify obsidian"
+  playbook tests/e2e/verify_obsidian.yml 2>&1 | tee "$LOG_DIR/verify-obsidian.log"
+}
+
 main() {
   if [ "${1:-}" = clean ]; then
     clean
@@ -235,6 +251,9 @@ main() {
   run_1
   run_2
   verify
+  obsidian_run_1
+  obsidian_run_2
+  verify_obsidian
 }
 
 main "$@"
