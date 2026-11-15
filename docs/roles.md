@@ -129,7 +129,7 @@ Run node_exporter as a rootful quadlet and Caddy as a rootless quadlet in front 
 | `podman_monitoring_caddy_version` | str | `2.11.8` | no | Caddy image tag (`docker.io/library/caddy:<version>-alpine`). |
 | `podman_monitoring_node_exporter_version` | str | `1.12.1` | no | node_exporter image tag (`quay.io/prometheus/node-exporter:v<version>`). |
 | `podman_monitoring_node_exporter_listen` | str | `127.0.0.1:9100` | no | Address and port node_exporter listens on. Must stay a loopback address. Caddy proxies to `host.containers.internal`, which pasta maps to the host loopback only. |
-| `podman_monitoring_caddy_basic_auth_user` | str | `admin` | no | Basic auth user protecting every Caddy route. |
+| `podman_monitoring_caddy_basic_auth_user` | str | `operator` | no | Basic auth user protecting every Caddy route. |
 | `podman_monitoring_caddy_basic_auth_hash` | str | secret | no | Bcrypt hash of the basic auth password, as printed by `caddy hash-password`. Defaults to the vault variable `vault_caddy_basic_auth_hash`, which must then be set. |
 | `podman_monitoring_caddy_extra_site_addresses` | list of str | `[]` | no | Site addresses served by Caddy in addition to the hostname, the local IP and the public IP. |
 | `podman_monitoring_host_loopback_ip` | str | `169.254.1.3` | no | Link-local address that the pasta instance of the Caddy container maps to the host loopback. `host.containers.internal` resolves to it inside Caddy. It must differ from podman's own `169.254.1.2`. |

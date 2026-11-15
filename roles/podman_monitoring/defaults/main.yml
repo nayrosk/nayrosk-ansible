@@ -7,7 +7,7 @@ podman_monitoring_node_exporter_version: "1.12.1"
 # host.containers.internal, which pasta maps to the host loopback.
 podman_monitoring_node_exporter_listen: 127.0.0.1:9100
 # Basic auth user protecting every Caddy route.
-podman_monitoring_caddy_basic_auth_user: admin
+podman_monitoring_caddy_basic_auth_user: operator
 # Bcrypt hash of the basic auth password (caddy hash-password). Aliases the vault variable.
 podman_monitoring_caddy_basic_auth_hash: "{{ vault_caddy_basic_auth_hash }}"
 # Site addresses served by Caddy in addition to the hostname, the local IP and the public IP.

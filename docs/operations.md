@@ -230,7 +230,7 @@ scrape_configs:
     scheme: https
     metrics_path: /gpu_metrics
     basic_auth:
-      username: admin
+      username: operator
       password_file: /etc/prometheus/gpu_metrics.password
     tls_config:
       ca_file: /etc/prometheus/server1-ca.crt

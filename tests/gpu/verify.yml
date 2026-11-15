@@ -13,7 +13,7 @@
     verify_gpu_gfx_target: gfx1101
     verify_gpu_ca_path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
     verify_gpu_bs: "\\"
-    verify_gpu_caddy_user: "{{ podman_monitoring_caddy_basic_auth_user | default('admin') }}"
+    verify_gpu_caddy_user: "{{ podman_monitoring_caddy_basic_auth_user | default('operator') }}"
     verify_gpu_caddy_password: "{{ lookup('ansible.builtin.env', 'VERIFY_GPU_CADDY_PASSWORD', default='') }}"
   roles:
     - role: bootstrap_connection
