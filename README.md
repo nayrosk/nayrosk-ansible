@@ -53,6 +53,18 @@ make run PLAYBOOK=playbooks/install_rocm.yml INVENTORY=inventories/prod LIMIT=se
 Metrics Exporter as a Podman quadlet and serves it at `https://<host>/gpu_metrics`. See
 [operations](docs/operations.md#rocm-and-gpu-metrics).
 
+Hosts that hold an Obsidian vault get a third playbook, `playbooks/install_obsidian.yml`. It runs
+`bootstrap_connection` and `obsidian` on the `obsidian` inventory group, after `install_base.yml`:
+
+```bash
+make run PLAYBOOK=playbooks/install_obsidian.yml INVENTORY=inventories/prod LIMIT=server1
+```
+
+`obsidian` runs the real Obsidian application as a rootless Podman quadlet and serves it in the browser at
+`https://<host>/obsidian/`, behind the Caddy basic auth. It also installs the Local REST API plugin, which
+answers on the host loopback only, with an API key from the vault. See
+[operations](docs/operations.md#obsidian).
+
 See [architecture](docs/architecture.md) for the detailed flow, the network layout and the connection model.
 
 ## Quickstart

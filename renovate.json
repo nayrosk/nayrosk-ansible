@@ -53,6 +53,24 @@
       "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+\\.\\d+)$"
     },
     {
+      "description": "Obsidian image tag (lscr.io/linuxserver/obsidian:v<version>)",
+      "customType": "regex",
+      "managerFilePatterns": ["/^roles/obsidian/defaults/main\\.yml$/"],
+      "matchStrings": ["obsidian_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "lscr.io/linuxserver/obsidian",
+      "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+\\.\\d+-ls\\d+)$",
+      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<build>\\d+)$"
+    },
+    {
+      "description": "Obsidian Local REST API plugin release",
+      "customType": "regex",
+      "managerFilePatterns": ["/^roles/obsidian/defaults/main\\.yml$/"],
+      "matchStrings": ["obsidian_rest_api_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "coddingtonbear/obsidian-local-rest-api"
+    },
+    {
       "description": "Base images pinned by tag and digest in the Makefile",
       "customType": "regex",
       "managerFilePatterns": ["/^Makefile$/"],
@@ -91,6 +109,13 @@
       "matchPackageNames": ["rocm/device-metrics-exporter"],
       "prBodyNotes": [
         "Before merging, diff example/config.json of ROCm/device-metrics-exporter at the new tag against the Fields allow-list in roles/gpu_metrics_exporter/vars/main.yml. Add the fields the new release introduces, or they stay off."
+      ]
+    },
+    {
+      "description": "The plugin assets are verified by SHA256, which Renovate cannot update. The pull request only moves the version: the reviewer adds the checksums.",
+      "matchPackageNames": ["coddingtonbear/obsidian-local-rest-api"],
+      "prBodyNotes": [
+        "Before merging, update obsidian_rest_api_checksums in roles/obsidian/defaults/main.yml and roles/obsidian/meta/argument_specs.yml with the sha256sum of main.js, manifest.json and styles.css of the new release, then run make docs. The e2e check fails until they match."
       ]
     },
     {

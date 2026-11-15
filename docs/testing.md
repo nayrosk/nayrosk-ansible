@@ -39,7 +39,10 @@ flowchart LR
     W --> R1["Run 1<br/>first_install=true e2e=true<br/>ubuntu, password and sudo"]
     R1 --> R2["Run 2<br/>idempotence<br/>operator and key"]
     R2 --> VF[verify.yml]
-    VF --> T[Teardown]
+    VF --> O1["install_obsidian.yml<br/>run 1"]
+    O1 --> O2["install_obsidian.yml<br/>run 2, idempotence"]
+    O2 --> VO[verify_obsidian.yml]
+    VO --> T[Teardown]
 ```
 
 - Run 1 connects as the `ubuntu` user with its password and `sudo`, as on a stock install, and asserts
@@ -48,7 +51,11 @@ flowchart LR
   check that root is refused.
 - Run 2 must change nothing. `tests/e2e/check-idempotence.sh` fails when any task reports `changed`. It also
   asserts `bootstrap_connection_mode=operator`.
-- Logs go to `artifacts/e2e/` (`run1.log`, `run2.log`, `verify.log`, `vm-console.log`).
+- `install_obsidian.yml` then runs twice on the same VM, which is in the `obsidian` group of the e2e inventory.
+  The second run goes through `check-idempotence.sh` too. The image is about 3.6 GB, so these steps add a few
+  minutes.
+- Logs go to `artifacts/e2e/` (`run1.log`, `run2.log`, `verify.log`, `obsidian-run1.log`, `obsidian-run2.log`,
+  `verify-obsidian.log`, `vm-console.log`).
 
 ## What verify checks
 
@@ -63,6 +70,18 @@ flowchart LR
 - Both containers report `healthy`.
 - DNS over TLS is active, chrony is synchronised, the time zone is UTC, the operator has UID and GID 10000,
   lingering is enabled and the sysctl values are applied.
+
+`tests/e2e/verify_obsidian.yml` asserts on the Obsidian state:
+
+- The `obsidian` user unit is active and its container reports `healthy`.
+- Through Caddy: `/obsidian/` and `/obsidian` answer 401 without credentials, `/obsidian` redirects to
+  `/obsidian/` with them, `/obsidian/` answers 200, the WebSocket of the desktop stream upgrades (101) with
+  credentials and is refused (401) without, and the REST API path `/vault/` is not routed (404).
+- The Local REST API on `127.0.0.1:27123` answers 401 without a key or with a wrong key, and 200 with the key.
+  Two notes written through it exist as files of the operator in the vault directory.
+- The graph view opens: the VM has no browser, so the test opens it with the Obsidian command line client and
+  finds its canvas in the application. How it looks in a browser is checked by eye on a real host.
+- The web interface and the API listen on `127.0.0.1` only, and UFW opens neither port.
 
 ## Zombie check
 

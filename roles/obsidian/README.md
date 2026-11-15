@@ -1,7 +1,36 @@
 # obsidian
 
-Runs a headless Obsidian as a rootless Podman quadlet of the operator account and publishes its web interface
-through Caddy. Used by `playbooks/install_obsidian.yml` on hosts of the `obsidian` group.
+Runs a headless Obsidian as a rootless Podman quadlet of the operator account, publishes its web interface
+through Caddy and exposes the Local REST API of the vault on the host loopback. Used by
+`playbooks/install_obsidian.yml` on hosts of the `obsidian` group.
+
+## What it does
+
+1. Fails with "Run playbooks/install_base.yml first." when the operator quadlet directory or the operator
+   `~/.caddy/routes.d` directory is missing.
+2. Fails before any change when `obsidian_api_key` is missing, not a string or shorter than 32 characters. The
+   message names `vault_obsidian_api_key` and never shows the key.
+3. As the operator: creates `~/.obsidian-app/config` (application state) and
+   `~/.obsidian-app/vaults/<obsidian_vault_name>` (the vault), pulls
+   `lscr.io/linuxserver/obsidian:v<obsidian_version>`, and downloads the Local REST API plugin release into the
+   vault, verified by SHA256.
+4. Merges its keys into three JSON files and leaves every other key alone, because Obsidian and the plugin write
+   these files too:
+   - the plugin `data.json`: the API key, HTTP server on port 27123, HTTPS server off;
+   - `community-plugins.json` of the vault: the plugin id;
+   - `obsidian.json` of the application: the vault opened at start, the command line client enabled,
+     self-update disabled so the pinned image decides the version.
+5. Installs the quadlet `~/.config/containers/systemd/obsidian.container`: web interface on
+   `127.0.0.1:<obsidian_web_port>`, REST API on `127.0.0.1:<obsidian_rest_api_port>`, `SUBFOLDER=/obsidian/`,
+   `PUID=0` and `PGID=0` so the files belong to the operator on the host.
+6. Restarts the unit when a managed file changed, then starts it and waits for the web interface.
+7. Disables the restricted mode of the vault with the Obsidian command line client, once, so the plugin loads.
+   Then waits for the REST API.
+8. Installs the Caddy route `obsidian` through the `route` entry point of `podman_monitoring`. The interface is
+   then served at `https://<host>/obsidian/`, behind the same basic auth as the other routes. The REST API has
+   no route.
+
+See [operations](../../docs/operations.md#obsidian) for the key, upgrades and the known limits.
 
 ## Variables
 
