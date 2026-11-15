@@ -69,10 +69,12 @@ argument_specs:
       obsidian_caddy_user_home:
         type: str
         default: "{{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}"
-        description: >-
-          Home directory of the operator account that runs Caddy. Follows the C(operator_user) role variables, not
-          C(obsidian_user). It is passed to the C(podman_monitoring) route entry point as
-          C(podman_monitoring_user_home).
+        description:
+          - Home directory of the operator account that runs Caddy. Follows the C(operator_user) role variables, not
+            C(obsidian_user). It is passed to the C(podman_monitoring) route entry point as
+            C(podman_monitoring_user_home).
+          - When the inventory overrides C(podman_monitoring_user_home), set this variable to the same value. It
+            cannot follow that variable itself, because the route entry point receives it under that name.
   merge_json:
     short_description: Merge managed keys into a JSON file of Obsidian and write it only when the result differs.
     description:

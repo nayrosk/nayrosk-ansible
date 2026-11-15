@@ -27,6 +27,7 @@ obsidian_user_uid: "{{ operator_user_uid | default(10000) }}"
 obsidian_user_home: "{{ operator_user_home | default('/home/' ~ obsidian_user) }}"
 # Home directory of the operator account that runs Caddy. Follows the operator_user role variables, not
 # obsidian_user, so Obsidian may run as another account. The route entry point of podman_monitoring receives it as
-# podman_monitoring_user_home. Do not make it follow podman_monitoring_user_home: that would recurse.
+# podman_monitoring_user_home. Do not make it follow podman_monitoring_user_home: that would recurse. When the
+# inventory overrides podman_monitoring_user_home, set this variable to the same value.
 obsidian_caddy_user_home: >-
   {{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}

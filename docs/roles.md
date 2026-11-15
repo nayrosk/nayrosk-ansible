@@ -204,7 +204,7 @@ Run a headless Obsidian in a rootless Podman quadlet behind Caddy, with the Loca
 | `obsidian_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Rootless account running Obsidian. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. |
 | `obsidian_user_uid` | int | `{{ operator_user_uid \| default(10000) }}` | no | Numeric id of `obsidian_user`, used to build `XDG_RUNTIME_DIR`. |
 | `obsidian_user_home` | str | `{{ operator_user_home \| default('/home/' ~ obsidian_user) }}` | no | Home directory of `obsidian_user`. |
-| `obsidian_caddy_user_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy. Follows the `operator_user` role variables, not `obsidian_user`. It is passed to the `podman_monitoring` route entry point as `podman_monitoring_user_home`. |
+| `obsidian_caddy_user_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy. Follows the `operator_user` role variables, not `obsidian_user`. It is passed to the `podman_monitoring` route entry point as `podman_monitoring_user_home`. When the inventory overrides `podman_monitoring_user_home`, set this variable to the same value. It cannot follow that variable itself, because the route entry point receives it under that name. |
 
 ## rocm
 
