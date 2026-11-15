@@ -131,3 +131,34 @@
       retries: 30
       delay: 4
       until: obsidian_rest_api_ready.status == 200
+
+    # The plugin reads its key at start. When a run wrote the key but stopped before the restart, the next run
+    # finds the file up to date and the plugin still holds the old key: check with the key and restart if needed.
+    - name: Check the Local REST API accepts the key
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ obsidian_rest_api_port }}/vault/"
+        headers:
+          Authorization: "Bearer {{ obsidian_api_key }}"
+        status_code: [200, 401]
+      register: obsidian_rest_api_key_check
+      no_log: true
+
+    - name: Restart Obsidian to load the key
+      ansible.builtin.systemd_service:
+        name: obsidian.service
+        scope: user
+        state: restarted
+      when: obsidian_rest_api_key_check.status == 401
+
+    - name: Wait for the Local REST API to accept the key
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ obsidian_rest_api_port }}/vault/"
+        headers:
+          Authorization: "Bearer {{ obsidian_api_key }}"
+        status_code: 200
+      register: obsidian_rest_api_key_ready
+      retries: 30
+      delay: 4
+      until: obsidian_rest_api_key_ready.status == 200
+      when: obsidian_rest_api_key_check.status == 401
+      no_log: true

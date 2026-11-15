@@ -24,8 +24,9 @@ through Caddy and exposes the Local REST API of the vault on the host loopback. 
    `127.0.0.1:<obsidian_web_port>`, REST API on `127.0.0.1:<obsidian_rest_api_port>`, `SUBFOLDER=/obsidian/`,
    `PUID=0` and `PGID=0` so the files belong to the operator on the host.
 6. Restarts the unit when a managed file changed, then starts it and waits for the web interface.
-7. Disables the restricted mode of the vault with the Obsidian command line client, once, so the plugin loads.
-   Then waits for the REST API.
+7. Disables the restricted mode of the vault with the Obsidian command line client when it reads `on`, so the
+   plugin loads. Then waits for the REST API and checks it accepts the key, restarting Obsidian once if the
+   plugin still holds an old key.
 8. Installs the Caddy route `obsidian` through the `route` entry point of `podman_monitoring`. The interface is
    then served at `https://<host>/obsidian/`, behind the same basic auth as the other routes. The REST API has
    no route.

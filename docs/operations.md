@@ -280,9 +280,13 @@ with the vault already open. The graph view is the icon in the left ribbon.
 
 The vault is a plain directory of Markdown files on the host, `~operator/.obsidian-app/vaults/vault`
 (`obsidian_vault_name` changes the last part). The application state is in `~operator/.obsidian-app/config`.
-Back up the vault directory to keep the notes. The role never rewrites notes. It only manages the Local REST
-API plugin files, the keys it sets in the plugin `data.json`, the plugin entry in `community-plugins.json`, and
-three keys of the application `obsidian.json`. Settings changed in the interface are kept.
+Back up the vault directory to keep the notes. The role never rewrites notes, and keeps other settings and
+plugins changed in the interface. Every run enforces these, and undoes a change made to them in the interface:
+
+- the Local REST API plugin files, and in its `data.json` the API key, the HTTP server on port 27123, the HTTPS
+  server off and the binding address (change the key in the vault, not in the plugin settings);
+- the plugin entry in `community-plugins.json`, and the restricted mode of the vault turned off;
+- in the application `obsidian.json`: the vault opened at start, the command line client on, self-update off.
 
 A client on the host calls the Local REST API over plain HTTP on the loopback, with the key as a bearer token:
 
@@ -293,7 +297,8 @@ curl -H "Authorization: Bearer $KEY" http://127.0.0.1:27123/vault/
 The API is not routed by Caddy and no firewall rule opens its port. To reach it from another machine, use an
 SSH tunnel.
 
-- Rotate the key: change `vault_obsidian_api_key` and run the playbook. It restarts Obsidian.
+- Rotate the key: change `vault_obsidian_api_key` and run the playbook. It restarts Obsidian, and at the end
+  checks the API accepts the key; if the plugin still holds an old one, it restarts Obsidian again.
 - Upgrade Obsidian: Renovate proposes new image tags (`obsidian_version`). The application does not update
   itself: the role sets `updateDisabled` so the pinned image decides the version.
 - Upgrade the plugin: set `obsidian_rest_api_version` and the three checksums in `obsidian_rest_api_checksums`
