@@ -25,7 +25,7 @@ argument_specs:
             host loopback only.
       podman_monitoring_caddy_basic_auth_user:
         type: str
-        default: admin
+        default: operator
         description: Basic auth user protecting every Caddy route.
       podman_monitoring_caddy_basic_auth_hash:
         type: str
