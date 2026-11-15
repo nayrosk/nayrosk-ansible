@@ -1,0 +1,7 @@
+---
+# Directory holding the application state and the vaults, owned by obsidian_user.
+obsidian_data_directory: "{{ obsidian_user_home }}/.obsidian-app"
+# Vault directory on the host, mounted at /vaults/<obsidian_vault_name> in the container.
+obsidian_vault_directory: "{{ obsidian_data_directory }}/vaults/{{ obsidian_vault_name }}"
+# Identifier of the Local REST API plugin, also its directory name under .obsidian/plugins.
+obsidian_rest_api_plugin_id: obsidian-local-rest-api

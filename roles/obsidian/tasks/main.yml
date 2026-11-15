@@ -1,0 +1,17 @@
+---
+- name: Check the prerequisites of install_base.yml
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ obsidian_user_home }}/.config/containers/systemd"
+    - "{{ obsidian_user_home }}/.caddy/routes.d"
+  register: obsidian_prerequisites
+
+- name: Assert the prerequisites of install_base.yml
+  ansible.builtin.assert:
+    that: item.stat.isdir | default(false)
+    fail_msg: Run playbooks/install_base.yml first.
+    quiet: true
+  loop: "{{ obsidian_prerequisites.results }}"
+  loop_control:
+    label: "{{ item.item }}"
