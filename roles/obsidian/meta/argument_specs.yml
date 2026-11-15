@@ -42,11 +42,12 @@ argument_specs:
       obsidian_api_key:
         type: str
         no_log: true
-        default: "{{ vault_obsidian_api_key }}"
+        required: true
         description:
           - API key of the Local REST API, sent by clients as C(Authorization) bearer token. At least 32
             characters.
-          - Defaults to the vault variable C(vault_obsidian_api_key), which must then be set.
+          - The role default aliases the vault variable C(vault_obsidian_api_key). The spec holds no default, so
+            an inventory that sets C(obsidian_api_key) itself does not need the vault variable.
       obsidian_timezone:
         type: str
         default: Etc/UTC

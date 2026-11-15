@@ -1,0 +1,133 @@
+---
+# Included from main.yml with ansible_become and ansible_become_user set to the operator.
+- name: Point podman at the operator runtime directory
+  environment: "{{ obsidian_user_environment }}"
+  block:
+    - name: Create the Obsidian directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ obsidian_user }}"
+        group: "{{ obsidian_user }}"
+        mode: "0750"
+      loop:
+        - "{{ obsidian_data_directory }}"
+        - "{{ obsidian_data_directory }}/config"
+        - "{{ obsidian_data_directory }}/config/.config"
+        - "{{ obsidian_data_directory }}/config/.config/obsidian"
+        - "{{ obsidian_data_directory }}/vaults"
+        - "{{ obsidian_vault_directory }}"
+        - "{{ obsidian_vault_directory }}/.obsidian"
+        - "{{ obsidian_vault_directory }}/.obsidian/plugins"
+        - "{{ obsidian_vault_directory }}/.obsidian/plugins/{{ obsidian_rest_api_plugin_id }}"
+
+    - name: Pull the Obsidian image
+      containers.podman.podman_image:
+        name: lscr.io/linuxserver/obsidian
+        tag: "v{{ obsidian_version }}"
+        state: present
+
+    - name: Download the Local REST API plugin
+      ansible.builtin.get_url:
+        url: "https://github.com/coddingtonbear/obsidian-local-rest-api/releases/download/\
+          {{ obsidian_rest_api_version }}/{{ item.key }}"
+        dest: "{{ obsidian_vault_directory }}/.obsidian/plugins/{{ obsidian_rest_api_plugin_id }}/{{ item.key }}"
+        checksum: "{{ item.value }}"
+        owner: "{{ obsidian_user }}"
+        group: "{{ obsidian_user }}"
+        mode: "0644"
+      loop: "{{ obsidian_rest_api_checksums | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      notify: Restart obsidian
+
+    # The plugin stores its own state in the same file (certificate, signed URL settings): only these keys are
+    # managed. bindingHost is the address inside the container; the host side is loopback only (see the quadlet).
+    - name: Configure the Local REST API plugin
+      ansible.builtin.include_tasks: merge_json.yml
+      vars:
+        obsidian_merge_path: >-
+          {{ obsidian_vault_directory }}/.obsidian/plugins/{{ obsidian_rest_api_plugin_id }}/data.json
+        obsidian_merge_content:
+          apiKey: "{{ obsidian_api_key }}"
+          enableInsecureServer: true
+          insecurePort: 27123
+          enableSecureServer: false
+          bindingHost: 0.0.0.0
+        obsidian_merge_mode: "0600"
+        obsidian_merge_secret: true
+
+    - name: List the Local REST API plugin as a community plugin of the vault
+      ansible.builtin.include_tasks: merge_json.yml
+      vars:
+        obsidian_merge_path: "{{ obsidian_vault_directory }}/.obsidian/community-plugins.json"
+        obsidian_merge_content: ["{{ obsidian_rest_api_plugin_id }}"]
+        obsidian_merge_mode: "0640"
+
+    # open makes Obsidian load the vault at start instead of showing the vault picker. cli enables the command
+    # line client used below. updateDisabled keeps the application at the version of the pinned image.
+    - name: Configure the Obsidian application
+      ansible.builtin.include_tasks: merge_json.yml
+      vars:
+        obsidian_merge_path: "{{ obsidian_data_directory }}/config/.config/obsidian/obsidian.json"
+        obsidian_merge_content:
+          cli: true
+          updateDisabled: true
+          vaults: "{{ {obsidian_vault_id: {'path': '/vaults/' ~ obsidian_vault_name, 'open': true}} }}"
+        obsidian_merge_mode: "0640"
+
+    - name: Install the Obsidian quadlet
+      ansible.builtin.template:
+        src: obsidian.container.j2
+        dest: "{{ obsidian_user_home }}/.config/containers/systemd/obsidian.container"
+        owner: "{{ obsidian_user }}"
+        group: "{{ obsidian_user }}"
+        mode: "0644"
+      notify: Restart obsidian
+
+    - name: Apply pending restarts
+      ansible.builtin.meta: flush_handlers
+
+    - name: Start Obsidian
+      ansible.builtin.systemd_service:
+        name: obsidian.service
+        scope: user
+        state: started
+        daemon_reload: true
+
+    - name: Wait for the web interface
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ obsidian_web_port }}/obsidian/"
+        status_code: 200
+      register: obsidian_web_ready
+      retries: 30
+      delay: 4
+      until: obsidian_web_ready.status == 200
+
+    # Obsidian keeps community plugins off until restricted mode is disabled for the vault. That state lives in
+    # the application storage, not in a file, so it is read and set through the command line client. The client
+    # answers once the application has loaded the vault.
+    - name: Read the restricted mode of the vault
+      ansible.builtin.command:
+        argv: "{{ obsidian_cli_argv + ['plugins:restrict'] }}"
+      register: obsidian_restricted_mode
+      changed_when: false
+      retries: 30
+      delay: 4
+      until: obsidian_restricted_mode.stdout | default('') | trim in ['on', 'off']
+
+    - name: Disable the restricted mode of the vault
+      ansible.builtin.command:
+        argv: "{{ obsidian_cli_argv + ['plugins:restrict', 'off'] }}"
+      changed_when: true
+      when: obsidian_restricted_mode.stdout | trim == 'on'
+
+    # The root route of the plugin needs no key.
+    - name: Wait for the Local REST API
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ obsidian_rest_api_port }}/"
+        status_code: 200
+      register: obsidian_rest_api_ready
+      retries: 30
+      delay: 4
+      until: obsidian_rest_api_ready.status == 200

@@ -1,0 +1,7 @@
+---
+# See tasks/main.yml: include vars are the only scoped way to outrank the ansible_become host fact.
+- name: Restart obsidian
+  ansible.builtin.include_tasks: user_unit_restart.yml
+  vars:
+    ansible_become: true
+    ansible_become_user: "{{ obsidian_user }}"

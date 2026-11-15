@@ -1,0 +1,34 @@
+# Managed by Ansible (role obsidian).
+[Unit]
+Description=Headless Obsidian
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=lscr.io/linuxserver/obsidian:v{{ obsidian_version }}
+# Both ports are published on the host loopback only. Caddy serves the web interface at /obsidian/; the REST API
+# is for clients on this host. The plugin binds 0.0.0.0 inside the container so the published port reaches it.
+PublishPort=127.0.0.1:{{ obsidian_web_port }}:3000
+PublishPort=127.0.0.1:{{ obsidian_rest_api_port }}:27123
+# The image runs the application as PUID:PGID. In this rootless container 0 is the account that owns the unit,
+# so the vault and the settings belong to it on the host.
+Environment=PUID=0
+Environment=PGID=0
+Environment=TZ={{ obsidian_timezone }}
+Environment=SUBFOLDER=/obsidian/
+Volume=%h/.obsidian-app/config:/config:Z
+Volume=%h/.obsidian-app/vaults:/vaults:Z
+# Electron needs a larger /dev/shm than the default.
+ShmSize=1g
+HealthCmd=curl -fsS -o /dev/null http://127.0.0.1:3000/obsidian/
+HealthStartPeriod=60s
+HealthInterval=30s
+HealthTimeout=10s
+HealthRetries=3
+HealthOnFailure=kill
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
