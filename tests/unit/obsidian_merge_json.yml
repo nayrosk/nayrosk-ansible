@@ -1,0 +1,127 @@
+---
+# Checks the JSON merge of the obsidian role on the controller, without a target:
+#   make unit
+- name: Check the obsidian JSON merge
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    # The merge writes files as obsidian_user: the unit run owns them itself.
+    obsidian_user: "{{ lookup('ansible.builtin.pipe', 'id -un') }}"
+    obsidian_merge_notify: []
+  tasks:
+    - name: Create a temporary directory
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: obsidian-merge.
+      register: unit_tmp
+
+    - name: Run the cases
+      block:
+        - name: Write an existing settings file with a foreign key and a stale value
+          ansible.builtin.copy:
+            content: '{"crypto": {"cert": "x"}, "insecurePort": 1, "nested": {"keep": true}}'
+            dest: "{{ unit_tmp.path }}/data.json"
+            mode: "0600"
+
+        - name: Write an existing plugin list
+          ansible.builtin.copy:
+            content: '["other-plugin"]'
+            dest: "{{ unit_tmp.path }}/list.json"
+            mode: "0640"
+
+        - name: Merge into the existing settings file
+          ansible.builtin.include_role:
+            name: obsidian
+            tasks_from: merge_json
+          vars:
+            obsidian_merge_path: "{{ unit_tmp.path }}/data.json"
+            obsidian_merge_content: {apiKey: unit-key, insecurePort: 27123, nested: {added: 1}}
+            obsidian_merge_mode: "0600"
+            obsidian_merge_secret: true
+
+        - name: Check the first merge changed the file
+          ansible.builtin.assert:
+            that: obsidian_merge_changed | bool
+            quiet: true
+
+        - name: Merge the same content again
+          ansible.builtin.include_role:
+            name: obsidian
+            tasks_from: merge_json
+          vars:
+            obsidian_merge_path: "{{ unit_tmp.path }}/data.json"
+            obsidian_merge_content: {apiKey: unit-key, insecurePort: 27123, nested: {added: 1}}
+            obsidian_merge_mode: "0600"
+            obsidian_merge_secret: true
+
+        - name: Check the second merge changed nothing
+          ansible.builtin.assert:
+            that: not (obsidian_merge_changed | bool)
+            quiet: true
+
+        - name: Merge into a missing file
+          ansible.builtin.include_role:
+            name: obsidian
+            tasks_from: merge_json
+          vars:
+            obsidian_merge_path: "{{ unit_tmp.path }}/new.json"
+            obsidian_merge_content: {a: 1}
+            obsidian_merge_mode: "0640"
+
+        - name: Merge into the existing plugin list
+          ansible.builtin.include_role:
+            name: obsidian
+            tasks_from: merge_json
+          vars:
+            obsidian_merge_path: "{{ unit_tmp.path }}/list.json"
+            obsidian_merge_content: [obsidian-local-rest-api]
+            obsidian_merge_mode: "0640"
+
+        - name: Merge the plugin list again
+          ansible.builtin.include_role:
+            name: obsidian
+            tasks_from: merge_json
+          vars:
+            obsidian_merge_path: "{{ unit_tmp.path }}/list.json"
+            obsidian_merge_content: [obsidian-local-rest-api]
+            obsidian_merge_mode: "0640"
+
+        - name: Check the second list merge changed nothing
+          ansible.builtin.assert:
+            that: not (obsidian_merge_changed | bool)
+            quiet: true
+
+        - name: Check the merged files
+          ansible.builtin.assert:
+            that:
+              - unit_data == unit_expected_data
+              - "unit_new == {'a': 1}"
+              - unit_list == ['other-plugin', 'obsidian-local-rest-api']
+            fail_msg: >-
+              data keys: {{ unit_data | list }}, new: {{ unit_new }}, list: {{ unit_list }}
+            quiet: true
+          vars:
+            unit_data: "{{ lookup('ansible.builtin.file', unit_tmp.path + '/data.json') | from_json }}"
+            unit_new: "{{ lookup('ansible.builtin.file', unit_tmp.path + '/new.json') | from_json }}"
+            unit_list: "{{ lookup('ansible.builtin.file', unit_tmp.path + '/list.json') | from_json }}"
+            unit_expected_data:
+              crypto: {cert: x}
+              insecurePort: 27123
+              nested: {keep: true, added: 1}
+              apiKey: unit-key
+
+        - name: Read the mode of the settings file
+          ansible.builtin.stat:
+            path: "{{ unit_tmp.path }}/data.json"
+          register: unit_data_stat
+
+        - name: Check the settings file kept its mode
+          ansible.builtin.assert:
+            that: unit_data_stat.stat.mode == '0600'
+            quiet: true
+      always:
+        - name: Remove the temporary directory
+          ansible.builtin.file:
+            path: "{{ unit_tmp.path }}"
+            state: absent

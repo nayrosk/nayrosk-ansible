@@ -117,6 +117,10 @@ design. The maintainer runs the test by hand on a real GPU host that already ran
 - `rocm_driver_state.yml`: the `rocm` driver state decision.
 - `rocm_install_needed.yml`: the decision whether `amdgpu-install` must run.
 - `gpu_metrics_exporter_fields.yml`: the field allow-list built for the `gpu_metrics_exporter` config.
+- `obsidian_api_key.yml`: the `obsidian` API key check (missing, empty, short or non-string key), and that a
+  failure names `vault_obsidian_api_key` without showing the key.
+- `obsidian_merge_json.yml`: the JSON merge of the `obsidian` role (foreign keys and list items kept, no
+  rewrite when nothing differs).
 
 ## Lint
 

@@ -1,0 +1,41 @@
+---
+- name: Run the API key check
+  block:
+    - name: Include the API key check
+      ansible.builtin.include_role:
+        name: obsidian
+        tasks_from: check_api_key
+      vars:
+        obsidian_api_key: "{{ unit_case.key | default(omit) }}"
+      when: unit_case.key is defined
+
+    - name: Include the API key check without a key
+      ansible.builtin.include_role:
+        name: obsidian
+        tasks_from: check_api_key
+      when: unit_case.key is not defined
+
+    - name: Record a pass
+      ansible.builtin.set_fact:
+        unit_outcome: pass
+        unit_failure: ""
+  rescue:
+    - name: Record a failure
+      ansible.builtin.set_fact:
+        unit_outcome: fail
+        unit_failure: "{{ ansible_failed_result | string }}"
+
+- name: Check the outcome
+  ansible.builtin.assert:
+    that: unit_outcome == unit_case.expected
+    fail_msg: "{{ unit_case.name }}: expected {{ unit_case.expected }}, got {{ unit_outcome }}"
+    success_msg: "{{ unit_case.name }}: {{ unit_outcome }}"
+
+- name: Check the failure names the vault variable and never shows the key
+  ansible.builtin.assert:
+    that:
+      - unit_failure is search('vault_obsidian_api_key')
+      - (unit_case.key | default('') | string | length == 0) or (unit_case.key | string) not in unit_failure
+    fail_msg: "{{ unit_case.name }}: the failure text is wrong or leaks the key"
+    success_msg: "{{ unit_case.name }}: the failure names the variable and hides the key"
+  when: unit_case.expected == 'fail'

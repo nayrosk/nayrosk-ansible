@@ -1,0 +1,48 @@
+---
+# Merges obsidian_merge_content into the JSON file obsidian_merge_path and writes it only when the result
+# differs. Obsidian and its plugins write these files too: keys and list items the role does not manage are kept.
+# A mapping is merged recursively (the role keys win), a list becomes the union with the existing items first.
+# Inputs: obsidian_merge_path, obsidian_merge_content, obsidian_merge_mode, optional obsidian_merge_secret
+# (hides the content), optional obsidian_merge_notify (handlers, default Restart obsidian).
+# Output: obsidian_merge_changed.
+- name: Check for the JSON file {{ obsidian_merge_path | basename }}
+  ansible.builtin.stat:
+    path: "{{ obsidian_merge_path }}"
+  register: obsidian_merge_stat
+
+- name: Read the JSON file {{ obsidian_merge_path | basename }}
+  ansible.builtin.slurp:
+    src: "{{ obsidian_merge_path }}"
+  register: obsidian_merge_slurp
+  when: obsidian_merge_stat.stat.exists
+  no_log: "{{ obsidian_merge_secret | default(false) | bool }}"
+
+- name: Merge the managed content into {{ obsidian_merge_path | basename }}
+  ansible.builtin.set_fact:
+    obsidian_merge_current: "{{ obsidian_merge_current_value }}"
+    obsidian_merge_result: >-
+      {{ (obsidian_merge_current_value | default({}, true) | combine(obsidian_merge_content, recursive=true))
+         if obsidian_merge_content is mapping
+         else ((obsidian_merge_current_value | default([], true)) + obsidian_merge_content) | unique }}
+  vars:
+    obsidian_merge_current_value: >-
+      {{ (obsidian_merge_slurp.content | b64decode | from_json)
+         if (obsidian_merge_stat.stat.exists and obsidian_merge_slurp.content | b64decode | trim | length > 0)
+         else none }}
+  no_log: "{{ obsidian_merge_secret | default(false) | bool }}"
+
+- name: Write the JSON file {{ obsidian_merge_path | basename }}
+  ansible.builtin.copy:
+    content: "{{ obsidian_merge_result | to_nice_json }}\n"
+    dest: "{{ obsidian_merge_path }}"
+    owner: "{{ obsidian_user }}"
+    group: "{{ obsidian_user }}"
+    mode: "{{ obsidian_merge_mode }}"
+  when: obsidian_merge_result != obsidian_merge_current
+  register: obsidian_merge_write
+  notify: "{{ obsidian_merge_notify | default(['Restart obsidian']) }}"
+  no_log: "{{ obsidian_merge_secret | default(false) | bool }}"
+
+- name: Record the change of {{ obsidian_merge_path | basename }}
+  ansible.builtin.set_fact:
+    obsidian_merge_changed: "{{ obsidian_merge_write is changed }}"

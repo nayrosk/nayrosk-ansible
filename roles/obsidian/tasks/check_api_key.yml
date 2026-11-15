@@ -1,0 +1,13 @@
+---
+# No no_log here: the conditions name the variable only, and no_log would also hide the fail_msg. The message
+# is static, so neither the key nor anything derived from it is printed.
+- name: Check the Local REST API key
+  ansible.builtin.assert:
+    that:
+      - obsidian_api_key is defined
+      - obsidian_api_key is string
+      - obsidian_api_key | length >= 32
+    fail_msg: >-
+      Set vault_obsidian_api_key in the inventory vault (make vault-edit) to a string of at least 32
+      characters, for example the output of openssl rand -hex 32.
+    quiet: true
