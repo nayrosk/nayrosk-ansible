@@ -4,7 +4,7 @@
     path: "{{ item }}"
   loop:
     - "{{ obsidian_user_home }}/.config/containers/systemd"
-    - "{{ obsidian_user_home }}/.caddy/routes.d"
+    - "{{ obsidian_caddy_user_home }}/.caddy/routes.d"
   register: obsidian_prerequisites
 
 - name: Assert the prerequisites of install_base.yml
@@ -37,7 +37,7 @@
     tasks_from: route
   vars:
     podman_monitoring_route_name: obsidian
-    podman_monitoring_user_home: "{{ obsidian_user_home }}"
+    podman_monitoring_user_home: "{{ obsidian_caddy_user_home }}"
     podman_monitoring_route_content: |
       handle /obsidian {
       	redir * /obsidian/ 308

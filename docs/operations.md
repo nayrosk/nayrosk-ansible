@@ -283,8 +283,8 @@ The vault is a plain directory of Markdown files on the host, `~operator/.obsidi
 Back up the vault directory to keep the notes. The role never rewrites notes, and keeps other settings and
 plugins changed in the interface. Every run enforces these, and undoes a change made to them in the interface:
 
-- the Local REST API plugin files, and in its `data.json` the API key, the HTTP server on port 27123, the HTTPS
-  server off and the binding address (change the key in the vault, not in the plugin settings);
+- the Local REST API plugin files, and in its `data.json` the API key, the `Authorization` header name, the HTTP
+  server on port 27123, the HTTPS server off and the binding address (change the key in the vault, not in the plugin settings);
 - the plugin entry in `community-plugins.json`, and the restricted mode of the vault turned off;
 - in the application `obsidian.json`: the vault opened at start, the command line client on, self-update off.
 

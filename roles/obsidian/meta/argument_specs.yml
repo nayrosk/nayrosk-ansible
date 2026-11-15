@@ -65,6 +65,42 @@ argument_specs:
       obsidian_user_home:
         type: str
         default: "{{ operator_user_home | default('/home/' ~ obsidian_user) }}"
+        description: Home directory of C(obsidian_user).
+      obsidian_caddy_user_home:
+        type: str
+        default: "{{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}"
         description: >-
-          Home directory of C(obsidian_user). It is passed to the C(podman_monitoring) route entry point as
+          Home directory of the operator account that runs Caddy. Follows the C(operator_user) role variables, not
+          C(obsidian_user). It is passed to the C(podman_monitoring) route entry point as
           C(podman_monitoring_user_home).
+  merge_json:
+    short_description: Merge managed keys into a JSON file of Obsidian and write it only when the result differs.
+    description:
+      - Keeps the keys and list items it does not manage. A mapping is merged recursively, a list becomes the union
+        with the existing items first. Enforces the owner and the mode on every run. Sets C(obsidian_merge_changed).
+    options:
+      obsidian_merge_path:
+        type: str
+        required: true
+        description: Path of the JSON file.
+      obsidian_merge_content:
+        type: raw
+        required: true
+        description: Mapping or list to merge into the file.
+      obsidian_merge_mode:
+        type: str
+        required: true
+        description: Mode of the file, for example C("0600").
+      obsidian_merge_secret:
+        type: bool
+        default: false
+        description: Hide the content of the tasks that read or write the file.
+      obsidian_merge_notify:
+        type: list
+        elements: str
+        default: [Restart obsidian]
+        description: Handlers notified when the file changes.
+      obsidian_user:
+        type: str
+        default: "{{ operator_user_name | default('operator') }}"
+        description: Owner and group of the file.

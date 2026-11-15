@@ -15,8 +15,9 @@ through Caddy and exposes the Local REST API of the vault on the host loopback. 
    `lscr.io/linuxserver/obsidian:v<obsidian_version>`, and downloads the Local REST API plugin release into the
    vault, verified by SHA256.
 4. Merges its keys into three JSON files and leaves every other key alone, because Obsidian and the plugin write
-   these files too:
-   - the plugin `data.json`: the API key, HTTP server on port 27123, HTTPS server off;
+   these files too. Owner and mode are enforced on every run, also when the content already matches:
+   - the plugin `data.json`: the API key, the `Authorization` header name, HTTP server on port 27123, HTTPS
+     server off;
    - `community-plugins.json` of the vault: the plugin id;
    - `obsidian.json` of the application: the vault opened at start, the command line client enabled,
      self-update disabled so the pinned image decides the version.
@@ -48,5 +49,6 @@ See [operations](../../docs/operations.md#obsidian) for the key, upgrades and th
 | `obsidian_timezone` | str | `Etc/UTC` | no | Time zone of the container. |
 | `obsidian_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Rootless account running Obsidian. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. |
 | `obsidian_user_uid` | int | `{{ operator_user_uid \| default(10000) }}` | no | Numeric id of `obsidian_user`, used to build `XDG_RUNTIME_DIR`. |
-| `obsidian_user_home` | str | `{{ operator_user_home \| default('/home/' ~ obsidian_user) }}` | no | Home directory of `obsidian_user`. It is passed to the `podman_monitoring` route entry point as `podman_monitoring_user_home`. |
+| `obsidian_user_home` | str | `{{ operator_user_home \| default('/home/' ~ obsidian_user) }}` | no | Home directory of `obsidian_user`. |
+| `obsidian_caddy_user_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy. Follows the `operator_user` role variables, not `obsidian_user`. It is passed to the `podman_monitoring` route entry point as `podman_monitoring_user_home`. |
 <!-- END VARIABLES -->
