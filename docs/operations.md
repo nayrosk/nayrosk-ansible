@@ -280,6 +280,7 @@ with the vault already open. The graph view is the icon in the left ribbon.
 
 The vault is a plain directory of Markdown files on the host, `~operator/.obsidian-app/vaults/vault`
 (`obsidian_vault_name` changes the last part). The application state is in `~operator/.obsidian-app/config`.
+The application runs with umask 077, so the notes and settings it writes are readable by the operator only.
 Back up the vault directory to keep the notes. The role never rewrites notes, and keeps other settings and
 plugins changed in the interface. Every run enforces these, and undoes a change made to them in the interface:
 
@@ -302,7 +303,8 @@ SSH tunnel.
 - Upgrade Obsidian: Renovate proposes new image tags (`obsidian_version`). The application does not update
   itself: the role sets `updateDisabled` so the pinned image decides the version.
 - Upgrade the plugin: set `obsidian_rest_api_version` and the three checksums in `obsidian_rest_api_checksums`
-  (`sha256sum` of `main.js`, `manifest.json` and `styles.css` of the release), then run the playbook.
+  (`sha256sum` of `main.js`, `manifest.json` and `styles.css` of the release) in `defaults/main.yml` and
+  `meta/argument_specs.yml`, run `make docs`, then run the playbook.
 - Logs: `journalctl --user -u obsidian.service` as the operator.
 
 ## Decisions and known limits
