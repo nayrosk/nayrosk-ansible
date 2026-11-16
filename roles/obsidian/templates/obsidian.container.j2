@@ -16,8 +16,10 @@ Environment=PUID=0
 Environment=PGID=0
 Environment=TZ={{ obsidian_timezone }}
 Environment=SUBFOLDER=/obsidian/
-Volume=%h/.obsidian-app/config:/config:Z
-Volume=%h/.obsidian-app/vaults:/vaults:Z
+# The application writes notes and settings readable by the operator only.
+Environment=UMASK=077
+Volume={{ obsidian_data_directory }}/config:/config:Z
+Volume={{ obsidian_data_directory }}/vaults:/vaults:Z
 # Electron needs a larger /dev/shm than the default.
 ShmSize=1g
 HealthCmd=curl -fsS -o /dev/null http://127.0.0.1:3000/obsidian/

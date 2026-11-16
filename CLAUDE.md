@@ -29,6 +29,7 @@ E2E_ZOMBIE_CHECK=1 make e2e   # adds 5 min wait + zombie assertion; CI always se
 - Logs in `artifacts/e2e/` (gitignored). Cloud image cached in `.cache/images/`.
 - Run `make lint`, `make docs CHECK=1`, `make e2e` before every push. Touched only docs: first two enough.
 - Change role variable → edit `defaults/main.yml` AND `meta/argument_specs.yml`, run `make docs`, commit generated tables.
+- Pinned versions (`*_version`): default only in `defaults/main.yml`, none in spec. Renovate bumps that file alone; `make docs` rejects spec default.
 - `make run INVENTORY=... LIMIT=... TAGS=...` hits real hosts. Never run against hosts maintainer didn't name.
 
 ## Code rules

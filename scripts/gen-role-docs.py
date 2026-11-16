@@ -85,6 +85,11 @@ def render_default(value):
     return code(text)
 
 
+def is_pinned_version(name):
+    """Versions are pinned in defaults/main.yml only: Renovate bumps that file and nothing else."""
+    return name.endswith("_version")
+
+
 def options_rows(options, defaults, prefix=""):
     rows = []
     for name, spec in options.items():
@@ -92,6 +97,8 @@ def options_rows(options, defaults, prefix=""):
         secret = bool(spec.get("no_log"))
         if secret:
             default = "secret"
+        elif not prefix and is_pinned_version(name):
+            default = "pinned in `defaults/main.yml`"
         elif "default" in spec:
             default = render_default(spec["default"])
         elif not prefix and name in defaults:
@@ -122,6 +129,8 @@ def role_table(role):
         if name not in options:
             problems.append(f"{role}: {name} is in defaults/main.yml but not in argument_specs.yml")
     for name, opt in options.items():
+        if is_pinned_version(name) and "default" in opt:
+            problems.append(f"{role}: {name} is a pinned version: keep its default in defaults/main.yml only")
         if "default" in opt and name in defaults and not opt.get("no_log"):
             a, b = opt["default"], defaults[name]
             if a != b and not (isinstance(a, str) and "{{" in a):

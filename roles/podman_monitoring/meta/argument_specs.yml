@@ -10,11 +10,9 @@ argument_specs:
     options:
       podman_monitoring_caddy_version:
         type: str
-        default: "2.11.8"
         description: Caddy image tag (C(docker.io/library/caddy:<version>-alpine)).
       podman_monitoring_node_exporter_version:
         type: str
-        default: "1.12.1"
         description: node_exporter image tag (C(quay.io/prometheus/node-exporter:v<version>)).
       podman_monitoring_node_exporter_listen:
         type: str

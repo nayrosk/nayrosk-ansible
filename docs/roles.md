@@ -126,8 +126,8 @@ Run node_exporter as a rootful quadlet and Caddy as a rootless quadlet in front 
 
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
-| `podman_monitoring_caddy_version` | str | `2.11.8` | no | Caddy image tag (`docker.io/library/caddy:<version>-alpine`). |
-| `podman_monitoring_node_exporter_version` | str | `1.12.1` | no | node_exporter image tag (`quay.io/prometheus/node-exporter:v<version>`). |
+| `podman_monitoring_caddy_version` | str | pinned in `defaults/main.yml` | no | Caddy image tag (`docker.io/library/caddy:<version>-alpine`). |
+| `podman_monitoring_node_exporter_version` | str | pinned in `defaults/main.yml` | no | node_exporter image tag (`quay.io/prometheus/node-exporter:v<version>`). |
 | `podman_monitoring_node_exporter_listen` | str | `127.0.0.1:9100` | no | Address and port node_exporter listens on. Must stay a loopback address. Caddy proxies to `host.containers.internal`, which pasta maps to the host loopback only. |
 | `podman_monitoring_caddy_basic_auth_user` | str | `operator` | no | Basic auth user protecting every Caddy route. |
 | `podman_monitoring_caddy_basic_auth_hash` | str | secret | no | Bcrypt hash of the basic auth password, as printed by `caddy hash-password`. Defaults to the vault variable `vault_caddy_basic_auth_hash`, which must then be set. |
@@ -193,15 +193,15 @@ Run a headless Obsidian in a rootless Podman quadlet behind Caddy, with the Loca
 
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
-| `obsidian_version` | str | `1.15.0-ls152` | no | Image tag of `lscr.io/linuxserver/obsidian`, without the leading `v`. |
-| `obsidian_rest_api_version` | str | `5.5.2` | no | Release of the Local REST API plugin (`coddingtonbear/obsidian-local-rest-api`). |
+| `obsidian_version` | str | pinned in `defaults/main.yml` | no | Image tag of `lscr.io/linuxserver/obsidian`, without the leading `v`. |
+| `obsidian_rest_api_version` | str | pinned in `defaults/main.yml` | no | Release of the Local REST API plugin (`coddingtonbear/obsidian-local-rest-api`). |
 | `obsidian_rest_api_checksums` | dict | `{main.js: sha256:90494b6444c5fede5d12f97346aab839265b5c7a...` (3 entries, truncated, see `defaults/main.yml`) | no | Checksums of the plugin release assets `main.js`, `manifest.json` and `styles.css`, in the `sha256:<hex>` form. Update them together with `obsidian_rest_api_version`. |
 | `obsidian_web_port` | int | `3000` | no | Loopback port the web interface is published on. The container always listens on 3000. |
 | `obsidian_rest_api_port` | int | `27123` | no | Loopback port the Local REST API is published on. The plugin always listens on 27123. |
 | `obsidian_vault_name` | str | `vault` | no | Directory name of the vault, under `~/.obsidian-app/vaults` of `obsidian_user`. |
 | `obsidian_api_key` | str | secret | yes | API key of the Local REST API, sent by clients as `Authorization` bearer token. At least 32 characters. The role default aliases the vault variable `vault_obsidian_api_key`. The spec holds no default, so an inventory that sets `obsidian_api_key` itself does not need the vault variable. |
 | `obsidian_timezone` | str | `Etc/UTC` | no | Time zone of the container. |
-| `obsidian_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Rootless account running Obsidian. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. |
+| `obsidian_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Rootless account running Obsidian. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. Use the account that runs Caddy, the operator by default. It is the only tested layout. |
 | `obsidian_user_uid` | int | `{{ operator_user_uid \| default(10000) }}` | no | Numeric id of `obsidian_user`, used to build `XDG_RUNTIME_DIR`. |
 | `obsidian_user_home` | str | `{{ operator_user_home \| default('/home/' ~ obsidian_user) }}` | no | Home directory of `obsidian_user`. |
 | `obsidian_caddy_user_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy. Follows the `operator_user` role variables, not `obsidian_user`. It is passed to the `podman_monitoring` route entry point as `podman_monitoring_user_home`. When the inventory overrides `podman_monitoring_user_home`, set this variable to the same value. It cannot follow that variable itself, because the route entry point receives it under that name. |
@@ -212,8 +212,8 @@ Install the ROCm stack and the amdgpu DKMS driver with amdgpu-install.
 
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
-| `rocm_amdgpu_install_version` | str | `31.60` | no | amdgpu-install release, the directory under `repo.radeon.com/amdgpu-install/`. |
-| `rocm_amdgpu_install_package_version` | str | `31.60.316000-1` | no | Exact version of the amdgpu-install `.deb` in that release. |
+| `rocm_amdgpu_install_version` | str | pinned in `defaults/main.yml` | no | amdgpu-install release, the directory under `repo.radeon.com/amdgpu-install/`. |
+| `rocm_amdgpu_install_package_version` | str | pinned in `defaults/main.yml` | no | Exact version of the amdgpu-install `.deb` in that release. |
 | `rocm_amdgpu_install_url` | str | `https://repo.radeon.com/amdgpu-install/{{ rocm_amdgpu_ins...` (truncated, see `defaults/main.yml`) | no | URL of the amdgpu-install `.deb`, built from the two version variables. |
 | `rocm_usecases` | list of str | `[rocm, graphics]` | no | Usecases passed to `amdgpu-install --usecase`. |
 | `rocm_gfxversion` | str | `auto` | no | Value passed to `amdgpu-install --gfxversion`. |
@@ -227,7 +227,7 @@ Run the AMD device metrics exporter in a Podman quadlet behind Caddy.
 
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
-| `gpu_metrics_exporter_version` | str | `1.5.3` | no | Image tag of `docker.io/rocm/device-metrics-exporter`, without the leading `v`. |
+| `gpu_metrics_exporter_version` | str | pinned in `defaults/main.yml` | no | Image tag of `docker.io/rocm/device-metrics-exporter`, without the leading `v`. |
 | `gpu_metrics_exporter_listen_port` | int | `5000` | no | Loopback port the exporter is published on. The container always listens on 5000. |
 | `gpu_metrics_exporter_disabled_fields` | list of str | `[GPU_ECC_CORRECT_TOTAL, GPU_ECC_UNCORRECT_TOTAL, GPU_ECC_...` (76 entries, truncated, see `defaults/main.yml`) | no | GPUConfig fields excluded from the export, by their upstream names (for example `GPU_ECC_CORRECT_GFX`). The exporter only takes an allow-list, so the config file lists every known field except these. An empty list omits `Fields` and exports everything. |
 | `gpu_metrics_exporter_operator_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy. Follows the `operator_user` role variables. It is passed to the `podman_monitoring` route entry point as `podman_monitoring_user_home`. |
