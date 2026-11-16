@@ -302,9 +302,9 @@ SSH tunnel.
   checks the API accepts the key; if the plugin still holds an old one, it restarts Obsidian again.
 - Upgrade Obsidian: Renovate proposes new image tags (`obsidian_version`). The application does not update
   itself: the role sets `updateDisabled` so the pinned image decides the version.
-- Upgrade the plugin: set `obsidian_rest_api_version` and the three checksums in `obsidian_rest_api_checksums`
-  (`sha256sum` of `main.js`, `manifest.json` and `styles.css` of the release) in `defaults/main.yml` and
-  `meta/argument_specs.yml`, run `make docs`, then run the playbook.
+- Upgrade the plugin: set `obsidian_rest_api_version` in `defaults/main.yml` only. Set the three checksums in
+  `obsidian_rest_api_checksums` (`sha256sum` of `main.js`, `manifest.json` and `styles.css` of the release) in
+  both `defaults/main.yml` and `meta/argument_specs.yml`, run `make docs`, then run the playbook.
 - Logs: `journalctl --user -u obsidian.service` as the operator.
 
 ## Decisions and known limits
