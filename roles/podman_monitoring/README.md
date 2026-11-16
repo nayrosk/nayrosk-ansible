@@ -115,8 +115,8 @@ it is harmless.
 <!-- BEGIN VARIABLES -->
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
-| `podman_monitoring_caddy_version` | str | `2.11.8` | no | Caddy image tag (`docker.io/library/caddy:<version>-alpine`). |
-| `podman_monitoring_node_exporter_version` | str | `1.12.1` | no | node_exporter image tag (`quay.io/prometheus/node-exporter:v<version>`). |
+| `podman_monitoring_caddy_version` | str | pinned in `defaults/main.yml` | no | Caddy image tag (`docker.io/library/caddy:<version>-alpine`). |
+| `podman_monitoring_node_exporter_version` | str | pinned in `defaults/main.yml` | no | node_exporter image tag (`quay.io/prometheus/node-exporter:v<version>`). |
 | `podman_monitoring_node_exporter_listen` | str | `127.0.0.1:9100` | no | Address and port node_exporter listens on. Must stay a loopback address. Caddy proxies to `host.containers.internal`, which pasta maps to the host loopback only. |
 | `podman_monitoring_caddy_basic_auth_user` | str | `operator` | no | Basic auth user protecting every Caddy route. |
 | `podman_monitoring_caddy_basic_auth_hash` | str | secret | no | Bcrypt hash of the basic auth password, as printed by `caddy hash-password`. Defaults to the vault variable `vault_caddy_basic_auth_hash`, which must then be set. |

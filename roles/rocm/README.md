@@ -45,8 +45,8 @@ sudo reboot
 <!-- BEGIN VARIABLES -->
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
-| `rocm_amdgpu_install_version` | str | `31.60` | no | amdgpu-install release, the directory under `repo.radeon.com/amdgpu-install/`. |
-| `rocm_amdgpu_install_package_version` | str | `31.60.316000-1` | no | Exact version of the amdgpu-install `.deb` in that release. |
+| `rocm_amdgpu_install_version` | str | pinned in `defaults/main.yml` | no | amdgpu-install release, the directory under `repo.radeon.com/amdgpu-install/`. |
+| `rocm_amdgpu_install_package_version` | str | pinned in `defaults/main.yml` | no | Exact version of the amdgpu-install `.deb` in that release. |
 | `rocm_amdgpu_install_url` | str | `https://repo.radeon.com/amdgpu-install/{{ rocm_amdgpu_ins...` (truncated, see `defaults/main.yml`) | no | URL of the amdgpu-install `.deb`, built from the two version variables. |
 | `rocm_usecases` | list of str | `[rocm, graphics]` | no | Usecases passed to `amdgpu-install --usecase`. |
 | `rocm_gfxversion` | str | `auto` | no | Value passed to `amdgpu-install --gfxversion`. |

@@ -9,7 +9,6 @@ argument_specs:
     options:
       gpu_metrics_exporter_version:
         type: str
-        default: "1.5.3"
         description: Image tag of C(docker.io/rocm/device-metrics-exporter), without the leading C(v).
       gpu_metrics_exporter_listen_port:
         type: int
