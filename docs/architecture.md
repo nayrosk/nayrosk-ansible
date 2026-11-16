@@ -1,7 +1,22 @@
 # Architecture
 
-This page shows how the `install_base` playbook is organised, how the monitoring stack is wired and how
-Ansible connects to the host.
+![Architecture: Caddy in front of the loopback services](images/architecture.png)
+
+This page shows how the playbooks are organised, how the services are wired and how Ansible connects to the
+host.
+
+## Playbooks
+
+| Playbook | Hosts | Roles |
+| --- | --- | --- |
+| `playbooks/install_base.yml` | all | the 17 roles below |
+| `playbooks/install_rocm.yml` | `gpu` group | `bootstrap_connection`, `rocm`, `gpu_metrics_exporter` |
+| `playbooks/install_obsidian.yml` | `obsidian` group | `bootstrap_connection`, `obsidian` |
+
+The two optional playbooks run after `install_base.yml`: they reuse the operator account and add their route
+to its rootless Caddy. `rocm` installs the ROCm stack with `amdgpu-install` and never reboots.
+`gpu_metrics_exporter` serves the AMD Device Metrics Exporter at `https://<host>/gpu_metrics`. `obsidian` runs
+the Obsidian application at `https://<host>/obsidian/` and its Local REST API on the host loopback.
 
 ## Playbook flow
 

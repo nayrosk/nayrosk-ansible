@@ -1,5 +1,7 @@
 # Testing
 
+![Testing: every playbook runs twice in a KVM virtual machine](images/testing.png)
+
 `make e2e` installs the playbook on a real Ubuntu 26.04 machine and checks the result. Nothing runs on your
 workstation except `podman` and `make`.
 
