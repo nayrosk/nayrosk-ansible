@@ -1,6 +1,21 @@
 # Operations
 
-How to run the playbook, keep it healthy and recover from mistakes.
+![Operations: rerun, rotate, recover](images/operations.png)
+
+How to run the playbooks, keep them healthy and recover from mistakes.
+
+## Prepare the inventory
+
+Copy the example inventory and edit it:
+
+```bash
+cp -r inventories/example inventories/prod
+$EDITOR inventories/prod/hosts.yml inventories/prod/group_vars/all/vars.yml
+```
+
+Set `ansible_host`, `hostname` and `operator_public_key`. When the first login is not root, also set
+`bootstrap_connection_user`: the playbook removes that user once the operator works. Then create the vault
+(see [Vault](#vault)).
 
 ## First install and later runs
 
