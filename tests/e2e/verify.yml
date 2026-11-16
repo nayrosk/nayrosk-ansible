@@ -1021,3 +1021,83 @@
           whole log: {{ verify_f2b_regex.stdout_lines | select('search', 'Failregex') | list }}
           for {{ verify_badcreds_count }} wrong-password lines
         quiet: true
+
+    # Issue #29: pasta copies the host addresses and routes once, when Caddy starts. A start during an uplink
+    # outage leaves Caddy on pasta's link-local fallback, and the host address never reaches it again. Restart
+    # Caddy while the uplink is down, then check the healthcheck replaces it once the uplink is back. The outage
+    # runs in a transient unit: the SSH session of Ansible goes through the same interface.
+    - name: Restart Caddy during an uplink outage
+      ansible.builtin.command:
+        argv:
+          - systemd-run
+          - --unit=verify-uplink-outage
+          - --collect
+          - sh
+          - -c
+          - >-
+            ip link set {{ ansible_facts.default_ipv4.interface }} down; sleep 3;
+            runuser -u operator -- env XDG_RUNTIME_DIR=/run/user/10000 systemctl --user restart caddy.service;
+            sleep 5; ip link set {{ ansible_facts.default_ipv4.interface }} up
+      changed_when: true
+
+    - name: Wait for the uplink to come back
+      ansible.builtin.wait_for_connection:
+        delay: 15
+        timeout: 180
+
+    - name: Wait for the outage unit to finish
+      ansible.builtin.systemd_service:
+        name: verify-uplink-outage
+      register: verify_outage_unit
+      failed_when: false
+      retries: 30
+      delay: 2
+      until: verify_outage_unit.status.ActiveState | default('inactive') not in ['active', 'activating']
+
+    - name: Wait for the uplink default route to return
+      ansible.builtin.command: ip -4 route show default
+      register: verify_uplink_back
+      changed_when: false
+      retries: 30
+      delay: 2
+      until: verify_uplink_back.stdout is search('^default via', multiline=true)
+
+    - name: Read the routes Caddy got from pasta during the outage
+      ansible.builtin.command: podman exec systemd-caddy ip -4 route show default
+      become: true
+      become_user: operator
+      environment:
+        XDG_RUNTIME_DIR: /run/user/10000
+      register: verify_outage_route
+      changed_when: false
+
+    - name: Check Caddy started on the pasta fallback
+      ansible.builtin.assert:
+        that: verify_outage_route.stdout is search('via 169\.254\.')
+        fail_msg: "Caddy did not start degraded, the test proves nothing: {{ verify_outage_route.stdout }}"
+        quiet: true
+
+    - name: Wait for Caddy to answer on the host address again
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -sk
+          - -m
+          - "5"
+          - -o
+          - /dev/null
+          - -w
+          - "%{http_code}"
+          - "https://{{ ansible_facts.default_ipv4.address }}/"
+      register: verify_uplink_caddy
+      changed_when: false
+      failed_when: false
+      retries: 30
+      delay: 10
+      until: verify_uplink_caddy.stdout == '401'
+
+    - name: Check Caddy recovered from the uplink outage
+      ansible.builtin.assert:
+        that: verify_uplink_caddy.stdout == '401'
+        fail_msg: "Caddy still answers {{ verify_uplink_caddy.stdout }} on the host address after the outage"
+        quiet: true

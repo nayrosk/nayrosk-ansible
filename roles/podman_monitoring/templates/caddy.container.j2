@@ -21,7 +21,23 @@ Volume=%h/.caddy/data:/data:Z
 Volume=%h/.caddy/logs:/logs:Z
 RunInit=true
 NoNewPrivileges=true
-HealthCmd=wget -q -O /dev/null http://127.0.0.1:8081/healthz
+{#
+  pasta copies the host addresses once, at start. Started during an uplink outage, it falls back to the link-local
+  169.254.2.1 for IPv4 and keeps only link-local IPv6, and the host address never reaches Caddy (issue #29). The
+  check requires an address of each family the host had when the playbook ran: an IPv4 address outside
+  169.254.0.0/16, an IPv6 address other than link-local and loopback. An IPv6-only host has no default_ipv4
+  fact and gets no IPv4 check, so the IPv4 fallback it always receives does not fail it.
+#}
+{% set _caddy_uplink_checks = [] %}
+{% if ansible_facts.default_ipv4.address is defined %}
+{%   set _ = _caddy_uplink_checks.append("ip -4 -o addr | grep -v \" inet 169\\.254\\.\" | grep -q \"scope global\"") %}
+{% endif %}
+{% if ansible_facts.default_ipv6.address is defined %}
+{%   set _ = _caddy_uplink_checks.append("ip -6 -o addr | grep -v -e \" inet6 fe80:\" -e \" inet6 ::1/\" | grep -q inet6") %}
+{% endif %}
+# Healthy when the admin endpoint answers and pasta copied the host addresses: a container started during an uplink
+# outage fails, and HealthOnFailure restarts it with the current addresses (issue #29).
+HealthCmd=sh -c 'wget -q -O /dev/null http://127.0.0.1:8081/healthz{% for c in _caddy_uplink_checks %} && {{ c }}{% endfor %}'
 HealthInterval=30s
 HealthTimeout=5s
 HealthRetries=3

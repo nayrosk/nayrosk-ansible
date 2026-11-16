@@ -72,6 +72,8 @@ flowchart LR
 - Both containers report `healthy`.
 - DNS over TLS is active, chrony is synchronised, the time zone is UTC, the operator has UID and GID 10000,
   lingering is enabled and the sysctl values are applied.
+- Caddy recovers from an uplink outage at start: the test restarts it while the uplink is down, checks it
+  started on the pasta link-local fallback, then waits for it to answer on the host address again.
 
 `tests/e2e/verify_obsidian.yml` asserts on the Obsidian state:
 
