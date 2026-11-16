@@ -51,6 +51,8 @@ The rulesets in `.github/rulesets/` are enforced. `main` accepts only squash mer
 - Give every `command` and `shell` task an explicit `changed_when`, and `no_log: true` on tasks that handle secrets.
 - Prefix variables with the role name. Keep secrets in the Ansible Vault as `vault_*` variables.
 - Declare every role input in `meta/argument_specs.yml`, then run `make docs` and commit the regenerated tables.
+- Give a pinned version (a variable ending in `_version`) its default in `defaults/main.yml` only, not in the
+  argument spec. Renovate bumps that file alone, and `make docs` rejects a version default in the spec.
 - Gate non-idempotent steps with `first_install` and steps the test VM cannot run with `not e2e`.
 - Code, comments and documentation are in English, without emoji or em dashes.
 - Do not edit `CHANGELOG.md`; git-cliff writes it.

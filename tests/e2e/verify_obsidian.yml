@@ -185,11 +185,16 @@
       loop: [e2e-a.md, e2e-b.md]
       register: verify_obsidian_notes
 
-    - name: Check the notes are files of the operator
+    # The application runs with umask 077: a note is readable by the operator only.
+    - name: Check the notes are private files of the operator
       ansible.builtin.assert:
         that:
           - item.stat.exists
           - item.stat.pw_name == 'operator'
+          - item.stat.mode == '0600'
+        fail_msg: >-
+          {{ item.item }}: owner {{ item.stat.pw_name | default('none') }},
+          mode {{ item.stat.mode | default('none') }}
         quiet: true
       loop: "{{ verify_obsidian_notes.results }}"
       loop_control:

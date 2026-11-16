@@ -10,11 +10,9 @@ argument_specs:
     options:
       rocm_amdgpu_install_version:
         type: str
-        default: "31.60"
         description: amdgpu-install release, the directory under C(repo.radeon.com/amdgpu-install/).
       rocm_amdgpu_install_package_version:
         type: str
-        default: "31.60.316000-1"
         description: Exact version of the amdgpu-install C(.deb) in that release.
       rocm_amdgpu_install_url:
         type: str
