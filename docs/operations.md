@@ -327,6 +327,11 @@ SSH tunnel.
 - Caddy reaches node_exporter through `host.containers.internal`, mapped by pasta to the host loopback. The
   mapping is scoped to the Caddy container, and node_exporter stays on `127.0.0.1:9100`.
   `podman_monitoring_node_exporter_listen` must remain a loopback address.
+- pasta copies the host addresses and routes once, when Caddy starts. If the uplink is down at that moment,
+  as during a link flap at boot, pasta falls back to a link-local `169.254` address and Caddy never answers
+  on the host address, even after the uplink returns. The Caddy healthcheck fails while the container has no
+  global address outside `169.254.0.0/16`, so Podman kills it and systemd starts it again with the current
+  addresses. Recovery takes about one to two minutes after the uplink returns.
 - node_exporter runs with `apparmor=unconfined`. The default Podman AppArmor profile denies D-Bus calls, and
   the systemd collector needs them. The container already shares the host PID and network namespaces and
   sees the root filesystem read-only.

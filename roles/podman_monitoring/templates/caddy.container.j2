@@ -21,7 +21,10 @@ Volume=%h/.caddy/data:/data:Z
 Volume=%h/.caddy/logs:/logs:Z
 RunInit=true
 NoNewPrivileges=true
-HealthCmd=wget -q -O /dev/null http://127.0.0.1:8081/healthz
+# pasta copies the host addresses once, at start. Started during an uplink outage, it falls back to a link-local
+# 169.254 address and the host address never reaches Caddy (issue #29). Without a global address other than
+# 169.254, the check fails and HealthOnFailure restarts the container, which copies the addresses again.
+HealthCmd=sh -c 'wget -q -O /dev/null http://127.0.0.1:8081/healthz && ip -o addr | grep -v " inet 169\.254\." | grep -q "scope global"'
 HealthInterval=30s
 HealthTimeout=5s
 HealthRetries=3
