@@ -257,7 +257,65 @@ sudo reboot
 The exporter image is tracked by Renovate. Its pull request notes ask you to diff the upstream
 `example/config.json` against the field allow-list in `roles/gpu_metrics_exporter/vars/main.yml`.
 
+## Obsidian
+
+`playbooks/install_obsidian.yml` targets the `obsidian` group of the inventory. Run `install_base.yml` first:
+the role needs the operator account, its quadlet directory and the Caddy routes directory.
+
+1. Add the API key to the vault (`make vault-edit VAULT_FILE=inventories/prod/group_vars/all/vault.yml`). It
+   must be at least 32 characters. `openssl rand -hex 32` prints a suitable one.
+
+   ```yaml
+   vault_obsidian_api_key: "<64 hexadecimal characters>"
+   ```
+
+2. Add the host to the `obsidian` group in `hosts.yml` and run:
+
+   ```bash
+   make run PLAYBOOK=playbooks/install_obsidian.yml INVENTORY=inventories/prod LIMIT=server1
+   ```
+
+Open `https://<host>/obsidian/` and log in with the Caddy basic auth user. The page shows the Obsidian window
+with the vault already open. The graph view is the icon in the left ribbon.
+
+The vault is a plain directory of Markdown files on the host, `~operator/.obsidian-app/vaults/vault`
+(`obsidian_vault_name` changes the last part). The application state is in `~operator/.obsidian-app/config`.
+Back up the vault directory to keep the notes. The role never rewrites notes, and keeps other settings and
+plugins changed in the interface. Every run enforces these, and undoes a change made to them in the interface:
+
+- the Local REST API plugin files, and in its `data.json` the API key, the `Authorization` header name, the HTTP
+  server on port 27123, the HTTPS server off and the binding address (change the key in the vault, not in the plugin settings);
+- the plugin entry in `community-plugins.json`, and the restricted mode of the vault turned off;
+- in the application `obsidian.json`: the vault opened at start, the command line client on, self-update off.
+
+A client on the host calls the Local REST API over plain HTTP on the loopback, with the key as a bearer token:
+
+```bash
+curl -H "Authorization: Bearer $KEY" http://127.0.0.1:27123/vault/
+```
+
+The API is not routed by Caddy and no firewall rule opens its port. To reach it from another machine, use an
+SSH tunnel.
+
+- Rotate the key: change `vault_obsidian_api_key` and run the playbook. It restarts Obsidian, and at the end
+  checks the API accepts the key; if the plugin still holds an old one, it restarts Obsidian again.
+- Upgrade Obsidian: Renovate proposes new image tags (`obsidian_version`). The application does not update
+  itself: the role sets `updateDisabled` so the pinned image decides the version.
+- Upgrade the plugin: set `obsidian_rest_api_version` and the three checksums in `obsidian_rest_api_checksums`
+  (`sha256sum` of `main.js`, `manifest.json` and `styles.css` of the release), then run the playbook.
+- Logs: `journalctl --user -u obsidian.service` as the operator.
+
 ## Decisions and known limits
+
+- Whoever passes the Caddy basic auth on `/obsidian/` controls a desktop session in the Obsidian container,
+  with a terminal. The application runs as root inside the container, which is the operator account on the
+  host, confined to the container, the vault and the application state. Treat the basic auth password as a
+  login to that container.
+- Obsidian keeps community plugins off until restricted mode is disabled for a vault, and stores that choice
+  in the application storage, not in a file. The `obsidian` role disables it with the Obsidian command line
+  client inside the container, which is why the role enables that client (`cli` in `obsidian.json`).
+- The Obsidian container has no GPU. The graph view is rendered in software, which is enough for a personal
+  vault.
 
 - Caddy runs on pasta, not on the `monitoring` network. A rootless bridge network publishes ports through
   `rootlessport`, which hides the client address: every request would look like it came from the

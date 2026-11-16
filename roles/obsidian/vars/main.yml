@@ -1,0 +1,23 @@
+---
+# Directory holding the application state and the vaults, owned by obsidian_user.
+obsidian_data_directory: "{{ obsidian_user_home }}/.obsidian-app"
+# Vault directory on the host, mounted at /vaults/<obsidian_vault_name> in the container.
+obsidian_vault_directory: "{{ obsidian_data_directory }}/vaults/{{ obsidian_vault_name }}"
+# Identifier of the Local REST API plugin, also its directory name under .obsidian/plugins.
+obsidian_rest_api_plugin_id: obsidian-local-rest-api
+# Key of the vault in the Obsidian vault list. Obsidian only needs it to be unique and stable.
+obsidian_vault_id: "{{ obsidian_vault_name | ansible.builtin.hash('md5') | truncate(16, true, '') }}"
+# Environment for podman and systemctl --user run as obsidian_user.
+obsidian_user_environment:
+  XDG_RUNTIME_DIR: "/run/user/{{ obsidian_user_uid }}"
+  DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ obsidian_user_uid }}/bus"
+# Obsidian command line client, run inside the container. It talks to the running application.
+obsidian_cli_argv:
+  - podman
+  - exec
+  - --env
+  - HOME=/config
+  - --env
+  - XDG_RUNTIME_DIR=/config/.XDG
+  - systemd-obsidian
+  - /opt/obsidian/obsidian-cli

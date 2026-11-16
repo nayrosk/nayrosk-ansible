@@ -1,0 +1,19 @@
+---
+# The assert reads the key, so it is hidden. The message comes from a separate task that never reads the key.
+- name: Check the Local REST API key
+  block:
+    - name: Assert the Local REST API key is usable
+      ansible.builtin.assert:
+        that:
+          - obsidian_api_key is defined
+          - obsidian_api_key is string
+          - obsidian_api_key is match('^[!-~]{32,}$')
+          - obsidian_api_key == obsidian_api_key | trim
+        quiet: true
+      no_log: true
+  rescue:
+    - name: Explain the rejected Local REST API key
+      ansible.builtin.fail:
+        msg: >-
+          Set vault_obsidian_api_key in the inventory vault (make vault-edit) to a string of at least 32
+          printable characters without spaces or newlines, for example the output of openssl rand -hex 32.

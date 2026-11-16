@@ -81,6 +81,11 @@ flowchart LR
   `~/.caddy/routes.d/*.caddy`, and the `route` entry point of `podman_monitoring` (set
   `podman_monitoring_route_name` and `podman_monitoring_route_content`, then
   `include_role` with `tasks_from: route`) validates and installs one snippet and restarts Caddy.
+- `playbooks/install_obsidian.yml` adds a second rootless container of the operator, `obsidian`. It publishes
+  two ports on the host loopback only: the web interface (`127.0.0.1:3000`), which Caddy serves at
+  `/obsidian/` through a `routes.d` snippet, and the Local REST API of the vault (`127.0.0.1:27123`), which
+  has no Caddy route and no firewall rule. Local clients authenticate to the API with a bearer key. The vault
+  is a directory of the operator, `~/.obsidian-app/vaults/<name>`, mounted in the container.
 - The `monitoring` network exists for future rootless services. Caddy is not on it yet. See
   [operations](operations.md#decisions-and-known-limits).
 - fail2ban reads the Caddy JSON access log and bans clients that fail basic auth, and bans SSH brute force.

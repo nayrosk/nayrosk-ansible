@@ -1,0 +1,36 @@
+---
+# Checks the obsidian API key check on the controller, without a target:
+#   make unit
+- name: Check the obsidian API key check
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    unit_cases:
+      - name: undefined key
+        expected: fail
+      - name: empty key
+        key: ""
+        expected: fail
+      - name: key of 31 characters
+        key: unit-leak-marker-0123456789abcd
+        expected: fail
+      - name: key that is not a string
+        key: 12345678901234567890123456789012
+        expected: fail
+      - name: key of 32 characters and a trailing newline
+        key: "unit-leak-marker-0123456789abcde\n"
+        expected: fail
+      - name: key with an inner space
+        key: unit-leak-marker 0123456789abcdef
+        expected: fail
+      - name: key of 32 characters
+        key: unit-leak-marker-0123456789abcde
+        expected: pass
+  tasks:
+    - name: Run each case
+      ansible.builtin.include_tasks: obsidian_api_key_case.yml
+      loop: "{{ unit_cases }}"
+      loop_control:
+        loop_var: unit_case
+        label: "{{ unit_case.name }}"

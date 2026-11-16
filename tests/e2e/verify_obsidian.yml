@@ -1,0 +1,256 @@
+---
+- name: Verify Obsidian on the end-to-end host
+  hosts: obsidian
+  gather_facts: false
+  vars:
+    verify_ca_path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
+    verify_caddy_password: e2e-password
+    verify_operator_environment:
+      XDG_RUNTIME_DIR: /run/user/10000
+    verify_vault: /home/operator/.obsidian-app/vaults/vault
+    verify_api_url: http://127.0.0.1:27123
+    verify_caddy_curl:
+      - curl
+      - -s
+      - -o
+      - /dev/null
+      - --cacert
+      - "{{ verify_ca_path }}"
+      - --resolve
+      - "{{ hostname }}:8443:127.0.0.1"
+    verify_caddy_credentials: "{{ podman_monitoring_caddy_basic_auth_user }}:{{ verify_caddy_password }}"
+    verify_graph_selector: .workspace-leaf-content[data-type="graph"] canvas
+    verify_obsidian_cli:
+      - podman
+      - exec
+      - --env
+      - HOME=/config
+      - --env
+      - XDG_RUNTIME_DIR=/config/.XDG
+      - systemd-obsidian
+      - /opt/obsidian/obsidian-cli
+  roles:
+    - role: bootstrap_connection
+      tags: [always, bootstrap_connection]
+  tasks:
+    - name: Read the state of the Obsidian user unit
+      ansible.builtin.systemd_service:
+        name: obsidian.service
+        scope: user
+      become: true
+      become_user: operator
+      environment:
+        XDG_RUNTIME_DIR: /run/user/10000
+        DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/10000/bus
+      register: verify_obsidian_unit
+
+    - name: Check the Obsidian user unit is active
+      ansible.builtin.assert:
+        that: verify_obsidian_unit.status.ActiveState == 'active'
+        fail_msg: "{{ verify_obsidian_unit.status.ActiveState }}"
+        quiet: true
+
+    - name: Read the Obsidian container health as the operator
+      ansible.builtin.command: podman inspect --format {{ '{{.State.Health.Status}}' }} systemd-obsidian
+      become: true
+      become_user: operator
+      environment: "{{ verify_operator_environment }}"
+      register: verify_obsidian_health
+      changed_when: false
+      retries: 30
+      delay: 5
+      until: verify_obsidian_health.stdout | default('') | trim == 'healthy'
+
+    - name: Request the web interface through Caddy without credentials
+      ansible.builtin.command:
+        argv: "{{ verify_caddy_curl + ['-w', '%{http_code}', 'https://' ~ hostname ~ ':8443/obsidian/'] }}"
+      delegate_to: localhost
+      become: false
+      register: verify_obsidian_noauth
+      changed_when: false
+
+    - name: Request the web interface through Caddy with credentials
+      ansible.builtin.command:
+        argv: >-
+          {{ verify_caddy_curl + ['-w', '%{http_code}', '-u', verify_caddy_credentials,
+             'https://' ~ hostname ~ ':8443/obsidian/'] }}
+      delegate_to: localhost
+      become: false
+      register: verify_obsidian_auth
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: verify_obsidian_auth.stdout == '200'
+
+    - name: Request the path without the trailing slash, without and with credentials
+      ansible.builtin.command:
+        argv: >-
+          {{ verify_caddy_curl + ['-w', '%{http_code} %{redirect_url}'] + item
+             + ['https://' ~ hostname ~ ':8443/obsidian'] }}
+      delegate_to: localhost
+      become: false
+      loop:
+        - []
+        - ["-u", "{{ verify_caddy_credentials }}"]
+      loop_control:
+        label: "{{ 'with credentials' if item else 'without credentials' }}"
+      register: verify_obsidian_slashless
+      changed_when: false
+
+    # The desktop stream runs over this WebSocket: it must pass Caddy and stay behind the basic auth.
+    - name: Request a WebSocket upgrade through Caddy, without and with credentials
+      ansible.builtin.command:
+        argv: >-
+          {{ verify_caddy_curl + ['-w', '%{http_code}', '--http1.1', '--max-time', '5',
+             '-H', 'Connection: Upgrade', '-H', 'Upgrade: websocket', '-H', 'Sec-WebSocket-Version: 13',
+             '-H', 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=='] + item
+             + ['https://' ~ hostname ~ ':8443/obsidian/api/websockets'] }}
+      delegate_to: localhost
+      become: false
+      loop:
+        - []
+        - ["-u", "{{ verify_caddy_credentials }}"]
+      loop_control:
+        label: "{{ 'with credentials' if item else 'without credentials' }}"
+      register: verify_obsidian_websocket
+      changed_when: false
+      # curl leaves with 28 when the upgraded connection stays open until --max-time.
+      failed_when: verify_obsidian_websocket.rc not in [0, 28]
+
+    - name: Request the REST API path through Caddy with credentials
+      ansible.builtin.command:
+        argv: >-
+          {{ verify_caddy_curl + ['-w', '%{http_code}', '-u', verify_caddy_credentials,
+             'https://' ~ hostname ~ ':8443/vault/'] }}
+      delegate_to: localhost
+      become: false
+      register: verify_obsidian_api_route
+      changed_when: false
+
+    - name: Check Caddy serves the web interface behind basic auth and nothing else
+      ansible.builtin.assert:
+        that:
+          - verify_obsidian_noauth.stdout == '401'
+          - verify_obsidian_auth.stdout == '200'
+          - verify_obsidian_slashless.results[0].stdout is match('401')
+          - verify_obsidian_slashless.results[1].stdout is match('308 https://.*/obsidian/$')
+          - verify_obsidian_websocket.results[0].stdout == '401'
+          - verify_obsidian_websocket.results[1].stdout == '101'
+          - verify_obsidian_api_route.stdout == '404'
+        fail_msg: >-
+          no credentials: {{ verify_obsidian_noauth.stdout }}, credentials: {{ verify_obsidian_auth.stdout }},
+          without slash: {{ verify_obsidian_slashless.results | map(attribute='stdout') | list }},
+          websocket: {{ verify_obsidian_websocket.results | map(attribute='stdout') | list }},
+          api route: {{ verify_obsidian_api_route.stdout }}
+        quiet: true
+
+    - name: Request the REST API without a key and with a wrong key
+      ansible.builtin.uri:
+        url: "{{ verify_api_url }}/vault/"
+        headers: "{{ item }}"
+        status_code: 401
+      loop:
+        - {}
+        - {Authorization: Bearer wrong-key-0123456789abcdef0123456789}
+      loop_control:
+        label: "{{ 'wrong key' if item else 'no key' }}"
+
+    - name: Request the REST API with the key
+      ansible.builtin.uri:
+        url: "{{ verify_api_url }}/vault/"
+        headers:
+          Authorization: "Bearer {{ obsidian_api_key }}"
+        status_code: 200
+      no_log: true
+
+    - name: Write two linked notes through the REST API
+      ansible.builtin.uri:
+        url: "{{ verify_api_url }}/vault/{{ item.name }}"
+        method: PUT
+        headers:
+          Authorization: "Bearer {{ obsidian_api_key }}"
+          Content-Type: text/markdown
+        body: "{{ item.body }}"
+        status_code: 204
+      loop:
+        - {name: e2e-a.md, body: "# e2e a\n\n[[e2e-b]]\n"}
+        - {name: e2e-b.md, body: "# e2e b\n"}
+      loop_control:
+        label: "{{ item.name }}"
+      no_log: true
+
+    - name: Stat the notes in the vault directory
+      ansible.builtin.stat:
+        path: "{{ verify_vault }}/{{ item }}"
+      loop: [e2e-a.md, e2e-b.md]
+      register: verify_obsidian_notes
+
+    - name: Check the notes are files of the operator
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.pw_name == 'operator'
+        quiet: true
+      loop: "{{ verify_obsidian_notes.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    # No browser in the VM: the graph view is opened in the application itself and read from its DOM.
+    - name: Open the graph view
+      ansible.builtin.command:
+        argv: "{{ verify_obsidian_cli + ['command', 'id=graph:open'] }}"
+      become: true
+      become_user: operator
+      environment: "{{ verify_operator_environment }}"
+      changed_when: false
+
+    - name: Count the graph view canvases
+      ansible.builtin.command:
+        argv: "{{ verify_obsidian_cli + ['dev:dom', 'selector=' ~ verify_graph_selector, 'total'] }}"
+      become: true
+      become_user: operator
+      environment: "{{ verify_operator_environment }}"
+      register: verify_obsidian_graph
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: verify_obsidian_graph.stdout | default('0') | trim | int >= 1
+
+    - name: Delete the notes through the REST API
+      ansible.builtin.uri:
+        url: "{{ verify_api_url }}/vault/{{ item }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ obsidian_api_key }}"
+        status_code: 204
+      loop: [e2e-a.md, e2e-b.md]
+      no_log: true
+
+    - name: List the listening TCP sockets
+      ansible.builtin.command: ss -Hltn
+      register: verify_obsidian_ss
+      changed_when: false
+
+    - name: Check the web interface and the REST API listen on loopback only
+      ansible.builtin.assert:
+        that:
+          - verify_obsidian_ss.stdout is search('127\.0\.0\.1:' ~ item ~ '\s')
+          - >-
+            verify_obsidian_ss.stdout_lines | select('search', ':' ~ item ~ '\s')
+            | reject('search', '^LISTEN\s+\d+\s+\d+\s+127\.0\.0\.1:') | list | length == 0
+        fail_msg: "{{ verify_obsidian_ss.stdout_lines | select('search', ':' ~ item ~ '\\s') | list }}"
+        quiet: true
+      loop: [3000, 27123]
+
+    - name: Read the firewall rules
+      ansible.builtin.command: ufw status
+      register: verify_obsidian_ufw
+      changed_when: false
+
+    - name: Check the firewall opens neither port
+      ansible.builtin.assert:
+        that:
+          - verify_obsidian_ufw.stdout is search('Status. active')
+          - verify_obsidian_ufw.stdout is not search('\b(3000|27123)\b')
+        fail_msg: "{{ verify_obsidian_ufw.stdout }}"
+        quiet: true

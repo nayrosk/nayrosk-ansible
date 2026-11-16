@@ -1,0 +1,10 @@
+---
+# Installs a headless Obsidian on the hosts of the obsidian group. Run playbooks/install_base.yml on them first.
+- name: Install Obsidian on the hosts that hold a vault
+  hosts: obsidian
+  gather_facts: false
+  roles:
+    - role: bootstrap_connection
+      tags: [always, bootstrap_connection]
+    - role: obsidian
+      tags: [obsidian]

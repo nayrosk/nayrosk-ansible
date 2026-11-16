@@ -1,0 +1,108 @@
+---
+argument_specs:
+  main:
+    short_description: Run a headless Obsidian in a rootless Podman quadlet behind Caddy, with the Local REST API.
+    description:
+      - Runs the C(lscr.io/linuxserver/obsidian) image as a rootless quadlet of the operator account, seeds a
+        vault with the Local REST API plugin, and adds the Caddy route C(/obsidian) through the C(route) entry
+        point of C(podman_monitoring).
+      - The web interface and the REST API are published on the host loopback only.
+      - Needs C(playbooks/install_base.yml) to have run.
+    options:
+      obsidian_version:
+        type: str
+        default: "1.15.0-ls152"
+        description: Image tag of C(lscr.io/linuxserver/obsidian), without the leading C(v).
+      obsidian_rest_api_version:
+        type: str
+        default: "5.5.2"
+        description: Release of the Local REST API plugin (C(coddingtonbear/obsidian-local-rest-api)).
+      obsidian_rest_api_checksums:
+        type: dict
+        default:
+          main.js: sha256:90494b6444c5fede5d12f97346aab839265b5c7a09520fe87b4efc22360b6cd8
+          manifest.json: sha256:2ce46dfa1ee9b6150dd8dd0dbcc68636ee15d5433f9a3fa24e9b6cc8446ebe25
+          styles.css: sha256:19956deaf4d14142381f81fdf92cae8241fd0aa08a1a3a5464b0d007bae1924d
+        description:
+          - Checksums of the plugin release assets C(main.js), C(manifest.json) and C(styles.css), in the
+            C(sha256:<hex>) form.
+          - Update them together with C(obsidian_rest_api_version).
+      obsidian_web_port:
+        type: int
+        default: 3000
+        description: Loopback port the web interface is published on. The container always listens on 3000.
+      obsidian_rest_api_port:
+        type: int
+        default: 27123
+        description: Loopback port the Local REST API is published on. The plugin always listens on 27123.
+      obsidian_vault_name:
+        type: str
+        default: vault
+        description: Directory name of the vault, under C(~/.obsidian-app/vaults) of C(obsidian_user).
+      obsidian_api_key:
+        type: str
+        no_log: true
+        required: true
+        description:
+          - API key of the Local REST API, sent by clients as C(Authorization) bearer token. At least 32
+            characters.
+          - The role default aliases the vault variable C(vault_obsidian_api_key). The spec holds no default, so
+            an inventory that sets C(obsidian_api_key) itself does not need the vault variable.
+      obsidian_timezone:
+        type: str
+        default: Etc/UTC
+        description: Time zone of the container.
+      obsidian_user:
+        type: str
+        default: "{{ operator_user_name | default('operator') }}"
+        description:
+          - Rootless account running Obsidian. Defaults to the operator_user role account.
+          - Falls back to C(operator) when the operator_user role did not run in the play.
+      obsidian_user_uid:
+        type: int
+        default: "{{ operator_user_uid | default(10000) }}"
+        description: Numeric id of C(obsidian_user), used to build C(XDG_RUNTIME_DIR).
+      obsidian_user_home:
+        type: str
+        default: "{{ operator_user_home | default('/home/' ~ obsidian_user) }}"
+        description: Home directory of C(obsidian_user).
+      obsidian_caddy_user_home:
+        type: str
+        default: "{{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}"
+        description:
+          - Home directory of the operator account that runs Caddy. Follows the C(operator_user) role variables, not
+            C(obsidian_user). It is passed to the C(podman_monitoring) route entry point as
+            C(podman_monitoring_user_home).
+          - When the inventory overrides C(podman_monitoring_user_home), set this variable to the same value. It
+            cannot follow that variable itself, because the route entry point receives it under that name.
+  merge_json:
+    short_description: Merge managed keys into a JSON file of Obsidian and write it only when the result differs.
+    description:
+      - Keeps the keys and list items it does not manage. A mapping is merged recursively, a list becomes the union
+        with the existing items first. Enforces the owner and the mode on every run. Sets C(obsidian_merge_changed).
+    options:
+      obsidian_merge_path:
+        type: str
+        required: true
+        description: Path of the JSON file.
+      obsidian_merge_content:
+        type: raw
+        required: true
+        description: Mapping or list to merge into the file.
+      obsidian_merge_mode:
+        type: str
+        required: true
+        description: Mode of the file, for example C("0600").
+      obsidian_merge_secret:
+        type: bool
+        default: false
+        description: Hide the content of the tasks that read or write the file.
+      obsidian_merge_notify:
+        type: list
+        elements: str
+        default: [Restart obsidian]
+        description: Handlers notified when the file changes.
+      obsidian_user:
+        type: str
+        default: "{{ operator_user_name | default('operator') }}"
+        description: Owner and group of the file.

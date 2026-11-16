@@ -1,0 +1,33 @@
+---
+# Image tag of lscr.io/linuxserver/obsidian, without the leading v.
+obsidian_version: "1.15.0-ls152"
+# Release of the Local REST API plugin (github.com/coddingtonbear/obsidian-local-rest-api).
+obsidian_rest_api_version: "5.5.2"
+# SHA256 of the plugin release assets. Update them together with obsidian_rest_api_version.
+obsidian_rest_api_checksums:
+  main.js: sha256:90494b6444c5fede5d12f97346aab839265b5c7a09520fe87b4efc22360b6cd8
+  manifest.json: sha256:2ce46dfa1ee9b6150dd8dd0dbcc68636ee15d5433f9a3fa24e9b6cc8446ebe25
+  styles.css: sha256:19956deaf4d14142381f81fdf92cae8241fd0aa08a1a3a5464b0d007bae1924d
+# Loopback port the web interface is published on (the container always listens on 3000).
+obsidian_web_port: 3000
+# Loopback port the Local REST API is published on (the plugin always listens on 27123 in the container).
+obsidian_rest_api_port: 27123
+# Directory name of the vault, under ~/.obsidian-app/vaults of the account running Obsidian.
+obsidian_vault_name: vault
+# API key of the Local REST API, sent by clients as a bearer token. Aliases the vault variable.
+obsidian_api_key: "{{ vault_obsidian_api_key }}"
+# Time zone of the container.
+obsidian_timezone: Etc/UTC
+# Rootless account running Obsidian. Aliases the operator_user role variables; falls back to the operator_user
+# defaults when that role did not run in the play.
+obsidian_user: "{{ operator_user_name | default('operator') }}"
+# Numeric id of obsidian_user (sets XDG_RUNTIME_DIR).
+obsidian_user_uid: "{{ operator_user_uid | default(10000) }}"
+# Home directory of obsidian_user.
+obsidian_user_home: "{{ operator_user_home | default('/home/' ~ obsidian_user) }}"
+# Home directory of the operator account that runs Caddy. Follows the operator_user role variables, not
+# obsidian_user, so Obsidian may run as another account. The route entry point of podman_monitoring receives it as
+# podman_monitoring_user_home. Do not make it follow podman_monitoring_user_home: that would recurse. When the
+# inventory overrides podman_monitoring_user_home, set this variable to the same value.
+obsidian_caddy_user_home: >-
+  {{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}

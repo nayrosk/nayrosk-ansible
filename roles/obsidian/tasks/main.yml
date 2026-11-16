@@ -1,0 +1,47 @@
+---
+- name: Check the prerequisites of install_base.yml
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ obsidian_user_home }}/.config/containers/systemd"
+    - "{{ obsidian_caddy_user_home }}/.caddy/routes.d"
+  register: obsidian_prerequisites
+
+- name: Assert the prerequisites of install_base.yml
+  ansible.builtin.assert:
+    that: item.stat.isdir | default(false)
+    fail_msg: Run playbooks/install_base.yml first.
+    quiet: true
+  loop: "{{ obsidian_prerequisites.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Check the Local REST API key
+  ansible.builtin.include_tasks: check_api_key.yml
+
+# Obsidian runs rootless as the operator. bootstrap_connection sets ansible_become as a host fact (false when
+# it connects as root), which beats the become keyword: include parameters are the only scoped way to outrank
+# it, so the switch to the operator is passed as include vars.
+- name: Install Obsidian as the operator
+  ansible.builtin.include_tasks: operator.yml
+  vars:
+    ansible_become: true
+    ansible_become_user: "{{ obsidian_user }}"
+
+# The route entry point validates the Caddyfile and restarts Caddy when the route changed. The container is
+# told its subfolder (SUBFOLDER), so the prefix is kept (handle, not handle_path). The redirect sits in a handle
+# block because a bare redir is ordered before basic_auth and would answer without credentials.
+- name: Install the Caddy route for the web interface
+  ansible.builtin.include_role:
+    name: podman_monitoring
+    tasks_from: route
+  vars:
+    podman_monitoring_route_name: obsidian
+    podman_monitoring_user_home: "{{ obsidian_caddy_user_home }}"
+    podman_monitoring_route_content: |
+      handle /obsidian {
+      	redir * /obsidian/ 308
+      }
+      handle /obsidian/* {
+      	reverse_proxy host.containers.internal:{{ obsidian_web_port }}
+      }
