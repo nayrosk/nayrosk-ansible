@@ -16,6 +16,14 @@
     fail_msg: The local_ca role must run first in the same play (for example --tags local_ca,podman_monitoring).
     quiet: true
 
+- name: Check the paths that skip the Caddy basic auth
+  ansible.builtin.assert:
+    that: item is match('^/[^\\s]*$')
+    fail_msg: >-
+      Each entry of podman_monitoring_caddy_basic_auth_skip_paths starts with / and holds no whitespace: {{ item }}
+    quiet: true
+  loop: "{{ podman_monitoring_caddy_basic_auth_skip_paths }}"
+
 - name: Build the Caddy site addresses
   ansible.builtin.set_fact:
     podman_monitoring_caddy_site_addresses: >-

@@ -13,13 +13,15 @@ host.
 | `playbooks/install_rocm.yml` | `gpu` group | `bootstrap_connection`, `rocm`, `gpu_metrics_exporter` |
 | `playbooks/install_obsidian.yml` | `obsidian` group | `bootstrap_connection`, `obsidian` |
 | `playbooks/install_libvirt.yml` | `libvirt` group | `bootstrap_connection`, `libvirt`, `libvirt_exporter` |
+| `playbooks/install_opencode_route.yml` | `opencode` group | `bootstrap_connection`, `opencode_route` |
 
 The optional playbooks run after `install_base.yml`: they reuse the operator account and add their route
 to its rootless Caddy. `rocm` installs the ROCm stack with `amdgpu-install` and never reboots.
 `gpu_metrics_exporter` serves the AMD Device Metrics Exporter at `https://<host>/gpu_metrics`. `obsidian` runs
 the Obsidian application at `https://<host>/obsidian/` and its Local REST API on the host loopback. `libvirt`
 turns the host into a KVM hypervisor managed by the operator over SSH, with an optional LAN bridge and PCI
-passthrough. `libvirt_exporter` serves the libvirt metrics at `https://<host>/libvirt_metrics`.
+passthrough. `libvirt_exporter` serves the libvirt metrics at `https://<host>/libvirt_metrics`. `opencode_route` serves the
+operator's opencode server at `https://<host>/opencode/`.
 
 ## Playbook flow
 
@@ -104,6 +106,10 @@ flowchart LR
   `/obsidian/` through a `routes.d` snippet, and the Local REST API of the vault (`127.0.0.1:27123`), which
   has no Caddy route and no firewall rule. Local clients authenticate to the API with a bearer key. The vault
   is a directory of the operator, `~/.obsidian-app/vaults/<name>`, mounted in the container.
+- `playbooks/install_opencode_route.yml` adds the route `/opencode/*` to the opencode server of the operator,
+  which runs outside this repo on the host loopback (`127.0.0.1:4096` by default). Caddy strips the prefix.
+  opencode checks its own basic auth on every API request, so `podman_monitoring_caddy_basic_auth_skip_paths`
+  lists the route and the Caddy basic auth skips it. Caddy still logs the 401 answers for fail2ban.
 - The `monitoring` network exists for future rootless services. Caddy is not on it yet. See
   [operations](operations.md#decisions-and-known-limits).
 - fail2ban reads the Caddy JSON access log and bans clients that fail basic auth, and bans SSH brute force.

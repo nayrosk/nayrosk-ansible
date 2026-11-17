@@ -21,7 +21,8 @@ account. Caddy serves the node_exporter metrics over HTTPS with basic auth.
   - the site answers on the hostname, the local IP, the public IP and
     `podman_monitoring_caddy_extra_site_addresses` (IPv6 addresses are bracketed), with the local_ca
     server certificate (no ACME: Caddy logs "skipping automatic certificate management" for each name);
-  - basic auth on every route, `/node_exporter` proxied to node_exporter `/metrics`, every other path 404;
+  - basic auth on every route except the paths of `podman_monitoring_caddy_basic_auth_skip_paths`,
+    `/node_exporter` proxied to node_exporter `/metrics`, every other path 404;
   - HSTS, `X-Content-Type-Options nosniff`, `Referrer-Policy no-referrer`;
   - JSON access log in `~/.caddy/logs/access.log` (read by the fail2ban `caddy-auth` jail);
   - health endpoint `http://127.0.0.1:8081/healthz`, bound to the container loopback, not published.
@@ -120,6 +121,7 @@ it is harmless.
 | `podman_monitoring_node_exporter_listen` | str | `127.0.0.1:9100` | no | Address and port node_exporter listens on. Must stay a loopback address. Caddy proxies to `host.containers.internal`, which pasta maps to the host loopback only. |
 | `podman_monitoring_caddy_basic_auth_user` | str | `operator` | no | Basic auth user protecting every Caddy route. |
 | `podman_monitoring_caddy_basic_auth_hash` | str | secret | no | Bcrypt hash of the basic auth password, as printed by `caddy hash-password`. Defaults to the vault variable `vault_caddy_basic_auth_hash`, which must then be set. |
+| `podman_monitoring_caddy_basic_auth_skip_paths` | list of str | `[]` | no | Path matchers that the Caddy basic auth skips, for example `/opencode/*`. Each one starts with `/` and holds no whitespace. Only for routes whose backend authenticates every request itself. Caddy still logs the 401 answers of the backend, so the fail2ban `caddy-auth` jail still counts them. |
 | `podman_monitoring_caddy_extra_site_addresses` | list of str | `[]` | no | Site addresses served by Caddy in addition to the hostname, the local IP and the public IP. |
 | `podman_monitoring_host_loopback_ip` | str | `169.254.1.3` | no | Link-local address that the pasta instance of the Caddy container maps to the host loopback. `host.containers.internal` resolves to it inside Caddy. It must differ from podman's own `169.254.1.2`. |
 | `podman_monitoring_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Rootless account running Caddy. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. |

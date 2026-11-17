@@ -1,0 +1,10 @@
+---
+# Path prefix of the route. Caddy strips it and proxies the rest to opencode.
+opencode_route_path: /opencode
+# Loopback port opencode listens on (opencode serve --hostname 127.0.0.1 --port <port>).
+opencode_route_port: 4096
+# Home directory of the operator account that runs Caddy. Do not make it follow podman_monitoring_user_home:
+# the route entry point receives it under that name, which would recurse. When the inventory overrides
+# podman_monitoring_user_home, set this variable to the same value.
+opencode_route_caddy_user_home: >-
+  {{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}

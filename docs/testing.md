@@ -47,7 +47,10 @@ flowchart LR
     VO --> L1["install_libvirt.yml<br/>run 1"]
     L1 --> L2["install_libvirt.yml<br/>run 2, idempotence"]
     L2 --> VL[verify_libvirt.yml]
-    VL --> T[Teardown]
+    VL --> C1["install_opencode_route.yml<br/>run 1"]
+    C1 --> C2["install_opencode_route.yml<br/>run 2, idempotence"]
+    C2 --> VC[verify_opencode_route.yml]
+    VC --> T[Teardown]
 ```
 
 - Run 1 connects as the `ubuntu` user with its password and `sudo`, as on a stock install, and asserts
@@ -64,8 +67,11 @@ flowchart LR
   rollback timer (the QEMU user network gives the bridge the same lease, so SSH keeps working), run 2 must not
   touch it. Passthrough stays off: the VM has no device to pass through. The rollback itself was exercised by
   hand on a kept VM (`make e2e KEEP=1`, then a run that forces the post-apply check to fail).
+- `install_opencode_route.yml` then runs twice too, the VM being in the `opencode` group. The e2e inventory
+  lists `/opencode/*` in `podman_monitoring_caddy_basic_auth_skip_paths`. opencode is not installed in the VM.
 - Logs go to `artifacts/e2e/` (`run1.log`, `run2.log`, `verify.log`, `obsidian-run1.log`, `obsidian-run2.log`,
-  `verify-obsidian.log`, `libvirt-run1.log`, `libvirt-run2.log`, `verify-libvirt.log`, `vm-console.log`).
+  `verify-obsidian.log`, `libvirt-run1.log`, `libvirt-run2.log`, `verify-libvirt.log`, `opencode-run1.log`,
+  `opencode-run2.log`, `verify-opencode.log`, `vm-console.log`).
 
 ## What verify checks
 
@@ -104,6 +110,12 @@ flowchart LR
 - The virtio-win ISO matches the pinned SHA256.
 - The `libvirt-exporter` unit is active, `/libvirt_metrics` answers 401 without credentials and serves
   `libvirt_up 1` with them.
+
+`tests/e2e/verify_opencode_route.yml` starts a stub HTTP server on the opencode port and asserts:
+
+- `/opencode/api/info` answers 200 without the Caddy credentials, with the stub body: Caddy skips its basic
+  auth on the route and strips the prefix.
+- `/node_exporter`, `/opencode` and `/opencodex/api/info` still answer 401 without credentials.
 
 ## Zombie check
 

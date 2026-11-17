@@ -8,6 +8,9 @@ podman_monitoring_node_exporter_version: "1.12.1"
 podman_monitoring_node_exporter_listen: 127.0.0.1:9100
 # Basic auth user protecting every Caddy route.
 podman_monitoring_caddy_basic_auth_user: operator
+# Path matchers that the Caddy basic auth skips, for example /opencode/*. Only for routes whose backend
+# authenticates every request itself.
+podman_monitoring_caddy_basic_auth_skip_paths: []
 # Bcrypt hash of the basic auth password (caddy hash-password). Aliases the vault variable.
 podman_monitoring_caddy_basic_auth_hash: "{{ vault_caddy_basic_auth_hash }}"
 # Site addresses served by Caddy in addition to the hostname, the local IP and the public IP.

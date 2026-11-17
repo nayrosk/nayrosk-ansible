@@ -19,7 +19,12 @@ http:// {
 		X-Content-Type-Options nosniff
 		Referrer-Policy no-referrer
 	}
+{% if podman_monitoring_caddy_basic_auth_skip_paths | length > 0 %}
+	@basic_auth not path {{ podman_monitoring_caddy_basic_auth_skip_paths | join(' ') }}
+	basic_auth @basic_auth {
+{% else %}
 	basic_auth {
+{% endif %}
 		{{ podman_monitoring_caddy_basic_auth_user }} {{ podman_monitoring_caddy_basic_auth_hash }}
 	}
 	handle_path /node_exporter* {

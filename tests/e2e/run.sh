@@ -4,7 +4,8 @@
 #
 #   tests/e2e/run.sh          run 1 (first_install), run 2 (must be idempotent), verify, then
 #                             install_obsidian.yml twice (the second run must be idempotent), verify,
-#                             install_libvirt.yml twice (same), verify, teardown
+#                             install_libvirt.yml twice (same), verify, install_opencode_route.yml
+#                             twice (same), verify, teardown
 #   tests/e2e/run.sh clean    remove the VM container and its overlay disk
 #
 # Environment: CONTROLLER_IMAGE, VM_IMAGE (built by make), KEEP=1 keeps the VM running afterwards,
@@ -251,6 +252,22 @@ verify_libvirt() {
   playbook tests/e2e/verify_libvirt.yml 2>&1 | tee "$LOG_DIR/verify-libvirt.log"
 }
 
+opencode_run_1() {
+  log "opencode route run 1"
+  playbook playbooks/install_opencode_route.yml 2>&1 | tee "$LOG_DIR/opencode-run1.log"
+}
+
+opencode_run_2() {
+  log "opencode route run 2 (idempotence)"
+  playbook playbooks/install_opencode_route.yml 2>&1 | tee "$LOG_DIR/opencode-run2.log" \
+    | tests/e2e/check-idempotence.sh
+}
+
+verify_opencode() {
+  log "verify opencode route"
+  playbook tests/e2e/verify_opencode_route.yml 2>&1 | tee "$LOG_DIR/verify-opencode.log"
+}
+
 main() {
   if [ "${1:-}" = clean ]; then
     clean
@@ -273,6 +290,9 @@ main() {
   libvirt_run_1
   libvirt_run_2
   verify_libvirt
+  opencode_run_1
+  opencode_run_2
+  verify_opencode
 }
 
 main "$@"

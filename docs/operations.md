@@ -470,6 +470,47 @@ SSH tunnel.
   both `defaults/main.yml` and `meta/argument_specs.yml`, run `make docs`, then run the playbook.
 - Logs: `journalctl --user -u obsidian.service` as the operator.
 
+## opencode
+
+`playbooks/install_opencode_route.yml` targets the `opencode` group of the inventory. It publishes the opencode
+server of the operator at `https://<host>/opencode/`. opencode is installed and run by hand, outside this repo.
+
+1. Run opencode as the operator on a fixed loopback port with a password. With the shared service:
+
+   ```bash
+   opencode service set password '<a long random password>'
+   opencode serve --service --hostname 127.0.0.1 --port 4096
+   ```
+
+   Keep the `serve` command in a user unit so it starts at boot. opencode then answers every `/api` request
+   with 401 unless it carries the basic auth user `opencode` and that password.
+
+2. Let the Caddy basic auth skip the route, in `group_vars/all/vars.yml`, and run `install_base.yml`. A request
+   carries one `Authorization` header, so it cannot pass both basic auths.
+
+   ```yaml
+   podman_monitoring_caddy_basic_auth_skip_paths:
+     - /opencode/*
+   ```
+
+3. Add the host to the `opencode` group in `hosts.yml` and run:
+
+   ```bash
+   make run PLAYBOOK=playbooks/install_opencode_route.yml INVENTORY=inventories/prod LIMIT=server1
+   ```
+
+Clients connect to `https://<host>/opencode` with the user `opencode` and the opencode password. In the
+OpenCode Mobile app, add a manual connection with that URL and credentials, and import
+`artifacts/<host>/ca.crt` as its custom CA. QR pairing (`opencode pair`) does not work through the route: its
+link points at the root of the host and drops the prefix.
+
+- The route is reachable from the internet when the public IP forwards 443. Whoever has the opencode password
+  runs commands as the operator. Use a long random password. The fail2ban `caddy-auth` jail bans clients after
+  failed attempts on the route too.
+- The opencode web interface does not work under the prefix: it loads its assets from the root. Use it through
+  an SSH tunnel to the loopback port.
+- Change the port: set `opencode_route_port` and run the playbook.
+
 ## Decisions and known limits
 
 - Whoever passes the Caddy basic auth on `/obsidian/` controls a desktop session in the Obsidian container,

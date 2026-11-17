@@ -15,6 +15,7 @@ top of it.
 | `playbooks/install_base.yml` | The hardened host: key-only SSH, firewall, fail2ban, DNS over TLS, automatic updates, and a rootless Caddy that serves the host metrics over HTTPS. |
 | `playbooks/install_rocm.yml` | The AMD ROCm stack and GPU metrics, on hosts with a supported AMD GPU. |
 | `playbooks/install_obsidian.yml` | A headless Obsidian with its graph view in the browser and a REST API on the host loopback. |
+| `playbooks/install_opencode_route.yml` | A Caddy route to the opencode server of the operator, for remote clients such as the OpenCode Mobile app. opencode itself is installed by hand. |
 | `playbooks/install_libvirt.yml` | A QEMU/KVM hypervisor managed with virsh and virt-manager over SSH, with Windows and Linux guest support, an optional LAN bridge, PCI passthrough and libvirt metrics. |
 
 Every playbook is idempotent: the same command does the first run and every later one. Run `install_base.yml`
@@ -38,7 +39,7 @@ optional playbooks. `make help` lists every target.
 ## Documentation
 
 - [Architecture](docs/architecture.md): the playbooks, the role order, the network layout and how Ansible connects.
-- [Operations](docs/operations.md): first run, vault, certificates, SSH keys, lockout recovery, ROCm, virtual machines, Obsidian.
+- [Operations](docs/operations.md): first run, vault, certificates, SSH keys, lockout recovery, ROCm, virtual machines, Obsidian, opencode.
 - [Roles and variables](docs/roles.md): every role and its variables, generated from the argument specs.
 - [Testing](docs/testing.md): lint, unit checks and the end-to-end test in a KVM virtual machine.
 
