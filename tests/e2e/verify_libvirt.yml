@@ -20,6 +20,17 @@
       - netcat-openbsd
       - python3-libvirt
       - python3-lxml
+    verify_ca_path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
+    verify_caddy_password: e2e-password
+    verify_caddy_credentials: "{{ podman_monitoring_caddy_basic_auth_user }}:{{ verify_caddy_password }}"
+    verify_metrics_url: "https://{{ hostname }}:8443/libvirt_metrics"
+    verify_caddy_curl:
+      - curl
+      - -s
+      - --cacert
+      - "{{ verify_ca_path }}"
+      - --resolve
+      - "{{ hostname }}:8443:127.0.0.1"
   roles:
     - role: bootstrap_connection
       tags: [always, bootstrap_connection]
@@ -117,7 +128,13 @@
       changed_when: false
       become: true
 
-    # The e2e VM has no bridge: the NAT uplink is the interface of the default route, ens3 on the QEMU NIC.
+    # The NAT uplink is the interface of the default route: ens3 on the e2e VM, br0 once a bridge is enabled.
+    - name: Read the interface of the default route
+      ansible.builtin.command:
+        argv: [ip, -j, route, show, default]
+      register: verify_libvirt_default_route
+      changed_when: false
+
     - name: Check the UFW rules of the NAT network
       ansible.builtin.assert:
         that: verify_libvirt_ufw.stdout is search(item, multiline=true)
@@ -127,7 +144,7 @@
         - '^ufw allow in on virbr0 to any port 67 proto udp\b'
         - '^ufw allow in on virbr0 to any port 53 proto udp\b'
         - '^ufw allow in on virbr0 to any port 53 proto tcp\b'
-        - '^ufw route allow in on virbr0 out on ens3\b'
+        - "^ufw route allow in on virbr0 out on {{ (verify_libvirt_default_route.stdout | from_json | first).dev }}\\b"
 
     - name: Read the virtio-win ISO checksum
       ansible.builtin.stat:
@@ -143,4 +160,44 @@
           - verify_libvirt_virtio_win.stat.checksum == libvirt_virtio_win_sha256
           - verify_libvirt_virtio_win.stat.mode == '0644'
         fail_msg: The virtio-win ISO is missing or does not match the pinned checksum
+        quiet: true
+
+    - name: Read the state of the libvirt exporter
+      ansible.builtin.systemd_service:
+        name: libvirt-exporter.service
+      register: verify_libvirt_exporter_unit
+
+    - name: Check that the libvirt exporter runs
+      ansible.builtin.assert:
+        that: verify_libvirt_exporter_unit.status.ActiveState == 'active'
+        fail_msg: "libvirt-exporter.service is {{ verify_libvirt_exporter_unit.status.ActiveState }}"
+        quiet: true
+
+    - name: Request the libvirt metrics through Caddy without credentials
+      ansible.builtin.command:
+        argv: "{{ verify_caddy_curl + ['-o', '/dev/null', '-w', '%{http_code}', verify_metrics_url] }}"
+      delegate_to: localhost
+      become: false
+      register: verify_libvirt_metrics_noauth
+      changed_when: false
+
+    - name: Request the libvirt metrics through Caddy with credentials
+      ansible.builtin.command:
+        argv: "{{ verify_caddy_curl + ['-f', '-u', verify_caddy_credentials, verify_metrics_url] }}"
+      delegate_to: localhost
+      become: false
+      register: verify_libvirt_metrics
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: verify_libvirt_metrics.rc == 0
+
+    - name: Check the libvirt metrics and their basic auth
+      ansible.builtin.assert:
+        that:
+          - verify_libvirt_metrics_noauth.stdout == '401'
+          - verify_libvirt_metrics.stdout is search('(?m)^libvirt_up 1$')
+        fail_msg: >-
+          Without credentials: {{ verify_libvirt_metrics_noauth.stdout }}. With credentials, libvirt_up 1 is
+          missing from the metrics.
         quiet: true

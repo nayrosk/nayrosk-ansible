@@ -1,0 +1,56 @@
+---
+- name: Check the prerequisites of install_base.yml and the libvirt role
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /etc/containers/systemd
+    - "{{ libvirt_exporter_operator_home }}/.caddy/routes.d"
+    - /run/libvirt/libvirt-sock-ro
+  register: libvirt_exporter_prerequisites
+
+- name: Assert the prerequisites of install_base.yml and the libvirt role
+  ansible.builtin.assert:
+    that: item.stat.exists
+    fail_msg: "{{ item.item }} is missing. Run playbooks/install_base.yml, then the libvirt role, first."
+    quiet: true
+  loop: "{{ libvirt_exporter_prerequisites.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Pull the libvirt exporter image
+  containers.podman.podman_image:
+    name: ghcr.io/inovex/prometheus-libvirt-exporter
+    tag: "v{{ libvirt_exporter_version }}"
+    state: present
+
+- name: Install the exporter quadlet
+  ansible.builtin.template:
+    src: libvirt-exporter.container.j2
+    dest: /etc/containers/systemd/libvirt-exporter.container
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart libvirt-exporter
+
+- name: Apply pending restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Start the libvirt exporter
+  ansible.builtin.systemd_service:
+    name: libvirt-exporter.service
+    state: started
+    daemon_reload: true
+
+# The route entry point validates the Caddyfile and restarts Caddy when the route changed.
+- name: Install the Caddy route for the exporter
+  ansible.builtin.include_role:
+    name: podman_monitoring
+    tasks_from: route
+  vars:
+    podman_monitoring_route_name: libvirt_metrics
+    podman_monitoring_user_home: "{{ libvirt_exporter_operator_home }}"
+    podman_monitoring_route_content: |
+      handle_path /libvirt_metrics* {
+      	rewrite * /metrics
+      	reverse_proxy host.containers.internal:{{ libvirt_exporter_listen_port }}
+      }

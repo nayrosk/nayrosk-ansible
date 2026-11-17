@@ -8,3 +8,5 @@
       tags: [always, bootstrap_connection]
     - role: libvirt
       tags: [libvirt]
+    - role: libvirt_exporter
+      tags: [libvirt_exporter]

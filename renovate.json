@@ -53,6 +53,15 @@
       "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+\\.\\d+)$"
     },
     {
+      "description": "Prometheus libvirt exporter image tag (ghcr.io/inovex/prometheus-libvirt-exporter:v<version>)",
+      "customType": "regex",
+      "managerFilePatterns": ["/^roles/libvirt_exporter/defaults/main\\.yml$/"],
+      "matchStrings": ["libvirt_exporter_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "ghcr.io/inovex/prometheus-libvirt-exporter",
+      "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+\\.\\d+)$"
+    },
+    {
       "description": "Obsidian image tag (lscr.io/linuxserver/obsidian:v<version>)",
       "customType": "regex",
       "managerFilePatterns": ["/^roles/obsidian/defaults/main\\.yml$/"],

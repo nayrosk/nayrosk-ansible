@@ -1,0 +1,23 @@
+# Managed by Ansible (role libvirt_exporter).
+[Unit]
+Description=Prometheus libvirt exporter
+Requires=libvirtd.socket
+After=libvirtd.socket libvirtd.service network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/inovex/prometheus-libvirt-exporter:v{{ libvirt_exporter_version }}
+HostName={{ hostname }}
+# The read-only libvirt socket (root, mode 0666) is all the exporter needs: no privileged mode. The image is
+# built from scratch and has no /var/run symlink: mount the socket where the exporter looks by default.
+Volume=/run/libvirt/libvirt-sock-ro:/var/run/libvirt/libvirt-sock-ro:ro
+PublishPort=127.0.0.1:{{ libvirt_exporter_listen_port }}:9177
+# No health check: the image has no shell, wget or curl. Restart=always covers a crash.
+
+[Service]
+Restart=always
+# The exporter does not handle SIGTERM: podman reports 128+15 when systemd stops it. That is a clean stop.
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target

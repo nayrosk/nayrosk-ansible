@@ -1,0 +1,9 @@
+---
+# Image tag of ghcr.io/inovex/prometheus-libvirt-exporter, without the leading v.
+libvirt_exporter_version: "2.6.2"
+# Loopback port the exporter is published on (the container always listens on 9177).
+libvirt_exporter_listen_port: 9177
+# Home directory of the operator account that runs Caddy. Follows the operator_user role variables and falls back to
+# the operator_user defaults. The route entry point of podman_monitoring receives it as podman_monitoring_user_home.
+libvirt_exporter_operator_home: >-
+  {{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}

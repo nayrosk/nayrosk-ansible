@@ -1,0 +1,21 @@
+---
+argument_specs:
+  main:
+    short_description: Run the Prometheus libvirt exporter in a rootful Podman quadlet behind Caddy.
+    description:
+      - Pulls the inovex prometheus-libvirt-exporter image, installs the C(libvirt-exporter) quadlet with the
+        read-only libvirt socket, and adds the Caddy route C(/libvirt_metrics) through the C(route) entry point of
+        C(podman_monitoring).
+      - Needs C(playbooks/install_base.yml) and the C(libvirt) role to have run.
+    options:
+      libvirt_exporter_version:
+        type: str
+        description: Image tag of C(ghcr.io/inovex/prometheus-libvirt-exporter), without the leading C(v).
+      libvirt_exporter_listen_port:
+        type: int
+        default: 9177
+        description: Loopback port the exporter is published on. The container always listens on 9177.
+      libvirt_exporter_operator_home:
+        type: str
+        default: "{{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}"
+        description: Home directory of the operator account that runs Caddy, where the route snippet goes.
