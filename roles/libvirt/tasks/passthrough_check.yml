@@ -1,0 +1,35 @@
+---
+# Passthrough decisions. Pure logic, also run by tests/unit/libvirt_passthrough.yml.
+# Inputs: libvirt_passthrough_cpu_vendor (AuthenticAMD or GenuineIntel), libvirt_passthrough_kernel_args (empty
+# picks by vendor), libvirt_passthrough_vfio_ids, libvirt_passthrough_devices (list of {address, id, group}).
+# Outputs: libvirt_passthrough_kernel_args_effective, libvirt_passthrough_warnings.
+#
+# AMD hosts enable the IOMMU by default; iommu=pt keeps host devices out of translation for speed. Intel hosts
+# need intel_iommu=on as well. A device can only go to a VM together with every other device of its IOMMU group.
+- name: Decide the kernel arguments and check the IOMMU groups
+  vars:
+    libvirt_passthrough_default_args: >-
+      {{ ['intel_iommu=on', 'iommu=pt'] if libvirt_passthrough_cpu_vendor == 'GenuineIntel' else ['iommu=pt'] }}
+  ansible.builtin.set_fact:
+    libvirt_passthrough_kernel_args_effective: >-
+      {{ libvirt_passthrough_kernel_args if libvirt_passthrough_kernel_args | length > 0
+         else libvirt_passthrough_default_args }}
+    libvirt_passthrough_warnings: >-
+      {%- set warnings = [] -%}
+      {%- for pci_id in libvirt_passthrough_vfio_ids -%}
+      {%-   set matched = libvirt_passthrough_devices | selectattr('id', 'equalto', pci_id) | list -%}
+      {%-   if matched | length == 0 -%}
+      {%-     set _ = warnings.append(pci_id ~ ' is in libvirt_passthrough_vfio_ids but no PCI device of the host'
+                ~ ' has this id.') -%}
+      {%-   endif -%}
+      {%-   for dev in matched -%}
+      {%-     set others = libvirt_passthrough_devices | selectattr('group', 'equalto', dev.group)
+                | rejectattr('id', 'in', libvirt_passthrough_vfio_ids) | map(attribute='address') | sort | list -%}
+      {%-     if others | length > 0 -%}
+      {%-       set _ = warnings.append(pci_id ~ ' (' ~ dev.address ~ ') shares IOMMU group ' ~ dev.group ~ ' with '
+                  ~ others | join(', ') ~ ', which are not in libvirt_passthrough_vfio_ids: they must be passed to'
+                  ~ ' the same VM or the VM will not start.') -%}
+      {%-     endif -%}
+      {%-   endfor -%}
+      {%- endfor -%}
+      {{ warnings }}

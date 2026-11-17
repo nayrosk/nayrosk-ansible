@@ -80,7 +80,7 @@ unit: controller ## Run the unit checks on the controller (no VM)
 	$(CONTROLLER_RUN) ansible-playbook -i localhost, tests/unit/fail2ban_ignoreip.yml \
 		tests/unit/rocm_hardware_check.yml tests/unit/rocm_driver_state.yml tests/unit/gpu_metrics_exporter_fields.yml tests/unit/rocm_install_needed.yml \
 		tests/unit/obsidian_api_key.yml tests/unit/obsidian_merge_json.yml \
-		tests/unit/libvirt_bridge_config.yml
+		tests/unit/libvirt_bridge_config.yml tests/unit/libvirt_passthrough.yml
 
 vault-edit: controller ## Edit the inventory vault, creating it when missing (VAULT_FILE=)
 	@if [ -f .vault-pass ]; then vault_opt="--vault-password-file .vault-pass"; else vault_opt="--ask-vault-pass"; fi; \

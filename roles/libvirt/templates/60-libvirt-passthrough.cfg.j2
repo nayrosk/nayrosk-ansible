@@ -1,0 +1,2 @@
+# Managed by Ansible (role libvirt). Kernel arguments for PCI passthrough.
+GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT {{ libvirt_passthrough_kernel_args_effective | join(' ') }}"
