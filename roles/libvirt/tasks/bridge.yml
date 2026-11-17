@@ -1,0 +1,75 @@
+---
+- name: Read the uplink and its netplan config
+  ansible.builtin.include_tasks: bridge_gather.yml
+
+- name: Build the bridge netplan document
+  ansible.builtin.include_tasks: bridge_config.yml
+  vars:
+    libvirt_bridge_interface: "{{ libvirt_bridge_netplan_id }}"
+
+# The apply must run inline, under its rollback guard, not as a handler at the end of the play: compare the
+# rendered file with the installed one instead of registering a change.
+- name: Read the installed bridge netplan file
+  ansible.builtin.stat:
+    path: /etc/netplan/60-libvirt-bridge.yaml
+    checksum_algorithm: sha256
+  register: libvirt_bridge_file
+
+- name: Apply the bridge with automatic rollback
+  ansible.builtin.include_tasks: bridge_apply.yml
+  when: >-
+    not libvirt_bridge_file.stat.exists
+    or libvirt_bridge_file.stat.checksum
+       != lookup('ansible.builtin.template', '60-libvirt-bridge.yaml.j2') | hash('sha256')
+
+- name: Keep bridged traffic out of iptables when br_netfilter loads
+  ansible.builtin.template:
+    src: libvirt-br-netfilter.conf.j2
+    dest: /etc/modprobe.d/libvirt-br-netfilter.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Read whether br_netfilter is loaded
+  ansible.builtin.stat:
+    path: /proc/sys/net/bridge/bridge-nf-call-iptables
+  register: libvirt_bridge_nf_loaded
+
+- name: Keep bridged traffic out of iptables now
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "0"
+    sysctl_set: true
+    state: present
+    sysctl_file: /etc/sysctl.d/60-libvirt-bridge.conf
+  loop:
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-ip6tables
+    - net.bridge.bridge-nf-call-arptables
+  when: libvirt_bridge_nf_loaded.stat.exists
+
+- name: Define the libvirt network of the bridge
+  community.libvirt.virt_net:
+    command: define
+    name: "{{ libvirt_bridge_network_name }}"
+    xml: "{{ lookup('ansible.builtin.template', 'host-bridge.xml.j2') }}"
+
+# virt_net ignores autostart when state is set in the same call.
+- name: Start the libvirt network of the bridge
+  community.libvirt.virt_net:
+    name: "{{ libvirt_bridge_network_name }}"
+    state: active
+
+- name: Start the libvirt network of the bridge at boot
+  community.libvirt.virt_net:
+    name: "{{ libvirt_bridge_network_name }}"
+    autostart: true
+
+# NAT guests now leave through the bridge (libvirt_nat_uplink). The rule for the bridged interface is stale.
+- name: Remove the NAT route rule of the bridged interface
+  community.general.ufw:
+    rule: allow
+    route: true
+    interface_in: "{{ libvirt_nat_bridge }}"
+    interface_out: "{{ libvirt_bridge_uplink }}"
+    delete: true

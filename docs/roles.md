@@ -201,10 +201,28 @@ Install QEMU/KVM and libvirt, managed by the operator account over SSH.
 | `libvirt_nat_uplink` | str | `{{ libvirt_bridge_name if libvirt_bridge_enabled \| bool e...` (truncated, see `defaults/main.yml`) | no | Interface NAT guests leave through, used in the UFW route rule. |
 | `libvirt_bridge_enabled` | bool | `false` | no | Bridge the uplink so VMs get their own LAN address. Rewrites the host network config. |
 | `libvirt_bridge_name` | str | `br0` | no | Name of the LAN bridge. |
+| `libvirt_bridge_interface` | str | `""` | no | Interface to bridge. Empty picks the bridge member when the bridge exists, else the interface of the default route. |
+| `libvirt_bridge_network_name` | str | `host-bridge` | no | libvirt network that attaches VMs to the bridge. |
+| `libvirt_bridge_rollback_timeout` | int | `120` | no | Seconds before the host restores its previous netplan config when the controller has not confirmed the bridge. |
+| `libvirt_bridge_state_dir` | str | `/var/lib/libvirt-bridge` | no | Directory where the rollback keeps the previous bridge file. |
 | `libvirt_virtio_win_enabled` | bool | `true` | no | Download the virtio-win driver ISO. Set to false on a host without Windows guests. |
 | `libvirt_virtio_win_version` | str | pinned in `defaults/main.yml` | no | virtio-win release, the directory name under `archive-virtio/` on fedorapeople.org, for example `0.1.302-1`. |
 | `libvirt_virtio_win_sha256` | str | `303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203...` (truncated, see `defaults/main.yml`) | no | SHA256 of the ISO of that release. |
 | `libvirt_virtio_win_dir` | str | `/var/lib/libvirt/images` | no | Directory the ISO is saved to, as `virtio-win-<version without the build>.iso`. |
+| `libvirt_passthrough_enabled` | bool | `false` | no | Prepare the host for PCI passthrough. |
+| `libvirt_passthrough_vfio_ids` | list of str | `[]` | no | `vendor:device` ids bound to vfio-pci at boot. Empty leaves every device to its driver; libvirt detaches a device when a VM that uses it with `managed="yes"` starts. |
+| `libvirt_passthrough_kernel_args` | list of str | `[]` | no | Kernel arguments added to GRUB. Empty picks by CPU vendor, `iommu=pt` on AMD and `intel_iommu=on iommu=pt` on Intel. |
+| `libvirt_passthrough_softdep_drivers` | list of str | `[amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd]` | no | Drivers that wait for vfio-pci at boot, so it claims the listed devices first. |
+
+## libvirt_exporter
+
+Run the Prometheus libvirt exporter in a rootful Podman quadlet behind Caddy.
+
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `libvirt_exporter_version` | str | pinned in `defaults/main.yml` | no | Image tag of `ghcr.io/inovex/prometheus-libvirt-exporter`, without the leading `v`. |
+| `libvirt_exporter_listen_port` | int | `9177` | no | Loopback port the exporter is published on. The container always listens on 9177. |
+| `libvirt_exporter_operator_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy, where the route snippet goes. |
 
 ## obsidian
 

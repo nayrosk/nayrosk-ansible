@@ -36,6 +36,14 @@ libvirt_nat_uplink: >-
 # LAN bridge on the uplink, so VMs get their own LAN address. Opt-in: it rewrites the host network config.
 libvirt_bridge_enabled: false
 libvirt_bridge_name: br0
+# Interface to bridge. Empty: the bridge member when the bridge exists, else the interface of the default route.
+libvirt_bridge_interface: ""
+# libvirt network that attaches VMs to the bridge.
+libvirt_bridge_network_name: host-bridge
+# Seconds before the host restores its previous netplan config if the controller has not confirmed the bridge.
+libvirt_bridge_rollback_timeout: 120
+# Where the rollback keeps the previous bridge file.
+libvirt_bridge_state_dir: /var/lib/libvirt-bridge
 # virtio-win driver ISO for Windows guests (storage, network, balloon, guest agent). Renovate cannot track it:
 # bump the version and the checksum by hand from
 # https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/ (upstream publishes no ISO
@@ -44,3 +52,11 @@ libvirt_virtio_win_enabled: true
 libvirt_virtio_win_version: "0.1.302-1"
 libvirt_virtio_win_sha256: 303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d
 libvirt_virtio_win_dir: /var/lib/libvirt/images
+# PCI passthrough: kernel arguments, VFIO modules, optional vfio-pci binding at boot. Never reboots.
+libvirt_passthrough_enabled: false
+# vendor:device ids bound to vfio-pci at boot. Empty: libvirt detaches devices when a VM using them starts.
+libvirt_passthrough_vfio_ids: []
+# Kernel arguments. Empty picks by CPU vendor: iommu=pt on AMD, intel_iommu=on iommu=pt on Intel.
+libvirt_passthrough_kernel_args: []
+# Drivers that must wait for vfio-pci at boot, so it claims the listed devices first.
+libvirt_passthrough_softdep_drivers: [amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd]

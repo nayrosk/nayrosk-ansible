@@ -1,8 +1,13 @@
 ---
-- name: Keep the NAT network active and started at boot
+# virt_net ignores autostart when state is set in the same call.
+- name: Keep the NAT network active
   community.libvirt.virt_net:
     name: "{{ libvirt_nat_network_name }}"
     state: active
+
+- name: Start the NAT network at boot
+  community.libvirt.virt_net:
+    name: "{{ libvirt_nat_network_name }}"
     autostart: true
 
 # UFW denies incoming traffic and drops forwarded traffic. libvirt's own nftables rules live in another

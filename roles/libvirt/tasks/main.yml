@@ -20,3 +20,11 @@
 - name: Download the virtio-win driver ISO
   ansible.builtin.include_tasks: virtio_win.yml
   when: libvirt_virtio_win_enabled | bool
+
+- name: Bridge the uplink for the VMs
+  ansible.builtin.include_tasks: bridge.yml
+  when: libvirt_bridge_enabled | bool
+
+- name: Prepare the host for PCI passthrough
+  ansible.builtin.include_tasks: passthrough.yml
+  when: libvirt_passthrough_enabled | bool
