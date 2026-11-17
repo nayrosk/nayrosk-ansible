@@ -1,0 +1,36 @@
+---
+argument_specs:
+  main:
+    short_description: Install QEMU/KVM and libvirt, managed by the operator account over SSH.
+    description:
+      - Checks for /dev/kvm before any change, installs the hypervisor, libvirt and the guest tooling, enables
+        the libvirt daemon and adds C(libvirt_operator_user) to the libvirt and kvm groups.
+    options:
+      libvirt_operator_user:
+        type: str
+        default: "{{ operator_user_name | default('operator') }}"
+        description: Account given access to C(qemu:///system) through the libvirt and kvm groups.
+      libvirt_require_kvm:
+        type: bool
+        default: true
+        description: Fail before any change when C(/dev/kvm) is missing.
+      libvirt_packages:
+        type: list
+        elements: str
+        default:
+          - qemu-system-x86
+          - qemu-utils
+          - libvirt-daemon-system
+          - libvirt-clients
+          - dnsmasq-base
+          - ovmf
+          - swtpm
+          - swtpm-tools
+          - virtinst
+          - libguestfs-tools
+          - cloud-image-utils
+          - libosinfo-bin
+          - netcat-openbsd
+          - python3-libvirt
+          - pciutils
+        description: Host packages for the hypervisor, Windows guests (OVMF, swtpm) and Linux guests.

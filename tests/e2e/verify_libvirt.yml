@@ -1,0 +1,76 @@
+---
+- name: Verify libvirt on the end-to-end host
+  hosts: libvirt
+  gather_facts: false
+  vars:
+    verify_packages:
+      - qemu-system-x86
+      - qemu-utils
+      - libvirt-daemon-system
+      - libvirt-clients
+      - ovmf
+      - swtpm
+      - swtpm-tools
+      - virtinst
+      - libguestfs-tools
+      - cloud-image-utils
+      - netcat-openbsd
+      - python3-libvirt
+  roles:
+    - role: bootstrap_connection
+      tags: [always, bootstrap_connection]
+  tasks:
+    - name: Read the state of the libvirt packages
+      ansible.builtin.command:
+        argv: [dpkg-query, -W, -f, "${Package} ${db:Status-Status}\n", "{{ item }}"]
+      loop: "{{ verify_packages }}"
+      register: verify_libvirt_packages
+      changed_when: false
+      failed_when: false
+
+    - name: Check that every libvirt package is installed
+      ansible.builtin.assert:
+        that: item.rc == 0 and item.stdout is search(' installed$')
+        fail_msg: "{{ item.item }} is not installed"
+        quiet: true
+      loop: "{{ verify_libvirt_packages.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read the groups of the operator
+      ansible.builtin.command:
+        argv: [id, -nG, operator]
+      register: verify_libvirt_groups
+      changed_when: false
+
+    - name: Check that the operator is in the libvirt and kvm groups
+      ansible.builtin.assert:
+        that:
+          - "'libvirt' in verify_libvirt_groups.stdout.split()"
+          - "'kvm' in verify_libvirt_groups.stdout.split()"
+        fail_msg: "operator groups: {{ verify_libvirt_groups.stdout }}"
+        quiet: true
+
+    # The connection user is the operator: no become, so the check proves access without sudo.
+    - name: List the domains as the operator without sudo
+      ansible.builtin.command:
+        argv: [virsh, -c, "qemu:///system", list, --all]
+      changed_when: false
+
+    - name: Check the UEFI firmware and the software TPM
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /usr/share/OVMF/OVMF_CODE_4M.secboot.fd
+        - /usr/share/OVMF/OVMF_VARS_4M.ms.fd
+        - /usr/bin/swtpm
+      register: verify_libvirt_files
+
+    - name: Check that the UEFI firmware and the software TPM exist
+      ansible.builtin.assert:
+        that: item.stat.exists
+        fail_msg: "{{ item.item }} is missing"
+        quiet: true
+      loop: "{{ verify_libvirt_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"

@@ -1,0 +1,27 @@
+---
+- name: Check for the KVM device
+  ansible.builtin.stat:
+    path: /dev/kvm
+  register: libvirt_preflight_kvm
+
+- name: Check that KVM is available
+  ansible.builtin.assert:
+    that: libvirt_preflight_kvm.stat.exists
+    fail_msg: >-
+      /dev/kvm is missing. Enable hardware virtualization (AMD SVM or Intel VT-x) in the firmware, or set
+      libvirt_require_kvm to false on a host where software emulation is enough.
+    quiet: true
+  when: libvirt_require_kvm | bool
+
+# ansible.builtin.user in service.yml never creates the account.
+- name: Look up the operator account
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ libvirt_operator_user }}"
+    fail_key: false
+
+- name: Check that the operator account exists
+  ansible.builtin.assert:
+    that: ansible_facts.getent_passwd[libvirt_operator_user] | default(none) is not none
+    fail_msg: "The {{ libvirt_operator_user }} account is missing. Run playbooks/install_base.yml first."
+    quiet: true

@@ -1,0 +1,28 @@
+---
+# Account given access to qemu:///system through the libvirt and kvm groups. Follows the operator_user role.
+libvirt_operator_user: "{{ operator_user_name | default('operator') }}"
+# Fail before any change when /dev/kvm is missing (virtualization disabled in the firmware, or no KVM).
+libvirt_require_kvm: true
+# Host packages. Names checked against Ubuntu 26.04 (libvirt 12.0, QEMU 10.2, OVMF 2025.11, swtpm 0.10).
+libvirt_packages:
+  # Hypervisor, daemon and clients. dnsmasq-base serves DHCP and DNS on the NAT network.
+  - qemu-system-x86
+  - qemu-utils
+  - libvirt-daemon-system
+  - libvirt-clients
+  - dnsmasq-base
+  # Windows guests: UEFI firmware with Secure Boot variants and a software TPM 2.0.
+  - ovmf
+  - swtpm
+  - swtpm-tools
+  # Linux guests and disk images.
+  - virtinst
+  - libguestfs-tools
+  - cloud-image-utils
+  - libosinfo-bin
+  # virt-manager reaches the graphical console through the SSH connection with nc on the host.
+  - netcat-openbsd
+  # Python bindings used by the community.libvirt modules of this role.
+  - python3-libvirt
+  # lspci, to find PCI ids and IOMMU groups for passthrough.
+  - pciutils

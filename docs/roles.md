@@ -187,6 +187,16 @@ Ban repeated SSH and Caddy authentication failures through UFW.
 | `fail2ban_caddy_log_owner` | str | `{{ podman_monitoring_user \| default(operator_user_name \|...` (truncated, see `defaults/main.yml`) | no | Account running Caddy, owner and group of the access log created when missing. |
 | `fail2ban_caddy_log` | str | `{{ podman_monitoring_user_home \| default(operator_user_ho...` (truncated, see `defaults/main.yml`) | no | Caddy JSON access log watched by the `caddy-auth` jail. |
 
+## libvirt
+
+Install QEMU/KVM and libvirt, managed by the operator account over SSH.
+
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `libvirt_operator_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Account given access to `qemu:///system` through the libvirt and kvm groups. |
+| `libvirt_require_kvm` | bool | `true` | no | Fail before any change when `/dev/kvm` is missing. |
+| `libvirt_packages` | list of str | `[qemu-system-x86, qemu-utils, libvirt-daemon-system, libv...` (15 entries, truncated, see `defaults/main.yml`) | no | Host packages for the hypervisor, Windows guests (OVMF, swtpm) and Linux guests. |
+
 ## obsidian
 
 Run a headless Obsidian in a rootless Podman quadlet behind Caddy, with the Local REST API.

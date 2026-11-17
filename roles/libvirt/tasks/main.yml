@@ -1,0 +1,10 @@
+---
+# Nothing changes on the host before the preflight checks pass.
+- name: Check the host before any change
+  ansible.builtin.include_tasks: preflight.yml
+
+- name: Install the libvirt packages
+  ansible.builtin.include_tasks: packages.yml
+
+- name: Enable libvirt and give the operator access
+  ansible.builtin.include_tasks: service.yml
