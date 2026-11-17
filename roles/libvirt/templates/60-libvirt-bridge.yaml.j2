@@ -1,0 +1,4 @@
+---
+# Managed by Ansible (role libvirt). LAN bridge for the VMs. It overrides the uplink entry of the installer file,
+# which netplan reads first. Remove this file and run "netplan apply" to undo the bridge.
+{{ libvirt_bridge_netplan | to_nice_yaml(indent=2, sort_keys=false) }}

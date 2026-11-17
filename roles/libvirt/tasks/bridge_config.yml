@@ -1,0 +1,42 @@
+---
+# Builds the netplan document of the LAN bridge. Pure logic, also run by tests/unit/libvirt_bridge_config.yml.
+# Inputs: libvirt_bridge_uplink_source (the uplink entry under network.ethernets, merged from the netplan files
+# except the one this role writes), libvirt_bridge_interface, libvirt_bridge_name, libvirt_bridge_mac.
+# Output: libvirt_bridge_netplan.
+- name: Check that the uplink has a DHCP or static address in netplan
+  ansible.builtin.assert:
+    that: >-
+      libvirt_bridge_uplink_source.dhcp4 | default(false) | bool
+      or libvirt_bridge_uplink_source.dhcp6 | default(false) | bool
+      or libvirt_bridge_uplink_source.addresses | default([]) | length > 0
+    fail_msg: >-
+      The netplan config of {{ libvirt_bridge_interface }} has no DHCP or static address, so the bridge would
+      have none either. Configure the uplink in /etc/netplan first, or leave libvirt_bridge_enabled false.
+    quiet: true
+
+# The bridge takes over the layer 3 settings and the uplink MAC, so the host keeps its DHCP lease and its SLAAC
+# address. dhcp-identifier mac: systemd-networkd otherwise sends a DUID whose IAID depends on the interface
+# name, and the router would see the bridge as a new client. The uplink keeps its match and set-name from the
+# installer file and loses its addresses. An MTU applies to both.
+- name: Build the bridge netplan document
+  vars:
+    libvirt_bridge_l3_keys: [dhcp4, dhcp6, addresses, routes, nameservers, accept-ra, ipv6-privacy, link-local, mtu]
+    libvirt_bridge_l3: >-
+      {{ libvirt_bridge_uplink_source | dict2items | selectattr('key', 'in', libvirt_bridge_l3_keys) | items2dict }}
+    libvirt_bridge_uses_dhcp: >-
+      {{ libvirt_bridge_uplink_source.dhcp4 | default(false) | bool
+         or libvirt_bridge_uplink_source.dhcp6 | default(false) | bool }}
+    libvirt_bridge_mtu: >-
+      {{ {'mtu': libvirt_bridge_uplink_source.mtu} if 'mtu' in libvirt_bridge_uplink_source else {} }}
+  ansible.builtin.set_fact:
+    libvirt_bridge_netplan:
+      network:
+        version: 2
+        ethernets: >-
+          {{ {libvirt_bridge_interface: {'dhcp4': false, 'dhcp6': false, 'accept-ra': false, 'link-local': []}
+              | combine(libvirt_bridge_mtu)} }}
+        bridges: >-
+          {{ {libvirt_bridge_name: {'interfaces': [libvirt_bridge_interface], 'macaddress': libvirt_bridge_mac,
+              'parameters': {'stp': false, 'forward-delay': 0}}
+              | combine(libvirt_bridge_l3)
+              | combine({'dhcp-identifier': 'mac'} if libvirt_bridge_uses_dhcp | bool else {})} }}
