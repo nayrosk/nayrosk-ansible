@@ -5,6 +5,8 @@ argument_specs:
     description:
       - Checks for /dev/kvm before any change, installs the hypervisor, libvirt and the guest tooling, enables
         the libvirt daemon and adds C(libvirt_operator_user) to the libvirt and kvm groups.
+      - Keeps the libvirt NAT network active and opens DHCP, DNS and routing for it in UFW, scoped to traffic
+        that enters on its bridge.
     options:
       libvirt_operator_user:
         type: str
@@ -32,5 +34,26 @@ argument_specs:
           - libosinfo-bin
           - netcat-openbsd
           - python3-libvirt
+          - python3-lxml
           - pciutils
         description: Host packages for the hypervisor, Windows guests (OVMF, swtpm) and Linux guests.
+      libvirt_nat_network_name:
+        type: str
+        default: default
+        description: libvirt NAT network kept active and started at boot.
+      libvirt_nat_bridge:
+        type: str
+        default: virbr0
+        description: Bridge of the NAT network. The UFW rules of the role only match traffic entering on it.
+      libvirt_nat_uplink:
+        type: str
+        default: "{{ libvirt_bridge_name if libvirt_bridge_enabled | bool else ansible_facts.default_ipv4.interface }}"
+        description: Interface NAT guests leave through, used in the UFW route rule.
+      libvirt_bridge_enabled:
+        type: bool
+        default: false
+        description: Bridge the uplink so VMs get their own LAN address. Rewrites the host network config.
+      libvirt_bridge_name:
+        type: str
+        default: br0
+        description: Name of the LAN bridge.

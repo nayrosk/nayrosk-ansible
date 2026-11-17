@@ -195,7 +195,12 @@ Install QEMU/KVM and libvirt, managed by the operator account over SSH.
 | --- | --- | --- | --- | --- |
 | `libvirt_operator_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Account given access to `qemu:///system` through the libvirt and kvm groups. |
 | `libvirt_require_kvm` | bool | `true` | no | Fail before any change when `/dev/kvm` is missing. |
-| `libvirt_packages` | list of str | `[qemu-system-x86, qemu-utils, libvirt-daemon-system, libv...` (15 entries, truncated, see `defaults/main.yml`) | no | Host packages for the hypervisor, Windows guests (OVMF, swtpm) and Linux guests. |
+| `libvirt_packages` | list of str | `[qemu-system-x86, qemu-utils, libvirt-daemon-system, libv...` (16 entries, truncated, see `defaults/main.yml`) | no | Host packages for the hypervisor, Windows guests (OVMF, swtpm) and Linux guests. |
+| `libvirt_nat_network_name` | str | `default` | no | libvirt NAT network kept active and started at boot. |
+| `libvirt_nat_bridge` | str | `virbr0` | no | Bridge of the NAT network. The UFW rules of the role only match traffic entering on it. |
+| `libvirt_nat_uplink` | str | `{{ libvirt_bridge_name if libvirt_bridge_enabled \| bool e...` (truncated, see `defaults/main.yml`) | no | Interface NAT guests leave through, used in the UFW route rule. |
+| `libvirt_bridge_enabled` | bool | `false` | no | Bridge the uplink so VMs get their own LAN address. Rewrites the host network config. |
+| `libvirt_bridge_name` | str | `br0` | no | Name of the LAN bridge. |
 
 ## obsidian
 

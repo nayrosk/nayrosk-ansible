@@ -1,0 +1,33 @@
+---
+- name: Keep the NAT network active and started at boot
+  community.libvirt.virt_net:
+    name: "{{ libvirt_nat_network_name }}"
+    state: active
+    autostart: true
+
+# UFW denies incoming traffic and drops forwarded traffic. libvirt's own nftables rules live in another
+# table, and a packet must pass every base chain, so guests on the NAT network need these rules to get a
+# lease, resolve names and reach the outside. They only match traffic that enters on the NAT bridge: nothing
+# here lets the LAN reach the host or the NAT guests.
+- name: Allow DHCP and DNS from the NAT guests to libvirt's dnsmasq
+  community.general.ufw:
+    rule: allow
+    direction: in
+    interface: "{{ libvirt_nat_bridge }}"
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    comment: "libvirt NAT {{ item.purpose }}"
+  loop:
+    - {port: "67", proto: udp, purpose: DHCP}
+    - {port: "53", proto: udp, purpose: DNS}
+    - {port: "53", proto: tcp, purpose: DNS}
+  loop_control:
+    label: "{{ item.port }}/{{ item.proto }}"
+
+- name: Route the NAT guests out through the uplink
+  community.general.ufw:
+    rule: allow
+    route: true
+    interface_in: "{{ libvirt_nat_bridge }}"
+    interface_out: "{{ libvirt_nat_uplink }}"
+    comment: libvirt NAT outbound

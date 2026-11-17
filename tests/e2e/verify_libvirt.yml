@@ -16,6 +16,7 @@
       - cloud-image-utils
       - netcat-openbsd
       - python3-libvirt
+      - python3-lxml
   roles:
     - role: bootstrap_connection
       tags: [always, bootstrap_connection]
@@ -74,3 +75,36 @@
       loop: "{{ verify_libvirt_files.results }}"
       loop_control:
         label: "{{ item.item }}"
+
+    - name: Read the NAT network state
+      ansible.builtin.command:
+        argv: [virsh, -c, "qemu:///system", net-info, default]
+      register: verify_libvirt_nat
+      changed_when: false
+
+    - name: Check that the NAT network is active and starts at boot
+      ansible.builtin.assert:
+        that:
+          - verify_libvirt_nat.stdout is search('(?m)^Active:\s+yes$')
+          - verify_libvirt_nat.stdout is search('(?m)^Autostart:\s+yes$')
+        fail_msg: "{{ verify_libvirt_nat.stdout }}"
+        quiet: true
+
+    - name: List the UFW rules
+      ansible.builtin.command:
+        argv: [ufw, show, added]
+      register: verify_libvirt_ufw
+      changed_when: false
+      become: true
+
+    # The e2e VM has no bridge: the NAT uplink is the interface of the default route, ens3 on the QEMU NIC.
+    - name: Check the UFW rules of the NAT network
+      ansible.builtin.assert:
+        that: verify_libvirt_ufw.stdout is search(item, multiline=true)
+        fail_msg: "Missing UFW rule matching {{ item }}: {{ verify_libvirt_ufw.stdout }}"
+        quiet: true
+      loop:
+        - '^ufw allow in on virbr0 to any port 67 proto udp\b'
+        - '^ufw allow in on virbr0 to any port 53 proto udp\b'
+        - '^ufw allow in on virbr0 to any port 53 proto tcp\b'
+        - '^ufw route allow in on virbr0 out on ens3\b'

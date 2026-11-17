@@ -24,5 +24,15 @@ libvirt_packages:
   - netcat-openbsd
   # Python bindings used by the community.libvirt modules of this role.
   - python3-libvirt
+  - python3-lxml
   # lspci, to find PCI ids and IOMMU groups for passthrough.
   - pciutils
+# libvirt NAT network, kept as packaged (192.168.122.0/24 on virbr0). UFW gets DHCP, DNS and route rules for it.
+libvirt_nat_network_name: default
+libvirt_nat_bridge: virbr0
+# Interface NAT guests leave through: the LAN bridge when enabled, otherwise the interface of the default route.
+libvirt_nat_uplink: >-
+  {{ libvirt_bridge_name if libvirt_bridge_enabled | bool else ansible_facts.default_ipv4.interface }}
+# LAN bridge on the uplink, so VMs get their own LAN address. Opt-in: it rewrites the host network config.
+libvirt_bridge_enabled: false
+libvirt_bridge_name: br0
