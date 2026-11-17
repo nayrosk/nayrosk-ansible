@@ -329,11 +329,14 @@ the static settings back on the uplink entry: the migration removed them from it
 in the bridge file. Copy each of `addresses`, `routes`, `nameservers`, `routing-policy`, `gateway4` and
 `gateway6` that the bridge has, under the uplink netplan id (`enp17s0` here), for example:
 
+`--origin-hint` writes them to a new file, `90-uplink-static.yaml`: without it, `netplan set` may write them to
+the bridge file, which the next step deletes.
+
 ```bash
 sudo netplan get bridges.br0
-sudo netplan set 'ethernets.enp17s0.addresses=[192.0.2.10/24]'
-sudo netplan set 'ethernets.enp17s0.routes=[{to: default, via: 192.0.2.1}]'
-sudo netplan set 'ethernets.enp17s0.nameservers.addresses=[192.0.2.1]'
+sudo netplan set --origin-hint 90-uplink-static 'ethernets.enp17s0.addresses=[192.0.2.10/24]'
+sudo netplan set --origin-hint 90-uplink-static 'ethernets.enp17s0.routes=[{to: default, via: 192.0.2.1}]'
+sudo netplan set --origin-hint 90-uplink-static 'ethernets.enp17s0.nameservers.addresses=[192.0.2.1]'
 ```
 
 Then, on any host:

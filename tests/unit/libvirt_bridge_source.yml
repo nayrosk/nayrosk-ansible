@@ -94,6 +94,36 @@
         expected_id: wired
         expected_source: {match: {name: "enp1[78]s0"}, dhcp4: true}
         expected_static_keys: []
+      - name: every match property must match, as netplan requires
+        docs:
+          - network:
+              ethernets:
+                first: {match: {name: "enp1[78]s0", macaddress: "10:ff:e0:b0:fc:5c"}, dhcp4: true}
+                second: {match: {name: "enp1[78]s0", macaddress: "02:00:00:00:00:02"}, dhcp4: true}
+        current: {}
+        expected_id: first
+        expected_source: {match: {name: "enp1[78]s0", macaddress: "10:ff:e0:b0:fc:5c"}, dhcp4: true}
+        expected_static_keys: []
+      - name: a match on the driver alone
+        docs:
+          - network:
+              ethernets:
+                aq: {match: {driver: atlantic}, dhcp4: true}
+                other: {match: {driver: r8169}, dhcp4: true}
+        current: {}
+        expected_id: aq
+        expected_source: {match: {driver: atlantic}, dhcp4: true}
+        expected_static_keys: []
+      - name: an id that names the uplink does not count when the entry has a match
+        docs:
+          - network:
+              ethernets:
+                enp17s0: {match: {macaddress: "02:00:00:00:00:02"}, dhcp4: true}
+                lan: {match: {macaddress: "10:ff:e0:b0:fc:5c"}, dhcp4: true}
+        current: {}
+        expected_id: lan
+        expected_source: {match: {macaddress: "10:ff:e0:b0:fc:5c"}, dhcp4: true}
+        expected_static_keys: []
       - name: two entries match the uplink
         docs:
           - network: {ethernets: {enp17s0: {dhcp4: true}, other: {match: {name: "enp*"}, dhcp4: true}}}

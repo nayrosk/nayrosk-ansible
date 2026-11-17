@@ -10,6 +10,7 @@
         libvirt_bridge_netplan_current: "{{ unit_case.current }}"
         libvirt_bridge_uplink: enp17s0
         libvirt_bridge_mac: "10:ff:e0:b0:fc:5c"
+        libvirt_bridge_driver: atlantic
         libvirt_bridge_name: br0
 
     - name: Record the result

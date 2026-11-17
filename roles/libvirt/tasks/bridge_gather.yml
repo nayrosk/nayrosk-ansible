@@ -83,9 +83,17 @@
   failed_when: false
   no_log: true
 
+- name: Read the uplink driver
+  ansible.builtin.stat:
+    path: "/sys/class/net/{{ libvirt_bridge_uplink }}/device/driver"
+  register: libvirt_bridge_driver_link
+
 - name: Record the uplink facts
   ansible.builtin.set_fact:
     libvirt_bridge_mac: "{{ libvirt_bridge_mac_raw.content | b64decode | trim }}"
+    libvirt_bridge_driver: >-
+      {{ libvirt_bridge_driver_link.stat.lnk_source | basename
+         if libvirt_bridge_driver_link.stat.lnk_source is defined else '' }}
     libvirt_bridge_expected_ipv4: "{{ ansible_facts.default_ipv4.address }}"
     libvirt_bridge_gateway: "{{ ansible_facts.default_ipv4.gateway }}"
 

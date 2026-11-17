@@ -2,11 +2,12 @@
 # Finds the netplan entry of the uplink. Pure logic, also run by tests/unit/libvirt_bridge_source.yml.
 # Inputs: libvirt_bridge_netplan_docs (parsed netplan files in lexical order, without the one this role writes),
 # libvirt_bridge_netplan_current (the parsed file this role wrote, or {}), libvirt_bridge_uplink,
-# libvirt_bridge_mac, libvirt_bridge_name.
+# libvirt_bridge_mac, libvirt_bridge_driver (the uplink driver, or ''), libvirt_bridge_name.
 # Outputs: libvirt_bridge_netplan_id, libvirt_bridge_uplink_source, libvirt_bridge_static_keys.
 #
-# netplan merges the files in order: mappings merge, sequences are concatenated. An entry is the uplink when its
-# id, set-name, match.macaddress (any case) or match.name (exact or glob) names it.
+# netplan merges the files in order: mappings merge, sequences are concatenated. As in netplan, an entry with a
+# match block is the uplink when every property it sets matches (name as an exact name or a glob, macaddress in
+# any case, driver); an entry without one is the uplink when its id is the interface name.
 - name: Find the netplan entry of the uplink
   vars:
     libvirt_bridge_all_ethernets: >-
@@ -19,12 +20,16 @@
       {%- set ids = [] -%}
       {%- for id, entry in libvirt_bridge_merged.items() -%}
       {%-   set match = entry.match | default({}) -%}
-      {%-   set name_re = '^' ~ (match.name | default('') | regex_escape | replace('\\*', '.*') | replace('\\?', '.')
-              | replace('\\[', '[') | replace('\\]', ']') | replace('[!', '[^')) ~ '$' -%}
-      {%-   if id == libvirt_bridge_uplink
-              or entry['set-name'] | default('') == libvirt_bridge_uplink
-              or match.macaddress | default('') | lower == libvirt_bridge_mac | lower
-              or (match.name is defined and libvirt_bridge_uplink is match(name_re)) -%}
+      {%-   if match | length == 0 -%}
+      {%-     set selected = id == libvirt_bridge_uplink -%}
+      {%-   else -%}
+      {%-     set name_re = '^' ~ (match.name | default('') | regex_escape | replace('\\*', '.*')
+                | replace('\\?', '.') | replace('\\[', '[') | replace('\\]', ']') | replace('[!', '[^')) ~ '$' -%}
+      {%-     set selected = (match.name is not defined or libvirt_bridge_uplink is match(name_re))
+                and (match.macaddress is not defined or match.macaddress | lower == libvirt_bridge_mac | lower)
+                and (match.driver is not defined or match.driver == libvirt_bridge_driver) -%}
+      {%-   endif -%}
+      {%-   if selected -%}
       {%-     set _ = ids.append(id) -%}
       {%-   endif -%}
       {%- endfor -%}

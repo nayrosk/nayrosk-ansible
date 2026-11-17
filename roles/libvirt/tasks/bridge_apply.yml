@@ -65,6 +65,8 @@
           - "ethernets.{{ libvirt_bridge_netplan_id }}"
       register: libvirt_bridge_scratch_uplink
       changed_when: false
+      # The entry may hold secrets (802.1X auth passwords).
+      no_log: true
 
     - name: Check that the uplink keeps no address of its own
       vars:
@@ -110,6 +112,15 @@
     group: root
     mode: "0750"
 
+# Written now, installed under the lock in the block below.
+- name: Stage the bridge netplan file
+  ansible.builtin.template:
+    src: 60-libvirt-bridge.yaml.j2
+    dest: "{{ libvirt_bridge_state_dir }}/new.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+
 - name: Apply the bridge
   block:
     # A unit left by an earlier failed attempt would make systemd-run refuse the name.
@@ -128,28 +139,27 @@
           - /usr/local/sbin/libvirt-bridge-rollback
       changed_when: true
 
-    - name: Remove the static settings of the uplink
-      ansible.builtin.command:
-        argv: [netplan, set, "ethernets.{{ libvirt_bridge_netplan_id }}.{{ item }}=null"]
-      loop: "{{ libvirt_bridge_static_keys }}"
+    # Every network write of this attempt happens under the lock the rollback script takes, and only while the
+    # rollback has not started: a controller that stalls past the timer cannot change the network afterwards.
+    # netplan apply runs in its own unit, which the rollback script waits for; the SSH session may die with it.
+    - name: Write the bridge config and start netplan apply
+      ansible.builtin.shell:
+        cmd: |
+          set -eu
+          exec 9>/run/libvirt-bridge-rollback.lock
+          flock 9
+          state=/run/libvirt-bridge-rollback.{{ libvirt_bridge_attempt | quote }}
+          if [ -e "$state.started" ] || [ -e "$state.done" ]; then
+            echo "the rollback already started" >&2
+            exit 3
+          fi
+          {% for key in libvirt_bridge_static_keys %}
+          netplan set {{ ('ethernets.' ~ libvirt_bridge_netplan_id ~ '.' ~ key ~ '=null') | quote }}
+          {% endfor %}
+          install -m 0600 -o root -g root {{ (libvirt_bridge_state_dir ~ '/new.yaml') | quote }} \
+            /etc/netplan/60-libvirt-bridge.yaml
+          systemd-run --remain-after-exit --unit=libvirt-bridge-apply-{{ libvirt_bridge_attempt | quote }} netplan apply
       changed_when: true
-
-    - name: Install the bridge netplan file
-      ansible.builtin.template:
-        src: 60-libvirt-bridge.yaml.j2
-        dest: /etc/netplan/60-libvirt-bridge.yaml
-        owner: root
-        group: root
-        mode: "0600"
-
-    # The SSH session dies when the address moves to the bridge: fire and forget, then reconnect.
-    - name: Apply the netplan config
-      ansible.builtin.command:
-        argv: [netplan, apply]
-      async: 60
-      poll: 0
-      changed_when: true
-      register: libvirt_bridge_apply_job
 
     - name: Drop the SSH connection that used the old link
       ansible.builtin.meta: reset_connection
@@ -162,12 +172,24 @@
     # On a run where the bridge already holds the address, the checks below would pass at once. Check the
     # final state only: wait for netplan apply to finish first.
     - name: Wait for netplan apply to finish
-      ansible.builtin.async_status:
-        jid: "{{ libvirt_bridge_apply_job.ansible_job_id }}"
-      register: libvirt_bridge_apply_result
-      until: libvirt_bridge_apply_result.finished
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - --property=SubState
+          - --value
+          - "libvirt-bridge-apply-{{ libvirt_bridge_attempt }}.service"
+      register: libvirt_bridge_apply_state
+      changed_when: false
+      until: libvirt_bridge_apply_state.stdout in ['exited', 'failed']
       retries: 12
       delay: 5
+
+    - name: Check that netplan apply succeeded
+      ansible.builtin.assert:
+        that: libvirt_bridge_apply_state.stdout == 'exited'
+        fail_msg: "netplan apply failed: see journalctl -u libvirt-bridge-apply-{{ libvirt_bridge_attempt }}"
+        quiet: true
 
     - name: Read the bridge addresses
       ansible.builtin.command:
@@ -213,6 +235,7 @@
           fi
           touch "$state.confirmed"
           systemctl stop libvirt-bridge-rollback.timer
+          systemctl stop libvirt-bridge-apply-{{ libvirt_bridge_attempt | quote }}.service
       changed_when: true
   rescue:
     # Roll back now when the host is reachable. The timer stays armed: if this SSH command never gets through,
