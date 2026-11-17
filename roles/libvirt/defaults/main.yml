@@ -36,3 +36,11 @@ libvirt_nat_uplink: >-
 # LAN bridge on the uplink, so VMs get their own LAN address. Opt-in: it rewrites the host network config.
 libvirt_bridge_enabled: false
 libvirt_bridge_name: br0
+# virtio-win driver ISO for Windows guests (storage, network, balloon, guest agent). Renovate cannot track it:
+# bump the version and the checksum by hand from
+# https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/ (upstream publishes no ISO
+# checksum; compute it from the downloaded file).
+libvirt_virtio_win_enabled: true
+libvirt_virtio_win_version: "0.1.302-1"
+libvirt_virtio_win_sha256: 303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d
+libvirt_virtio_win_dir: /var/lib/libvirt/images

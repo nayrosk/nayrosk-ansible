@@ -16,3 +16,7 @@
 
 - name: Open the NAT network in the firewall
   ansible.builtin.include_tasks: nat.yml
+
+- name: Download the virtio-win driver ISO
+  ansible.builtin.include_tasks: virtio_win.yml
+  when: libvirt_virtio_win_enabled | bool

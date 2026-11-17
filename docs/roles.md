@@ -201,6 +201,10 @@ Install QEMU/KVM and libvirt, managed by the operator account over SSH.
 | `libvirt_nat_uplink` | str | `{{ libvirt_bridge_name if libvirt_bridge_enabled \| bool e...` (truncated, see `defaults/main.yml`) | no | Interface NAT guests leave through, used in the UFW route rule. |
 | `libvirt_bridge_enabled` | bool | `false` | no | Bridge the uplink so VMs get their own LAN address. Rewrites the host network config. |
 | `libvirt_bridge_name` | str | `br0` | no | Name of the LAN bridge. |
+| `libvirt_virtio_win_enabled` | bool | `true` | no | Download the virtio-win driver ISO. Set to false on a host without Windows guests. |
+| `libvirt_virtio_win_version` | str | pinned in `defaults/main.yml` | no | virtio-win release, the directory name under `archive-virtio/` on fedorapeople.org, for example `0.1.302-1`. |
+| `libvirt_virtio_win_sha256` | str | `303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203...` (truncated, see `defaults/main.yml`) | no | SHA256 of the ISO of that release. |
+| `libvirt_virtio_win_dir` | str | `/var/lib/libvirt/images` | no | Directory the ISO is saved to, as `virtio-win-<version without the build>.iso`. |
 
 ## obsidian
 

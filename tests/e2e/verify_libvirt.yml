@@ -2,6 +2,9 @@
 - name: Verify libvirt on the end-to-end host
   hosts: libvirt
   gather_facts: false
+  # The role defaults give the pinned virtio-win release and checksum, so a bump needs no edit here.
+  vars_files:
+    - ../../roles/libvirt/defaults/main.yml
   vars:
     verify_packages:
       - qemu-system-x86
@@ -52,11 +55,28 @@
         fail_msg: "operator groups: {{ verify_libvirt_groups.stdout }}"
         quiet: true
 
-    # The connection user is the operator: no become, so the check proves access without sudo.
+    # bootstrap_connection sets ansible_become with set_fact, which wins over the become keyword and task vars.
+    # become_user drops to the operator, so the check proves access without root.
     - name: List the domains as the operator without sudo
       ansible.builtin.command:
         argv: [virsh, -c, "qemu:///system", list, --all]
       changed_when: false
+      become: true
+      become_user: operator
+
+    - name: Read the account running the domain check
+      ansible.builtin.command:
+        argv: [id, -un]
+      register: verify_libvirt_whoami
+      changed_when: false
+      become: true
+      become_user: operator
+
+    - name: Check that the domain check ran as the operator
+      ansible.builtin.assert:
+        that: verify_libvirt_whoami.stdout == 'operator'
+        fail_msg: "The check ran as {{ verify_libvirt_whoami.stdout }}"
+        quiet: true
 
     - name: Check the UEFI firmware and the software TPM
       ansible.builtin.stat:
@@ -108,3 +128,19 @@
         - '^ufw allow in on virbr0 to any port 53 proto udp\b'
         - '^ufw allow in on virbr0 to any port 53 proto tcp\b'
         - '^ufw route allow in on virbr0 out on ens3\b'
+
+    - name: Read the virtio-win ISO checksum
+      ansible.builtin.stat:
+        path: >-
+          {{ libvirt_virtio_win_dir }}/virtio-win-{{ libvirt_virtio_win_version | regex_replace('-[0-9]+$', '') }}.iso
+        checksum_algorithm: sha256
+      register: verify_libvirt_virtio_win
+
+    - name: Check the virtio-win ISO
+      ansible.builtin.assert:
+        that:
+          - verify_libvirt_virtio_win.stat.exists
+          - verify_libvirt_virtio_win.stat.checksum == libvirt_virtio_win_sha256
+          - verify_libvirt_virtio_win.stat.mode == '0644'
+        fail_msg: The virtio-win ISO is missing or does not match the pinned checksum
+        quiet: true

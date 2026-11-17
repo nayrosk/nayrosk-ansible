@@ -7,6 +7,7 @@ argument_specs:
         the libvirt daemon and adds C(libvirt_operator_user) to the libvirt and kvm groups.
       - Keeps the libvirt NAT network active and opens DHCP, DNS and routing for it in UFW, scoped to traffic
         that enters on its bridge.
+      - Downloads the virtio-win driver ISO for Windows guests, checked against a pinned SHA256.
     options:
       libvirt_operator_user:
         type: str
@@ -57,3 +58,19 @@ argument_specs:
         type: str
         default: br0
         description: Name of the LAN bridge.
+      libvirt_virtio_win_enabled:
+        type: bool
+        default: true
+        description: Download the virtio-win driver ISO. Set to false on a host without Windows guests.
+      libvirt_virtio_win_version:
+        type: str
+        description: >-
+          virtio-win release, the directory name under C(archive-virtio/) on fedorapeople.org, for example
+          C(0.1.302-1).
+      libvirt_virtio_win_sha256:
+        type: str
+        description: SHA256 of the ISO of that release.
+      libvirt_virtio_win_dir:
+        type: str
+        default: /var/lib/libvirt/images
+        description: Directory the ISO is saved to, as C(virtio-win-<version without the build>.iso).
