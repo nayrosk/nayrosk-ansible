@@ -76,41 +76,25 @@
   register: libvirt_bridge_netplan_raw
   no_log: true
 
-# netplan merges files in lexical order. The uplink entry is the one whose id, set-name or match.macaddress
-# names the uplink. Its id is reused in the 60 file so netplan merges the override into it.
-- name: Find the netplan entry of the uplink
-  vars:
-    libvirt_bridge_mac_read: "{{ libvirt_bridge_mac_raw.content | b64decode | trim }}"
-    libvirt_bridge_all_ethernets: >-
-      {{ libvirt_bridge_netplan_raw.results
-         | map(attribute='content') | map('b64decode') | map('from_yaml')
-         | map(attribute='network', default={}) | map(attribute='ethernets', default={})
-         | list }}
-    libvirt_bridge_merged: >-
-      {{ libvirt_bridge_all_ethernets | ansible.builtin.combine(recursive=true, list_merge='replace')
-         if libvirt_bridge_all_ethernets | length > 0 else {} }}
-    libvirt_bridge_ids: >-
-      {{ libvirt_bridge_merged | dict2items
-         | selectattr('key', 'equalto', libvirt_bridge_uplink)
-         | list
-         + (libvirt_bridge_merged | dict2items
-            | selectattr('value.set-name', 'defined')
-            | selectattr('value.set-name', 'equalto', libvirt_bridge_uplink) | list)
-         + (libvirt_bridge_merged | dict2items
-            | selectattr('value.match.macaddress', 'defined')
-            | selectattr('value.match.macaddress', 'equalto', libvirt_bridge_mac_read) | list) }}
-  ansible.builtin.set_fact:
-    libvirt_bridge_mac: "{{ libvirt_bridge_mac_read }}"
-    libvirt_bridge_netplan_id: "{{ (libvirt_bridge_ids | first).key if libvirt_bridge_ids else '' }}"
-    libvirt_bridge_uplink_source: "{{ (libvirt_bridge_ids | first).value if libvirt_bridge_ids else {} }}"
-    libvirt_bridge_expected_ipv4: "{{ ansible_facts.default_ipv4.address }}"
-    libvirt_bridge_gateway: "{{ ansible_facts.default_ipv4.gateway }}"
+- name: Read the bridge netplan file of an earlier run
+  ansible.builtin.slurp:
+    src: /etc/netplan/60-libvirt-bridge.yaml
+  register: libvirt_bridge_current_raw
+  failed_when: false
   no_log: true
 
-- name: Check that netplan configures the uplink
-  ansible.builtin.assert:
-    that: libvirt_bridge_netplan_id | length > 0
-    fail_msg: >-
-      No entry in /etc/netplan configures {{ libvirt_bridge_uplink }}. The role only bridges an uplink that
-      netplan manages; leave libvirt_bridge_enabled false on this host.
-    quiet: true
+- name: Record the uplink facts
+  ansible.builtin.set_fact:
+    libvirt_bridge_mac: "{{ libvirt_bridge_mac_raw.content | b64decode | trim }}"
+    libvirt_bridge_expected_ipv4: "{{ ansible_facts.default_ipv4.address }}"
+    libvirt_bridge_gateway: "{{ ansible_facts.default_ipv4.gateway }}"
+
+- name: Find the netplan entry of the uplink
+  ansible.builtin.include_tasks: bridge_source.yml
+  vars:
+    libvirt_bridge_netplan_docs: >-
+      {{ libvirt_bridge_netplan_raw.results | map(attribute='content') | map('b64decode') | map('from_yaml')
+         | list }}
+    libvirt_bridge_netplan_current: >-
+      {{ (libvirt_bridge_current_raw.content | b64decode | from_yaml)
+         if libvirt_bridge_current_raw.content is defined else {} }}

@@ -30,6 +30,18 @@
         argv: [cp, -a, /etc/netplan, "{{ libvirt_bridge_scratch.path }}/etc/"]
       changed_when: false
 
+    # An override file cannot remove sequences or mappings: static settings leave the entry that defines them.
+    - name: Remove the static settings of the uplink in the scratch root
+      ansible.builtin.command:
+        argv:
+          - netplan
+          - set
+          - --root-dir
+          - "{{ libvirt_bridge_scratch.path }}"
+          - "ethernets.{{ libvirt_bridge_netplan_id }}.{{ item }}=null"
+      loop: "{{ libvirt_bridge_static_keys }}"
+      changed_when: false
+
     - name: Write the bridge file to the scratch root
       ansible.builtin.template:
         src: 60-libvirt-bridge.yaml.j2
@@ -42,32 +54,53 @@
       ansible.builtin.command:
         argv: [netplan, generate, --root-dir, "{{ libvirt_bridge_scratch.path }}"]
       changed_when: false
+
+    - name: Read the merged uplink entry in the scratch root
+      ansible.builtin.command:
+        argv:
+          - netplan
+          - get
+          - --root-dir
+          - "{{ libvirt_bridge_scratch.path }}"
+          - "ethernets.{{ libvirt_bridge_netplan_id }}"
+      register: libvirt_bridge_scratch_uplink
+      changed_when: false
+
+    - name: Check that the uplink keeps no address of its own
+      vars:
+        libvirt_bridge_scratch_entry: "{{ libvirt_bridge_scratch_uplink.stdout | from_yaml | default({}, true) }}"
+      ansible.builtin.assert:
+        that:
+          - libvirt_bridge_scratch_entry.addresses | default([]) | length == 0
+          - libvirt_bridge_scratch_entry.routes | default([]) | length == 0
+          - not libvirt_bridge_scratch_entry.dhcp4 | default(false) | bool
+          - not libvirt_bridge_scratch_entry.dhcp6 | default(false) | bool
+        fail_msg: >-
+          The merged netplan config still gives {{ libvirt_bridge_netplan_id }} an address of its own. Nothing was
+          changed on the host.
+        quiet: true
   always:
     - name: Remove the scratch root
       ansible.builtin.file:
         path: "{{ libvirt_bridge_scratch.path }}"
         state: absent
 
-- name: Read the installed bridge file
-  ansible.builtin.stat:
-    path: /etc/netplan/60-libvirt-bridge.yaml
-  register: libvirt_bridge_installed
-
-- name: Back up the installed bridge file
-  ansible.builtin.copy:
-    src: /etc/netplan/60-libvirt-bridge.yaml
-    dest: "{{ libvirt_bridge_state_dir }}/previous.yaml"
-    remote_src: true
-    owner: root
-    group: root
-    mode: "0600"
-  when: libvirt_bridge_installed.stat.exists
-
-- name: Forget any older backup when there is no bridge file yet
+# The rollback restores the whole directory: the static settings may leave other files than the bridge file.
+- name: Remove an older backup of the netplan directory
   ansible.builtin.file:
-    path: "{{ libvirt_bridge_state_dir }}/previous.yaml"
+    path: "{{ libvirt_bridge_state_dir }}/previous"
     state: absent
-  when: not libvirt_bridge_installed.stat.exists
+
+- name: Back up the netplan directory
+  ansible.builtin.command:
+    argv: [cp, -a, /etc/netplan, "{{ libvirt_bridge_state_dir }}/previous"]
+  changed_when: true
+
+# The controller and the script decide under one lock who owns this attempt: the controller confirms it, or the
+# script rolls it back. Neither acts once the other has.
+- name: Name this attempt
+  ansible.builtin.set_fact:
+    libvirt_bridge_attempt: "{{ lookup('ansible.builtin.pipe', 'date +%s%N') }}"
 
 - name: Install the rollback script
   ansible.builtin.template:
@@ -93,6 +126,12 @@
           - --unit=libvirt-bridge-rollback
           - "--on-active={{ libvirt_bridge_rollback_timeout }}s"
           - /usr/local/sbin/libvirt-bridge-rollback
+      changed_when: true
+
+    - name: Remove the static settings of the uplink
+      ansible.builtin.command:
+        argv: [netplan, set, "ethernets.{{ libvirt_bridge_netplan_id }}.{{ item }}=null"]
+      loop: "{{ libvirt_bridge_static_keys }}"
       changed_when: true
 
     - name: Install the bridge netplan file
@@ -159,9 +198,19 @@
       delay: 2
       until: libvirt_bridge_ping.rc == 0
 
-    - name: Cancel the rollback timer
-      ansible.builtin.command:
-        argv: [systemctl, stop, libvirt-bridge-rollback.timer]
+    # Under the lock: refuse if the script already took this attempt, else mark it confirmed and disarm the timer.
+    - name: Confirm the bridge and cancel the rollback timer
+      ansible.builtin.shell:
+        cmd: |
+          set -eu
+          exec 9>/run/libvirt-bridge-rollback.lock
+          flock 9
+          if [ -e /run/libvirt-bridge-rollback.{{ libvirt_bridge_attempt }}.rolled-back ]; then
+            echo "the rollback already started" >&2
+            exit 3
+          fi
+          touch /run/libvirt-bridge-rollback.{{ libvirt_bridge_attempt }}.confirmed
+          systemctl stop libvirt-bridge-rollback.timer
       changed_when: true
   rescue:
     # Reachable host whose timer has not fired: disarm the timer, or it would roll back a second time later,

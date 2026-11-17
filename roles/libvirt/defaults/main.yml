@@ -59,4 +59,6 @@ libvirt_passthrough_vfio_ids: []
 # Kernel arguments. Empty picks by CPU vendor: iommu=pt on AMD, intel_iommu=on iommu=pt on Intel.
 libvirt_passthrough_kernel_args: []
 # Drivers that must wait for vfio-pci at boot, so it claims the listed devices first.
-libvirt_passthrough_softdep_drivers: [amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd]
+libvirt_passthrough_softdep_drivers: [amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd, nvme]
+# Touched when a boot setting of the role changes. Newer than the boot means a reboot is still needed.
+libvirt_passthrough_marker: /var/lib/libvirt-passthrough-boot-changed

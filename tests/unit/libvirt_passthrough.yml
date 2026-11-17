@@ -43,6 +43,13 @@
         devices: "{{ unit_lab_devices }}"
         expected_args: [iommu=pt]
         expected_warnings: []
+      - name: uppercase ids match the scan
+        vendor: AuthenticAMD
+        kernel_args: []
+        ids: ["1002:747E", "1002:AB30"]
+        devices: "{{ unit_lab_devices }}"
+        expected_args: [iommu=pt]
+        expected_warnings: []
       - name: id sharing its group with unlisted devices
         vendor: AuthenticAMD
         kernel_args: []

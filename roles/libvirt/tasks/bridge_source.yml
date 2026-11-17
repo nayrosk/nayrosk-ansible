@@ -1,0 +1,78 @@
+---
+# Finds the netplan entry of the uplink. Pure logic, also run by tests/unit/libvirt_bridge_source.yml.
+# Inputs: libvirt_bridge_netplan_docs (parsed netplan files in lexical order, without the one this role writes),
+# libvirt_bridge_netplan_current (the parsed file this role wrote, or {}), libvirt_bridge_uplink,
+# libvirt_bridge_mac, libvirt_bridge_name.
+# Outputs: libvirt_bridge_netplan_id, libvirt_bridge_uplink_source, libvirt_bridge_static_keys.
+#
+# netplan merges the files in order: mappings merge, sequences are concatenated. An entry is the uplink when its
+# id, set-name, match.macaddress (any case) or match.name (exact or glob) names it.
+- name: Find the netplan entry of the uplink
+  vars:
+    libvirt_bridge_all_ethernets: >-
+      {{ libvirt_bridge_netplan_docs | map(attribute='network', default={})
+         | map(attribute='ethernets', default={}) | list }}
+    libvirt_bridge_merged: >-
+      {{ libvirt_bridge_all_ethernets | ansible.builtin.combine(recursive=true, list_merge='append')
+         if libvirt_bridge_all_ethernets | length > 0 else {} }}
+    libvirt_bridge_matching_ids: >-
+      {%- set ids = [] -%}
+      {%- for id, entry in libvirt_bridge_merged.items() -%}
+      {%-   set match = entry.match | default({}) -%}
+      {%-   set name_re = '^' ~ (match.name | default('') | regex_escape | replace('\\*', '.*') | replace('\\?', '.'))
+              ~ '$' -%}
+      {%-   if id == libvirt_bridge_uplink
+              or entry['set-name'] | default('') == libvirt_bridge_uplink
+              or match.macaddress | default('') | lower == libvirt_bridge_mac | lower
+              or (match.name is defined and libvirt_bridge_uplink is match(name_re)) -%}
+      {%-     set _ = ids.append(id) -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {{ ids }}
+  ansible.builtin.set_fact:
+    libvirt_bridge_source_merged: "{{ libvirt_bridge_merged }}"
+    libvirt_bridge_source_ids: "{{ libvirt_bridge_matching_ids }}"
+
+- name: Check that exactly one netplan entry configures the uplink
+  ansible.builtin.assert:
+    that: libvirt_bridge_source_ids | length == 1
+    fail_msg: >-
+      {{ ('No entry in /etc/netplan configures ' ~ libvirt_bridge_uplink ~ '. The role only bridges an uplink'
+          ~ ' that netplan manages; leave libvirt_bridge_enabled false on this host.')
+         if libvirt_bridge_source_ids | length == 0
+         else (libvirt_bridge_uplink ~ ' matches several netplan entries (' ~ libvirt_bridge_source_ids | join(', ')
+               ~ '). Merge them, or set libvirt_bridge_interface to the interface of one entry.') }}
+    quiet: true
+
+# Sequences and mappings cannot be removed by an override file: they must leave the entry that defines them.
+# On a later run of a static host they are gone from that entry and live on the bridge in the file this role
+# wrote: take them from there.
+- name: Build the uplink source
+  vars:
+    libvirt_bridge_static_key_names: [addresses, routes, routing-policy, nameservers, gateway4, gateway6]
+    libvirt_bridge_entry: "{{ libvirt_bridge_source_merged[libvirt_bridge_source_ids | first] }}"
+    libvirt_bridge_l3_key_names:
+      - dhcp4
+      - dhcp6
+      - addresses
+      - routes
+      - routing-policy
+      - nameservers
+      - gateway4
+      - gateway6
+    libvirt_bridge_entry_has_l3: >-
+      {{ libvirt_bridge_entry | dict2items | selectattr('key', 'in', libvirt_bridge_l3_key_names)
+         | selectattr('value') | list | length > 0 }}
+    libvirt_bridge_current_bridge: >-
+      {{ libvirt_bridge_netplan_current.network.bridges[libvirt_bridge_name]
+         | default({}) | dict2items
+         | rejectattr('key', 'in', ['interfaces', 'macaddress', 'parameters', 'dhcp-identifier'])
+         | items2dict }}
+  ansible.builtin.set_fact:
+    libvirt_bridge_netplan_id: "{{ libvirt_bridge_source_ids | first }}"
+    libvirt_bridge_uplink_source: >-
+      {{ libvirt_bridge_entry if libvirt_bridge_entry_has_l3 | bool
+         else libvirt_bridge_entry | combine(libvirt_bridge_current_bridge) }}
+    libvirt_bridge_static_keys: >-
+      {{ libvirt_bridge_entry | dict2items | selectattr('key', 'in', libvirt_bridge_static_key_names)
+         | map(attribute='key') | list }}

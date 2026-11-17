@@ -25,6 +25,7 @@ devices) and the storage pools.
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
 | `libvirt_exporter_version` | str | pinned in `defaults/main.yml` | no | Image tag of `ghcr.io/inovex/prometheus-libvirt-exporter`, without the leading `v`. |
+| `libvirt_exporter_hostname` | str | `{{ hostname \| default(inventory_hostname) }}` | no | Host name inside the container. Defaults to the `hostname` inventory variable. |
 | `libvirt_exporter_listen_port` | int | `9177` | no | Loopback port the exporter is published on. The container always listens on 9177. |
 | `libvirt_exporter_operator_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy, where the route snippet goes. |
 <!-- END VARIABLES -->

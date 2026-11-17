@@ -307,14 +307,17 @@ Bridged guests are not filtered by the host firewall: UFW only protects the host
 
 Set `libvirt_bridge_enabled: true` for the host. The role adds `/etc/netplan/60-libvirt-bridge.yaml`, which
 moves the address settings of the uplink (DHCP or static, read from the existing netplan files) to `br0` and
-gives `br0` the uplink MAC. The host keeps its IPv4 lease and its SLAAC IPv6 address; a DHCPv6 address may
+gives `br0` the uplink MAC. An override file cannot remove addresses, routes or name servers that another file
+defines, so on a static host the role also removes them from the uplink entry with `netplan set`, which
+rewrites the file that holds them. The host keeps its IPv4 lease and its SLAAC IPv6 address; a DHCPv6 address may
 change. Add a DHCP reservation for the host MAC on the router so the IPv4 address never moves.
 
 All the bridge checks run before the role changes anything: the uplink must be configured in netplan with
 DHCP or a static address, and the host needs an IPv4 default route.
 
-The change is applied like `netplan try`. Before `netplan apply`, the host arms a timer
-(`libvirt_bridge_rollback_timeout`, 120 seconds, at least 60) that restores the previous netplan config. The
+The change is applied like `netplan try`. The role first checks the merged result in a scratch copy of
+`/etc/netplan`, then backs up the directory. Before `netplan apply`, the host arms a timer
+(`libvirt_bridge_rollback_timeout`, 120 seconds, at least 60) that restores that backup. The
 controller reconnects, waits for `netplan apply` to finish, checks that `br0` holds the host address and that
 the gateway answers (a ping, or a resolved ARP entry when the router drops ICMP), then cancels the timer. If
 any of that fails, the play stops with "The bridge setup failed ... and was rolled back", and the host is back
@@ -353,7 +356,8 @@ ISO, and set `libvirt_virtio_win_version` and `libvirt_virtio_win_sha256` (`sha2
 Set `libvirt_passthrough_enabled: true`. The role adds the IOMMU kernel arguments to GRUB (`iommu=pt` on AMD,
 `intel_iommu=on iommu=pt` on Intel), loads the VFIO modules, and reports when a reboot is needed; it never
 reboots. Reboot by hand after the first run, then run the playbook again: it checks that the IOMMU exposes
-groups.
+groups. The reboot notice stays until the host boots after the last change to these boot settings, a removed
+kernel argument or boot-time binding included.
 
 Find the ids and the IOMMU group of each device:
 

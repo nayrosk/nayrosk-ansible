@@ -11,7 +11,8 @@
 - name: Apply the bridge with automatic rollback
   ansible.builtin.include_tasks: bridge_apply.yml
   when: >-
-    not libvirt_bridge_file.stat.exists
+    libvirt_bridge_static_keys | length > 0
+    or not libvirt_bridge_file.stat.exists
     or libvirt_bridge_file.stat.checksum
        != lookup('ansible.builtin.template', '60-libvirt-bridge.yaml.j2') | hash('sha256')
 

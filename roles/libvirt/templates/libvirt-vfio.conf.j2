@@ -1,5 +1,5 @@
 # Managed by Ansible (role libvirt). Devices handed to vfio-pci at boot, before their usual driver loads.
-options vfio-pci ids={{ libvirt_passthrough_vfio_ids | join(',') }}
+options vfio-pci ids={{ libvirt_passthrough_ids | join(',') }}
 {% for driver in libvirt_passthrough_softdep_drivers %}
 softdep {{ driver }} pre: vfio-pci
 {% endfor %}

@@ -22,3 +22,9 @@
     fail_msg: >-
       {{ unit_case.name }}: expected {{ unit_case.expected_warnings }}, got {{ libvirt_passthrough_warnings }}
     success_msg: "{{ unit_case.name }}: {{ libvirt_passthrough_warnings }}"
+
+- name: Check the normalized ids
+  ansible.builtin.assert:
+    that: libvirt_passthrough_ids == unit_case.ids | map('lower') | list
+    fail_msg: "{{ unit_case.name }}: ids {{ libvirt_passthrough_ids }}"
+    success_msg: "{{ unit_case.name }}: {{ libvirt_passthrough_ids }}"

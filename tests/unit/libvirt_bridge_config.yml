@@ -72,6 +72,31 @@
                 mtu: 9000
                 accept-ra: true
                 ipv6-privacy: true
+      - name: gateway, routing policy and DHCP overrides
+        source:
+          addresses: [192.0.2.10/24]
+          gateway4: 192.0.2.1
+          routing-policy: [{from: 192.0.2.0/24, table: 100}]
+          dhcp4: true
+          dhcp4-overrides: {route-metric: 50, use-dns: false}
+          ipv6-address-generation: stable-privacy
+        expected:
+          network:
+            version: 2
+            ethernets:
+              enp17s0: "{{ unit_uplink_override }}"
+            bridges:
+              br0:
+                interfaces: [enp17s0]
+                macaddress: 10:ff:e0:b0:fc:5c
+                parameters: {stp: false, forward-delay: 0}
+                addresses: [192.0.2.10/24]
+                gateway4: 192.0.2.1
+                routing-policy: [{from: 192.0.2.0/24, table: 100}]
+                dhcp4: true
+                dhcp4-overrides: {route-metric: 50, use-dns: false}
+                ipv6-address-generation: stable-privacy
+                dhcp-identifier: mac
       - name: no layer 3 settings
         source:
           match: {macaddress: 10:ff:e0:b0:fc:5c}

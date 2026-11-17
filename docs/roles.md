@@ -212,7 +212,8 @@ Install QEMU/KVM and libvirt, managed by the operator account over SSH.
 | `libvirt_passthrough_enabled` | bool | `false` | no | Prepare the host for PCI passthrough. |
 | `libvirt_passthrough_vfio_ids` | list of str | `[]` | no | `vendor:device` ids bound to vfio-pci at boot. Empty leaves every device to its driver; libvirt detaches a device when a VM that uses it with `managed="yes"` starts. |
 | `libvirt_passthrough_kernel_args` | list of str | `[]` | no | Kernel arguments added to GRUB. Empty picks by CPU vendor, `iommu=pt` on AMD and `intel_iommu=on iommu=pt` on Intel. |
-| `libvirt_passthrough_softdep_drivers` | list of str | `[amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd]` | no | Drivers that wait for vfio-pci at boot, so it claims the listed devices first. |
+| `libvirt_passthrough_softdep_drivers` | list of str | `[amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd...` (7 entries, truncated, see `defaults/main.yml`) | no | Drivers that wait for vfio-pci at boot, so it claims the listed devices first. |
+| `libvirt_passthrough_marker` | str | `/var/lib/libvirt-passthrough-boot-changed` | no | File touched when a boot setting of the role changes. Newer than the last boot means a reboot is still needed. |
 
 ## libvirt_exporter
 
@@ -221,6 +222,7 @@ Run the Prometheus libvirt exporter in a rootful Podman quadlet behind Caddy.
 | Variable | Type | Default | Required | Description |
 | --- | --- | --- | --- | --- |
 | `libvirt_exporter_version` | str | pinned in `defaults/main.yml` | no | Image tag of `ghcr.io/inovex/prometheus-libvirt-exporter`, without the leading `v`. |
+| `libvirt_exporter_hostname` | str | `{{ hostname \| default(inventory_hostname) }}` | no | Host name inside the container. Defaults to the `hostname` inventory variable. |
 | `libvirt_exporter_listen_port` | int | `9177` | no | Loopback port the exporter is published on. The container always listens on 9177. |
 | `libvirt_exporter_operator_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy, where the route snippet goes. |
 

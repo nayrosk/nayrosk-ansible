@@ -43,7 +43,7 @@
       {{ libvirt_passthrough_kernel_args_effective | difference(libvirt_passthrough_running_args) | length == 0 }}
     libvirt_passthrough_has_groups: "{{ libvirt_passthrough_devices_now | length > 0 }}"
     libvirt_passthrough_unbound: >-
-      {{ libvirt_passthrough_devices_now | selectattr('id', 'in', libvirt_passthrough_vfio_ids)
+      {{ libvirt_passthrough_devices_now | selectattr('id', 'in', libvirt_passthrough_ids)
          | rejectattr('driver', 'equalto', 'vfio-pci') | map(attribute='address') | list }}
 
 # The arguments are in the running command line and still no group: the firmware has the IOMMU turned off.
@@ -67,6 +67,7 @@
     owner: root
     group: root
     mode: "0644"
+  register: libvirt_passthrough_grub
   notify: Update GRUB
 
 - name: Load the VFIO modules at boot
@@ -92,21 +93,56 @@
     owner: root
     group: root
     mode: "0644"
-  when: libvirt_passthrough_vfio_ids | length > 0
+  when: libvirt_passthrough_ids | length > 0
+  register: libvirt_passthrough_binding
   notify: Update the initramfs
 
 - name: Bind nothing at boot when no id is listed
   ansible.builtin.file:
     path: /etc/modprobe.d/libvirt-vfio.conf
     state: absent
-  when: libvirt_passthrough_vfio_ids | length == 0
+  when: libvirt_passthrough_ids | length == 0
+  register: libvirt_passthrough_unbinding
   notify: Update the initramfs
 
+# A boot setting changed in this run or in an earlier one since the last boot (a removed kernel argument or
+# boot-time binding included): the marker is newer than the boot.
+- name: Record that the boot settings changed
+  ansible.builtin.file:
+    path: "{{ libvirt_passthrough_marker }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+  when: >-
+    libvirt_passthrough_grub is changed
+    or libvirt_passthrough_binding is changed
+    or libvirt_passthrough_unbinding is changed
+
+- name: Read the boot settings marker
+  ansible.builtin.stat:
+    path: "{{ libvirt_passthrough_marker }}"
+  register: libvirt_passthrough_marker_stat
+
+- name: Read the boot time
+  ansible.builtin.command:
+    argv: [awk, '/^btime/ {print $2}', /proc/stat]
+  register: libvirt_passthrough_btime
+  changed_when: false
+
 - name: Report that a reboot is needed for passthrough
+  vars:
+    libvirt_passthrough_reasons: >-
+      {{ ([] if libvirt_passthrough_args_active
+          else ['kernel arguments ' ~ libvirt_passthrough_kernel_args_effective | join(' ') ~ ' not active'])
+         + ([] if libvirt_passthrough_unbound | length == 0
+            else ['devices ' ~ libvirt_passthrough_unbound | join(', ') ~ ' not on vfio-pci yet'])
+         + (['boot settings changed since the last boot']
+            if libvirt_passthrough_marker_stat.stat.exists
+               and libvirt_passthrough_marker_stat.stat.mtime | int > libvirt_passthrough_btime.stdout | int
+            else []) }}
   ansible.builtin.debug:
     msg: >-
-      Reboot the host to finish the passthrough setup
-      ({{ 'kernel arguments ' ~ libvirt_passthrough_kernel_args_effective | join(' ') ~ ' not active'
-          if not libvirt_passthrough_args_active else 'devices ' ~ libvirt_passthrough_unbound | join(', ')
-          ~ ' not on vfio-pci yet' }}); this role never reboots.
-  when: not libvirt_passthrough_args_active or libvirt_passthrough_unbound | length > 0
+      Reboot the host to finish the passthrough setup ({{ libvirt_passthrough_reasons | join('; ') }}); this role
+      never reboots.
+  when: libvirt_passthrough_reasons | length > 0

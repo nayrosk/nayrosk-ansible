@@ -1,6 +1,9 @@
 ---
 # Image tag of ghcr.io/inovex/prometheus-libvirt-exporter, without the leading v.
 libvirt_exporter_version: "2.6.2"
+# Host name inside the container, so the metrics name the host, not the container id. Aliases the inventory
+# variable hostname, also used by the hostname role.
+libvirt_exporter_hostname: "{{ hostname | default(inventory_hostname) }}"
 # Loopback port the exporter is published on (the container always listens on 9177).
 libvirt_exporter_listen_port: 9177
 # Home directory of the operator account that runs Caddy. Follows the operator_user role variables and falls back to

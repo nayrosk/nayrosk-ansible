@@ -11,6 +11,10 @@ argument_specs:
       libvirt_exporter_version:
         type: str
         description: Image tag of C(ghcr.io/inovex/prometheus-libvirt-exporter), without the leading C(v).
+      libvirt_exporter_hostname:
+        type: str
+        default: "{{ hostname | default(inventory_hostname) }}"
+        description: Host name inside the container. Defaults to the C(hostname) inventory variable.
       libvirt_exporter_listen_port:
         type: int
         default: 9177

@@ -120,5 +120,11 @@ argument_specs:
       libvirt_passthrough_softdep_drivers:
         type: list
         elements: str
-        default: [amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd]
+        default: [amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd, nvme]
         description: Drivers that wait for vfio-pci at boot, so it claims the listed devices first.
+      libvirt_passthrough_marker:
+        type: str
+        default: /var/lib/libvirt-passthrough-boot-changed
+        description: >-
+          File touched when a boot setting of the role changes. Newer than the last boot means a reboot is still
+          needed.

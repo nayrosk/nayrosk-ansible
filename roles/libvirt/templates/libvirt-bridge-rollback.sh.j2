@@ -1,20 +1,23 @@
 #!/bin/sh
-# Managed by Ansible (role libvirt). Restores the netplan config the bridge replaced. Armed as a transient
-# systemd timer before the bridge is applied, and cancelled once the controller reconnects and checks the host.
+# Managed by Ansible (role libvirt). Restores the netplan directory the bridge change replaced. Armed as a
+# transient systemd timer before the bridge is applied, and cancelled once the controller confirms the change.
 # Every step tolerates a missing device: netplan apply must run whatever happened before.
 set -u
-backup={{ libvirt_bridge_state_dir }}/previous.yaml
-target=/etc/netplan/60-libvirt-bridge.yaml
+backup={{ libvirt_bridge_state_dir }}/previous
+attempt={{ libvirt_bridge_attempt }}
 uplink_mac={{ libvirt_bridge_mac }}
-# One rollback at a time, whether the timer or the play started it.
+# One owner per attempt, decided under the lock the controller also takes to confirm.
 exec 9>/run/libvirt-bridge-rollback.lock
 flock 9
+if [ -e "/run/libvirt-bridge-rollback.$attempt.confirmed" ] || [ -e "/run/libvirt-bridge-rollback.$attempt.rolled-back" ]; then
+  exit 0
+fi
+touch "/run/libvirt-bridge-rollback.$attempt.rolled-back"
 # Started at once by the play when a check fails: give the SSH command that started it time to return.
 sleep 3
-if [ -f "$backup" ]; then
-  install -m 0600 -o root -g root "$backup" "$target"
-else
-  rm -f "$target"
+if [ -d "$backup" ]; then
+  rm -f /etc/netplan/*.yaml
+  cp -a "$backup"/. /etc/netplan/
 fi
 # Every bridge the role made carries the uplink MAC. A leftover one keeps the uplink enslaved, and netplan then
 # finds two links for the MAC match of the installer entry and leaves the uplink unconfigured. Delete them all:

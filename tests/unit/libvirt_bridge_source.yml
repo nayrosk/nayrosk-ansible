@@ -1,0 +1,87 @@
+---
+# Checks how the libvirt role finds the uplink entry in the netplan files, without a target:
+#   make unit
+- name: Check the libvirt bridge source
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    unit_installer:
+      network:
+        version: 2
+        ethernets:
+          enp17s0:
+            match: {macaddress: "10:ff:e0:b0:fc:5c"}
+            set-name: enp17s0
+            dhcp4: true
+            dhcp6: true
+    unit_cases:
+      - name: installer entry found by id, set-name and MAC
+        docs: ["{{ unit_installer }}"]
+        current: {}
+        expected_id: enp17s0
+        expected_source: {match: {macaddress: "10:ff:e0:b0:fc:5c"}, set-name: enp17s0, dhcp4: true, dhcp6: true}
+        expected_static_keys: []
+      - name: entry found by its MAC under another id, MAC case ignored
+        docs:
+          - network: {ethernets: {lan: {match: {macaddress: "10:FF:E0:B0:FC:5C"}, dhcp4: true}}}
+        current: {}
+        expected_id: lan
+        expected_source: {match: {macaddress: "10:FF:E0:B0:FC:5C"}, dhcp4: true}
+        expected_static_keys: []
+      - name: entry found by match.name glob
+        docs:
+          - network: {ethernets: {wired: {match: {name: "enp1*"}, dhcp4: true}}}
+        current: {}
+        expected_id: wired
+        expected_source: {match: {name: "enp1*"}, dhcp4: true}
+        expected_static_keys: []
+      - name: lists from several files are concatenated, as netplan does
+        docs:
+          - network: {ethernets: {enp17s0: {addresses: [192.0.2.10/24], nameservers: {addresses: [192.0.2.1]}}}}
+          - network: {ethernets: {enp17s0: {addresses: ["2001:db8::10/64"], routes: [{to: default, via: 192.0.2.1}]}}}
+        current: {}
+        expected_id: enp17s0
+        expected_source:
+          addresses: [192.0.2.10/24, "2001:db8::10/64"]
+          nameservers: {addresses: [192.0.2.1]}
+          routes: [{to: default, via: 192.0.2.1}]
+        expected_static_keys: [addresses, nameservers, routes]
+      - name: static host on a later run, its settings already moved to the bridge
+        docs:
+          - network: {ethernets: {enp17s0: {match: {macaddress: "10:ff:e0:b0:fc:5c"}, set-name: enp17s0}}}
+        current:
+          network:
+            ethernets: {enp17s0: {dhcp4: false, dhcp6: false}}
+            bridges:
+              br0:
+                interfaces: [enp17s0]
+                macaddress: "10:ff:e0:b0:fc:5c"
+                addresses: [192.0.2.10/24]
+                routes: [{to: default, via: 192.0.2.1}]
+        expected_id: enp17s0
+        expected_source:
+          match: {macaddress: "10:ff:e0:b0:fc:5c"}
+          set-name: enp17s0
+          addresses: [192.0.2.10/24]
+          routes: [{to: default, via: 192.0.2.1}]
+        expected_static_keys: []
+      - name: two entries match the uplink
+        docs:
+          - network: {ethernets: {enp17s0: {dhcp4: true}, other: {match: {name: "enp*"}, dhcp4: true}}}
+        current: {}
+        expected_id: fail
+        expected_message: matches several netplan entries
+      - name: no entry matches the uplink
+        docs:
+          - network: {ethernets: {eno1: {dhcp4: true}}}
+        current: {}
+        expected_id: fail
+        expected_message: No entry in /etc/netplan configures enp17s0
+  tasks:
+    - name: Run each case
+      ansible.builtin.include_tasks: libvirt_bridge_source_case.yml
+      loop: "{{ unit_cases }}"
+      loop_control:
+        loop_var: unit_case
+        label: "{{ unit_case.name }}"

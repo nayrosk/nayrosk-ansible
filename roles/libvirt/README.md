@@ -20,18 +20,21 @@ workstation over SSH. Used by `playbooks/install_libvirt.yml` on hosts of the `l
 6. Downloads the virtio-win driver ISO to `libvirt_virtio_win_dir` and checks it against
    `libvirt_virtio_win_sha256`, unless `libvirt_virtio_win_enabled` is false. Attach it as a CD-ROM to a
    Windows guest to install the storage and network drivers.
-7. With `libvirt_bridge_enabled`: finds the uplink and its netplan entry (by id, `set-name` or MAC), writes
-   `/etc/netplan/60-libvirt-bridge.yaml`, which moves the uplink address settings (DHCP or static) to
-   `libvirt_bridge_name` and gives the bridge the uplink MAC, and applies it under a rollback timer: the host
-   restores its previous config after `libvirt_bridge_rollback_timeout` seconds unless the controller
-   reconnects and finds the host address on the bridge and the gateway reachable. It then keeps bridged
+7. With `libvirt_bridge_enabled`: finds the uplink and its netplan entry (by id, `set-name`, MAC or
+   `match.name`, merging the files as netplan does), writes `/etc/netplan/60-libvirt-bridge.yaml`, which moves
+   the uplink address settings (DHCP or static) to `libvirt_bridge_name` and gives the bridge the uplink MAC,
+   removes static addresses, routes and name servers from the uplink entry with `netplan set`, and applies it
+   all under a rollback timer: the host restores its backed-up `/etc/netplan` after
+   `libvirt_bridge_rollback_timeout` seconds unless the controller reconnects, finds the host address on the
+   bridge and the gateway reachable, and confirms under a lock the rollback script also takes. It then keeps bridged
    frames out of iptables when `br_netfilter` loads, defines the libvirt network `libvirt_bridge_network_name`
    on the bridge, and moves the NAT route rule to the bridge. Fails before any change when netplan does not
    configure the uplink or gives it no address.
 8. With `libvirt_passthrough_enabled`: adds the IOMMU kernel arguments to GRUB, loads the VFIO modules, binds
    `libvirt_passthrough_vfio_ids` to `vfio-pci` at boot (none by default: libvirt then detaches devices when a
-   VM using them starts), warns when a listed device shares its IOMMU group with unlisted ones, and reports
-   when a reboot is needed. Never reboots.
+   VM using them starts), warns when a listed device shares its IOMMU group with unlisted ones (PCI bridges
+   excepted), and reports a reboot until the host boots after the last change to these boot settings. Never
+   reboots.
 
 See "Virtual machines" in `docs/operations.md` for the bridge, Windows guests and passthrough.
 
@@ -66,5 +69,6 @@ virt-manager -c qemu+ssh://operator@<host>/system
 | `libvirt_passthrough_enabled` | bool | `false` | no | Prepare the host for PCI passthrough. |
 | `libvirt_passthrough_vfio_ids` | list of str | `[]` | no | `vendor:device` ids bound to vfio-pci at boot. Empty leaves every device to its driver; libvirt detaches a device when a VM that uses it with `managed="yes"` starts. |
 | `libvirt_passthrough_kernel_args` | list of str | `[]` | no | Kernel arguments added to GRUB. Empty picks by CPU vendor, `iommu=pt` on AMD and `intel_iommu=on iommu=pt` on Intel. |
-| `libvirt_passthrough_softdep_drivers` | list of str | `[amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd]` | no | Drivers that wait for vfio-pci at boot, so it claims the listed devices first. |
+| `libvirt_passthrough_softdep_drivers` | list of str | `[amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd...` (7 entries, truncated, see `defaults/main.yml`) | no | Drivers that wait for vfio-pci at boot, so it claims the listed devices first. |
+| `libvirt_passthrough_marker` | str | `/var/lib/libvirt-passthrough-boot-changed` | no | File touched when a boot setting of the role changes. Newer than the last boot means a reboot is still needed. |
 <!-- END VARIABLES -->

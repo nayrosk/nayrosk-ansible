@@ -20,7 +20,24 @@
 # installer file and loses its addresses. An MTU applies to both.
 - name: Build the bridge netplan document
   vars:
-    libvirt_bridge_l3_keys: [dhcp4, dhcp6, addresses, routes, nameservers, accept-ra, ipv6-privacy, link-local, mtu]
+    libvirt_bridge_l3_keys:
+      - dhcp4
+      - dhcp6
+      - dhcp4-overrides
+      - dhcp6-overrides
+      - addresses
+      - gateway4
+      - gateway6
+      - routes
+      - routing-policy
+      - nameservers
+      - accept-ra
+      - ipv6-privacy
+      - ipv6-address-generation
+      - ipv6-address-token
+      - ipv6-mtu
+      - link-local
+      - mtu
     libvirt_bridge_l3: >-
       {{ libvirt_bridge_uplink_source | dict2items | selectattr('key', 'in', libvirt_bridge_l3_keys) | items2dict }}
     libvirt_bridge_uses_dhcp: >-
