@@ -60,9 +60,10 @@ flowchart LR
   The second run goes through `check-idempotence.sh` too. The image is about 3.6 GB, so these steps add a few
   minutes.
 - `install_libvirt.yml` then runs twice too, the VM being in the `libvirt` group. The VM runs with `-cpu host`,
-  so nested KVM gives it `/dev/kvm`. The bridge and passthrough stay off: the VM has one QEMU user network NIC
-  and no device to pass through. The bridge apply and its rollback were exercised by hand on a kept VM
-  (`make e2e KEEP=1`, then the playbook with `-e libvirt_bridge_enabled=true`).
+  so nested KVM gives it `/dev/kvm`. The e2e inventory enables the bridge: run 1 bridges the VM NIC under the
+  rollback timer (the QEMU user network gives the bridge the same lease, so SSH keeps working), run 2 must not
+  touch it. Passthrough stays off: the VM has no device to pass through. The rollback itself was exercised by
+  hand on a kept VM (`make e2e KEEP=1`, then a run that forces the post-apply check to fail).
 - Logs go to `artifacts/e2e/` (`run1.log`, `run2.log`, `verify.log`, `obsidian-run1.log`, `obsidian-run2.log`,
   `verify-obsidian.log`, `libvirt-run1.log`, `libvirt-run2.log`, `verify-libvirt.log`, `vm-console.log`).
 
@@ -99,6 +100,7 @@ flowchart LR
 - The host packages are installed, OVMF (Secure Boot variants) and swtpm are present.
 - The operator is in the `libvirt` and `kvm` groups and lists the domains of `qemu:///system` without root.
 - The `default` NAT network is active and starts at boot, and UFW holds its DHCP, DNS and route rules.
+- `br0` holds the VM NIC, and the `host-bridge` network is active and starts at boot.
 - The virtio-win ISO matches the pinned SHA256.
 - The `libvirt-exporter` unit is active, `/libvirt_metrics` answers 401 without credentials and serves
   `libvirt_up 1` with them.

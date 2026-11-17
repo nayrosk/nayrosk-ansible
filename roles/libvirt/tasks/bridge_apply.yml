@@ -110,6 +110,7 @@
       async: 60
       poll: 0
       changed_when: true
+      register: libvirt_bridge_apply_job
 
     - name: Drop the SSH connection that used the old link
       ansible.builtin.meta: reset_connection
@@ -118,6 +119,16 @@
       ansible.builtin.wait_for_connection:
         delay: 5
         timeout: "{{ [libvirt_bridge_rollback_timeout | int - 20, 30] | max }}"
+
+    # On a run where the bridge already holds the address, the checks below would pass at once. Check the
+    # final state only: wait for netplan apply to finish first.
+    - name: Wait for netplan apply to finish
+      ansible.builtin.async_status:
+        jid: "{{ libvirt_bridge_apply_job.ansible_job_id }}"
+      register: libvirt_bridge_apply_result
+      until: libvirt_bridge_apply_result.finished
+      retries: 12
+      delay: 5
 
     - name: Read the bridge addresses
       ansible.builtin.command:
@@ -133,9 +144,15 @@
         fail_msg: "{{ libvirt_bridge_name }} does not hold {{ libvirt_bridge_expected_ipv4 }}"
         quiet: true
 
+    # A router that drops ICMP still answers ARP: a resolved neighbour entry for the gateway counts too.
     - name: Check that the gateway answers through the bridge
-      ansible.builtin.command:
-        argv: [ping, -c, "1", -W, "2", "{{ libvirt_bridge_gateway }}"]
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: |
+          set -euo pipefail
+          ping -c 1 -W 2 {{ libvirt_bridge_gateway | quote }} >/dev/null 2>&1 && exit 0
+          ip neigh show {{ libvirt_bridge_gateway | quote }} dev {{ libvirt_bridge_name | quote }} \
+            | grep -qE 'REACHABLE|STALE|DELAY|PERMANENT'
       changed_when: false
       register: libvirt_bridge_ping
       retries: 5
@@ -147,26 +164,50 @@
         argv: [systemctl, stop, libvirt-bridge-rollback.timer]
       changed_when: true
   rescue:
-    # Reachable host: disarm the timer, or it would roll back a second time later, and run the script now in
-    # its own unit. The script waits a few seconds before it touches the network, so these commands return
-    # first. The task timeout covers an SSH session that hangs anyway. Unreachable host: the timer stays armed.
-    - name: Disarm the rollback timer
+    # Reachable host whose timer has not fired: disarm the timer, or it would roll back a second time later,
+    # and run the script now in its own unit. The script waits a few seconds before it touches the network, so
+    # these commands return first; the task timeout covers an SSH session that hangs anyway. Timer already
+    # fired, or host unreachable: leave the rollback to the timer.
+    - name: Read the rollback timer
       ansible.builtin.command:
-        argv: [systemctl, stop, libvirt-bridge-rollback.timer]
-      changed_when: true
-      register: libvirt_bridge_disarm
+        argv:
+          - systemctl
+          - show
+          - --property=LoadState
+          - --property=LastTriggerUSecMonotonic
+          - libvirt-bridge-rollback.timer
+      register: libvirt_bridge_timer
+      changed_when: false
       ignore_unreachable: true
       failed_when: false
       timeout: 30
 
-    - name: Roll back now
-      ansible.builtin.command:
-        argv: [systemd-run, --collect, --unit=libvirt-bridge-rollback-now, /usr/local/sbin/libvirt-bridge-rollback]
-      changed_when: true
-      ignore_unreachable: true
-      failed_when: false
-      timeout: 30
-      when: libvirt_bridge_disarm.rc | default(1) == 0
+    - name: Disarm the rollback timer and roll back now
+      when:
+        - libvirt_bridge_timer.rc | default(1) == 0
+        # A transient timer that fired is unloaded once its service ends: not-found means it already fired.
+        - libvirt_bridge_timer.stdout is search('(?m)^LoadState=loaded$')
+        - libvirt_bridge_timer.stdout is search('(?m)^LastTriggerUSecMonotonic=0$')
+      block:
+        - name: Disarm the rollback timer
+          ansible.builtin.command:
+            argv: [systemctl, stop, libvirt-bridge-rollback.timer]
+          changed_when: true
+          ignore_unreachable: true
+          failed_when: false
+          timeout: 30
+
+        - name: Roll back now
+          ansible.builtin.command:
+            argv:
+              - systemd-run
+              - --collect
+              - --unit=libvirt-bridge-rollback-now
+              - /usr/local/sbin/libvirt-bridge-rollback
+          changed_when: true
+          ignore_unreachable: true
+          failed_when: false
+          timeout: 30
 
     - name: Report the rollback
       ansible.builtin.fail:

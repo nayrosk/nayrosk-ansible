@@ -1,30 +1,59 @@
 ---
 # Read-only. Fills the inputs of bridge_config.yml and bridge_apply.yml from the host.
-# The uplink: libvirt_bridge_interface when set, else the single member of the bridge when it already exists
+# The uplink: libvirt_bridge_interface when set, else the physical member of the bridge when it already exists
 # (later runs: the default route is on the bridge), else the interface of the default route (first run).
-- name: List the members of the bridge
-  ansible.builtin.find:
-    paths: "/sys/class/net/{{ libvirt_bridge_name }}/brif"
-    file_type: any
+# Guest taps (vnet*) are bridge members too; only a member backed by a device is the uplink.
+- name: List the physical members of the bridge
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      for member in /sys/class/net/{{ libvirt_bridge_name }}/brif/*; do
+        [ -e "$member" ] || continue
+        name=${member##*/}
+        if [ -e "/sys/class/net/$name/device" ]; then echo "$name"; fi
+      done
   register: libvirt_bridge_members
+  changed_when: false
+
+- name: Check that the host has an IPv4 default route
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.default_ipv4.interface is defined
+      - ansible_facts.default_ipv4.address is defined
+      - ansible_facts.default_ipv4.gateway is defined
+    fail_msg: >-
+      The host has no IPv4 default route, so the role cannot tell which interface to bridge or check the result.
+      Set libvirt_bridge_enabled to false, or fix the network first.
+    quiet: true
 
 - name: Resolve the uplink interface
   ansible.builtin.set_fact:
     libvirt_bridge_uplink: >-
       {{ libvirt_bridge_interface
          if libvirt_bridge_interface | length > 0
-         else (libvirt_bridge_members.files[0].path | basename
-               if libvirt_bridge_members.matched == 1
+         else (libvirt_bridge_members.stdout_lines | first
+               if libvirt_bridge_members.stdout_lines | length == 1
                else ansible_facts.default_ipv4.interface) }}
 
 - name: Check that the uplink is a physical interface, not the bridge itself
   ansible.builtin.assert:
     that:
       - libvirt_bridge_uplink != libvirt_bridge_name
-      - libvirt_bridge_members.matched <= 1
+      - libvirt_bridge_members.stdout_lines | length <= 1
     fail_msg: >-
-      Cannot tell which interface to bridge ({{ libvirt_bridge_name }} has {{ libvirt_bridge_members.matched }}
-      members). Set libvirt_bridge_interface.
+      Cannot tell which interface to bridge ({{ libvirt_bridge_name }} has the physical members
+      {{ libvirt_bridge_members.stdout_lines | join(', ') }}). Set libvirt_bridge_interface.
+    quiet: true
+
+- name: Check that the uplink exists
+  ansible.builtin.stat:
+    path: "/sys/class/net/{{ libvirt_bridge_uplink }}/address"
+  register: libvirt_bridge_uplink_stat
+
+- name: Assert that the uplink exists
+  ansible.builtin.assert:
+    that: libvirt_bridge_uplink_stat.stat.exists
+    fail_msg: "The uplink {{ libvirt_bridge_uplink }} does not exist. Set libvirt_bridge_interface."
     quiet: true
 
 - name: Read the uplink MAC address

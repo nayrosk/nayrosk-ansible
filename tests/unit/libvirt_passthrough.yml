@@ -61,14 +61,26 @@
         expected_args: [iommu=pt]
         expected_warnings:
           - 10de:2684 is in libvirt_passthrough_vfio_ids but no PCI device of the host has this id.
-      - name: no IOMMU group at all
+      - name: no IOMMU group at all, before the first reboot
         vendor: AuthenticAMD
         kernel_args: []
         ids: ["1002:747e"]
         devices: []
         expected_args: [iommu=pt]
         expected_warnings:
-          - 1002:747e is in libvirt_passthrough_vfio_ids but no PCI device of the host has this id.
+          - >-
+            The IOMMU exposes no group yet, so 1002:747e cannot be checked. Reboot with the passthrough kernel
+            arguments and run the playbook again.
+      - name: PCI bridge in the group is not flagged
+        vendor: GenuineIntel
+        kernel_args: []
+        ids: ["10de:2684", "10de:22ba"]
+        devices:
+          - {address: "0000:00:01.0", id: "8086:a70d", group: "2", class: "0x060400"}
+          - {address: "0000:01:00.0", id: "10de:2684", group: "2", class: "0x030000"}
+          - {address: "0000:01:00.1", id: "10de:22ba", group: "2", class: "0x040300"}
+        expected_args: [intel_iommu=on, iommu=pt]
+        expected_warnings: []
   tasks:
     - name: Run each case
       ansible.builtin.include_tasks: libvirt_passthrough_case.yml

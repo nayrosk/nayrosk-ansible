@@ -10,8 +10,9 @@
         group=${group%%/*}
         driver=
         [ -e "$dev/driver" ] && driver=$(basename "$(readlink "$dev/driver")")
-        printf '{"address": "%s", "id": "%s:%s", "group": "%s", "driver": "%s"}\n' \
-          "$(basename "$dev")" "$(sed 's/^0x//' "$dev/vendor")" "$(sed 's/^0x//' "$dev/device")" "$group" "$driver"
+        printf '{"address": "%s", "id": "%s:%s", "group": "%s", "class": "%s", "driver": "%s"}\n' \
+          "$(basename "$dev")" "$(sed 's/^0x//' "$dev/vendor")" "$(sed 's/^0x//' "$dev/device")" "$group" \
+          "$(cat "$dev/class")" "$driver"
       done
   register: libvirt_passthrough_scan
   changed_when: false

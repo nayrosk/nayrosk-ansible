@@ -25,3 +25,42 @@
     that: ansible_facts.getent_passwd[libvirt_operator_user] | default(none) is not none
     fail_msg: "The {{ libvirt_operator_user }} account is missing. Run playbooks/install_base.yml first."
     quiet: true
+
+# install_base.yml leaves UFW and the operator Caddy routes directory. The NAT rules need the first, the
+# libvirt_exporter role the second: check both now rather than fail halfway through the play.
+- name: Check the prerequisites of install_base.yml
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /usr/sbin/ufw
+    - "{{ ansible_facts.getent_passwd[libvirt_operator_user][4] }}/.caddy/routes.d"
+  register: libvirt_preflight_base
+
+- name: Assert the prerequisites of install_base.yml
+  ansible.builtin.assert:
+    that: item.stat.exists
+    fail_msg: "{{ item.item }} is missing. Run playbooks/install_base.yml first."
+    quiet: true
+  loop: "{{ libvirt_preflight_base.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+# The controller waits libvirt_bridge_rollback_timeout - 20 seconds for the host after the apply, at least 30.
+# Below 60 seconds the host timer could fire while the controller still waits.
+- name: Check the bridge rollback timeout
+  ansible.builtin.assert:
+    that: libvirt_bridge_rollback_timeout | int >= 60
+    fail_msg: libvirt_bridge_rollback_timeout must be at least 60 seconds.
+    quiet: true
+  when: libvirt_bridge_enabled | bool
+
+# Read-only. Everything the bridge needs is checked here, before the packages or the firewall change.
+- name: Read the uplink and its netplan config
+  ansible.builtin.include_tasks: bridge_gather.yml
+  when: libvirt_bridge_enabled | bool
+
+- name: Build the bridge netplan document
+  ansible.builtin.include_tasks: bridge_config.yml
+  vars:
+    libvirt_bridge_interface: "{{ libvirt_bridge_netplan_id }}"
+  when: libvirt_bridge_enabled | bool

@@ -1,12 +1,5 @@
 ---
-- name: Read the uplink and its netplan config
-  ansible.builtin.include_tasks: bridge_gather.yml
-
-- name: Build the bridge netplan document
-  ansible.builtin.include_tasks: bridge_config.yml
-  vars:
-    libvirt_bridge_interface: "{{ libvirt_bridge_netplan_id }}"
-
+# preflight.yml already read the uplink and built libvirt_bridge_netplan.
 # The apply must run inline, under its rollback guard, not as a handler at the end of the play: compare the
 # rendered file with the installed one instead of registering a change.
 - name: Read the installed bridge netplan file

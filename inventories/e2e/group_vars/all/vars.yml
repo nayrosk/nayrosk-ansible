@@ -19,3 +19,7 @@ podman_monitoring_caddy_basic_auth_user: e2e
 
 # Local REST API key of the obsidian role. Throwaway, in clear on purpose: never reuse it for a real host.
 obsidian_api_key: e2e-obsidian-api-key-0123456789abcdef
+
+# The libvirt stage bridges the VM NIC: the QEMU user network hands the same lease to the bridge, which keeps
+# the NIC MAC, so the SSH port forward keeps working. This runs the bridge apply and its checks in CI.
+libvirt_bridge_enabled: true

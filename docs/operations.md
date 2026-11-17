@@ -310,9 +310,13 @@ moves the address settings of the uplink (DHCP or static, read from the existing
 gives `br0` the uplink MAC. The host keeps its IPv4 lease and its SLAAC IPv6 address; a DHCPv6 address may
 change. Add a DHCP reservation for the host MAC on the router so the IPv4 address never moves.
 
+All the bridge checks run before the role changes anything: the uplink must be configured in netplan with
+DHCP or a static address, and the host needs an IPv4 default route.
+
 The change is applied like `netplan try`. Before `netplan apply`, the host arms a timer
-(`libvirt_bridge_rollback_timeout`, 120 seconds) that restores the previous netplan config. The controller
-reconnects, checks that `br0` holds the host address and that the gateway answers, then cancels the timer. If
+(`libvirt_bridge_rollback_timeout`, 120 seconds, at least 60) that restores the previous netplan config. The
+controller reconnects, waits for `netplan apply` to finish, checks that `br0` holds the host address and that
+the gateway answers (a ping, or a resolved ARP entry when the router drops ICMP), then cancels the timer. If
 any of that fails, the play stops with "The bridge setup failed ... and was rolled back", and the host is back
 on its previous config within the timeout. Check `journalctl -t libvirt-bridge` on the host, fix the cause
 (often a different DHCP lease), and run the playbook again.
@@ -328,6 +332,10 @@ virsh -c qemu:///system net-undefine host-bridge
 ```
 
 Then set `libvirt_bridge_enabled: false`, so the next run does not add it back.
+
+On a bridged host, `netplan apply` prints `Cannot find unique matching interface` for the uplink: the bridge
+carries the uplink MAC, which the installer entry matches on. The message is harmless; the command succeeds
+and the network stays up.
 
 ### Windows guests
 
@@ -361,7 +369,8 @@ A device goes to a VM together with every other device of its group. Two ways to
   and gives it back when the VM stops. The VM fails to start while a host process holds the device.
 - At boot (`libvirt_passthrough_vfio_ids: ["1002:747e", "1002:ab30"]`): `vfio-pci` claims the listed ids
   before their driver loads. The host never uses those devices. The role warns when a listed device shares its
-  group with unlisted ones.
+  group with unlisted ones (PCI bridges excepted), and before the first reboot, when the IOMMU exposes no
+  group yet.
 
 A GPU that also serves the host (ROCm, the GPU exporter of `install_rocm.yml`) is best handed over
 dynamically. Before starting a VM that uses it, stop what holds it on the host:

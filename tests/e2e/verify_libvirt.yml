@@ -121,6 +121,29 @@
         fail_msg: "{{ verify_libvirt_nat.stdout }}"
         quiet: true
 
+    # The e2e inventory enables the bridge: br0 carries the default route and host-bridge is defined.
+    - name: Read the LAN bridge network state
+      ansible.builtin.command:
+        argv: [virsh, -c, "qemu:///system", net-info, host-bridge]
+      register: verify_libvirt_host_bridge
+      changed_when: false
+
+    - name: Read the bridge members
+      ansible.builtin.command:
+        argv: [ip, -j, link, show, master, br0]
+      register: verify_libvirt_br0_members
+      changed_when: false
+
+    - name: Check the LAN bridge
+      ansible.builtin.assert:
+        that:
+          - verify_libvirt_host_bridge.stdout is search('(?m)^Active:\s+yes$')
+          - verify_libvirt_host_bridge.stdout is search('(?m)^Autostart:\s+yes$')
+          - verify_libvirt_host_bridge.stdout is search('(?m)^Bridge:\s+br0$')
+          - "'ens3' in (verify_libvirt_br0_members.stdout | from_json | map(attribute='ifname') | list)"
+        fail_msg: "{{ verify_libvirt_host_bridge.stdout }} {{ verify_libvirt_br0_members.stdout }}"
+        quiet: true
+
     - name: List the UFW rules
       ansible.builtin.command:
         argv: [ufw, show, added]

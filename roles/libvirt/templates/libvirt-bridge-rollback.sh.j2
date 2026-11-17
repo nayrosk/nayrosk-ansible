@@ -1,10 +1,14 @@
 #!/bin/sh
 # Managed by Ansible (role libvirt). Restores the netplan config the bridge replaced. Armed as a transient
 # systemd timer before the bridge is applied, and cancelled once the controller reconnects and checks the host.
-set -eu
+# Every step tolerates a missing device: netplan apply must run whatever happened before.
+set -u
 backup={{ libvirt_bridge_state_dir }}/previous.yaml
 target=/etc/netplan/60-libvirt-bridge.yaml
 uplink_mac={{ libvirt_bridge_mac }}
+# One rollback at a time, whether the timer or the play started it.
+exec 9>/run/libvirt-bridge-rollback.lock
+flock 9
 # Started at once by the play when a check fails: give the SSH command that started it time to return.
 sleep 3
 if [ -f "$backup" ]; then
@@ -16,8 +20,8 @@ fi
 # finds two links for the MAC match of the installer entry and leaves the uplink unconfigured. Delete them all:
 # netplan apply recreates the one the restored config defines.
 for dev in /sys/class/net/*; do
-  if [ -d "$dev/bridge" ] && [ "$(cat "$dev/address")" = "$uplink_mac" ]; then
-    ip link delete "${dev##*/}"
+  if [ -d "$dev/bridge" ] && [ "$(cat "$dev/address" 2>/dev/null)" = "$uplink_mac" ]; then
+    ip link delete "${dev##*/}" 2>/dev/null || true
   fi
 done
 netplan apply

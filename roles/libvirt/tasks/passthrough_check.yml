@@ -5,7 +5,8 @@
 # Outputs: libvirt_passthrough_kernel_args_effective, libvirt_passthrough_warnings.
 #
 # AMD hosts enable the IOMMU by default; iommu=pt keeps host devices out of translation for speed. Intel hosts
-# need intel_iommu=on as well. A device can only go to a VM together with every other device of its IOMMU group.
+# need intel_iommu=on as well. A device can only go to a VM together with every other device of its IOMMU group,
+# PCI bridges (class 0x0604) excepted: vfio accepts them in the group.
 - name: Decide the kernel arguments and check the IOMMU groups
   vars:
     libvirt_passthrough_default_args: >-
@@ -18,13 +19,22 @@
       {%- set warnings = [] -%}
       {%- for pci_id in libvirt_passthrough_vfio_ids -%}
       {%-   set matched = libvirt_passthrough_devices | selectattr('id', 'equalto', pci_id) | list -%}
-      {%-   if matched | length == 0 -%}
+      {%-   if libvirt_passthrough_devices | length == 0 -%}
+      {%-     set _ = warnings.append('The IOMMU exposes no group yet, so ' ~ pci_id ~ ' cannot be checked. Reboot'
+                ~ ' with the passthrough kernel arguments and run the playbook again.') -%}
+      {%-   elif matched | length == 0 -%}
       {%-     set _ = warnings.append(pci_id ~ ' is in libvirt_passthrough_vfio_ids but no PCI device of the host'
                 ~ ' has this id.') -%}
       {%-   endif -%}
       {%-   for dev in matched -%}
       {%-     set others = libvirt_passthrough_devices | selectattr('group', 'equalto', dev.group)
-                | rejectattr('id', 'in', libvirt_passthrough_vfio_ids) | map(attribute='address') | sort | list -%}
+                | rejectattr('id', 'in', libvirt_passthrough_vfio_ids)
+                | rejectattr('class', 'defined') | list
+                + (libvirt_passthrough_devices | selectattr('group', 'equalto', dev.group)
+                   | rejectattr('id', 'in', libvirt_passthrough_vfio_ids)
+                   | selectattr('class', 'defined') | rejectattr('class', 'match', '^0x0604')
+                   | list) -%}
+      {%-     set others = others | map(attribute='address') | sort | list -%}
       {%-     if others | length > 0 -%}
       {%-       set _ = warnings.append(pci_id ~ ' (' ~ dev.address ~ ') shares IOMMU group ' ~ dev.group ~ ' with '
                   ~ others | join(', ') ~ ', which are not in libvirt_passthrough_vfio_ids: they must be passed to'
