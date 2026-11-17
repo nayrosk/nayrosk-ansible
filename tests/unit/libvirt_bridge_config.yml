@@ -113,6 +113,22 @@
         loop_var: unit_case
         label: "{{ unit_case.name }}"
 
+    # Later runs compare the file byte for byte: its text must not depend on the key order of the source.
+    - name: Render the bridge file from two key orders of the same source
+      ansible.builtin.include_tasks: libvirt_bridge_render_case.yml
+      loop:
+        - {mtu: 9000, addresses: [192.0.2.10/24], routes: [{to: default, via: 192.0.2.1}]}
+        - {routes: [{to: default, via: 192.0.2.1}], addresses: [192.0.2.10/24], mtu: 9000}
+      loop_control:
+        loop_var: unit_source
+        label: "{{ unit_source.keys() | list }}"
+
+    - name: Check that both orders give the same file
+      ansible.builtin.assert:
+        that: unit_rendered[0] == unit_rendered[1]
+        fail_msg: "{{ unit_rendered[0] }} != {{ unit_rendered[1] }}"
+        success_msg: same file for both key orders
+
     # Run 2 on a bridged host reads the same installer config (the 60 file is excluded by the reader), so the
     # document must not depend on anything but its inputs.
     - name: Build the lab document twice

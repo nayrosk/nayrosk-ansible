@@ -1,20 +1,14 @@
 ---
 # preflight.yml already read the uplink and built libvirt_bridge_netplan.
-# The apply must run inline, under its rollback guard, not as a handler at the end of the play: compare the
-# rendered file with the installed one instead of registering a change.
-- name: Read the installed bridge netplan file
-  ansible.builtin.stat:
-    path: /etc/netplan/60-libvirt-bridge.yaml
-    checksum_algorithm: sha256
-  register: libvirt_bridge_file
-
+# The apply must run inline, under its rollback guard, not as a handler at the end of the play. It runs when the
+# content of the installed file (read by bridge_gather.yml) differs from the new document, whatever the key order
+# or formatting of the file, or when static settings still sit in the uplink entry.
 - name: Apply the bridge with automatic rollback
   ansible.builtin.include_tasks: bridge_apply.yml
   when: >-
     libvirt_bridge_static_keys | length > 0
-    or not libvirt_bridge_file.stat.exists
-    or libvirt_bridge_file.stat.checksum
-       != lookup('ansible.builtin.template', '60-libvirt-bridge.yaml.j2') | hash('sha256')
+    or libvirt_bridge_current_raw.content is not defined
+    or (libvirt_bridge_current_raw.content | b64decode | from_yaml) != libvirt_bridge_netplan
 
 - name: Keep bridged traffic out of iptables when br_netfilter loads
   ansible.builtin.template:

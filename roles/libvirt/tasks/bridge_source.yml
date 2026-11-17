@@ -19,8 +19,8 @@
       {%- set ids = [] -%}
       {%- for id, entry in libvirt_bridge_merged.items() -%}
       {%-   set match = entry.match | default({}) -%}
-      {%-   set name_re = '^' ~ (match.name | default('') | regex_escape | replace('\\*', '.*') | replace('\\?', '.'))
-              ~ '$' -%}
+      {%-   set name_re = '^' ~ (match.name | default('') | regex_escape | replace('\\*', '.*') | replace('\\?', '.')
+              | replace('\\[', '[') | replace('\\]', ']') | replace('[!', '[^')) ~ '$' -%}
       {%-   if id == libvirt_bridge_uplink
               or entry['set-name'] | default('') == libvirt_bridge_uplink
               or match.macaddress | default('') | lower == libvirt_bridge_mac | lower
@@ -32,6 +32,8 @@
   ansible.builtin.set_fact:
     libvirt_bridge_source_merged: "{{ libvirt_bridge_merged }}"
     libvirt_bridge_source_ids: "{{ libvirt_bridge_matching_ids }}"
+  # The netplan files may hold secrets (802.1X auth passwords).
+  no_log: true
 
 - name: Check that exactly one netplan entry configures the uplink
   ansible.builtin.assert:
@@ -45,34 +47,22 @@
     quiet: true
 
 # Sequences and mappings cannot be removed by an override file: they must leave the entry that defines them.
-# On a later run of a static host they are gone from that entry and live on the bridge in the file this role
-# wrote: take them from there.
+# On later runs they are gone from that entry and live on the bridge in the file this role wrote: take back
+# every static key the entry no longer has, whether DHCP stays on or not.
 - name: Build the uplink source
   vars:
     libvirt_bridge_static_key_names: [addresses, routes, routing-policy, nameservers, gateway4, gateway6]
     libvirt_bridge_entry: "{{ libvirt_bridge_source_merged[libvirt_bridge_source_ids | first] }}"
-    libvirt_bridge_l3_key_names:
-      - dhcp4
-      - dhcp6
-      - addresses
-      - routes
-      - routing-policy
-      - nameservers
-      - gateway4
-      - gateway6
-    libvirt_bridge_entry_has_l3: >-
-      {{ libvirt_bridge_entry | dict2items | selectattr('key', 'in', libvirt_bridge_l3_key_names)
-         | selectattr('value') | list | length > 0 }}
-    libvirt_bridge_current_bridge: >-
+    libvirt_bridge_migrated: >-
       {{ libvirt_bridge_netplan_current.network.bridges[libvirt_bridge_name]
          | default({}) | dict2items
-         | rejectattr('key', 'in', ['interfaces', 'macaddress', 'parameters', 'dhcp-identifier'])
+         | selectattr('key', 'in', libvirt_bridge_static_key_names)
+         | rejectattr('key', 'in', libvirt_bridge_entry.keys() | list)
          | items2dict }}
   ansible.builtin.set_fact:
     libvirt_bridge_netplan_id: "{{ libvirt_bridge_source_ids | first }}"
-    libvirt_bridge_uplink_source: >-
-      {{ libvirt_bridge_entry if libvirt_bridge_entry_has_l3 | bool
-         else libvirt_bridge_entry | combine(libvirt_bridge_current_bridge) }}
+    libvirt_bridge_uplink_source: "{{ libvirt_bridge_entry | combine(libvirt_bridge_migrated) }}"
     libvirt_bridge_static_keys: >-
       {{ libvirt_bridge_entry | dict2items | selectattr('key', 'in', libvirt_bridge_static_key_names)
          | map(attribute='key') | list }}
+  no_log: true

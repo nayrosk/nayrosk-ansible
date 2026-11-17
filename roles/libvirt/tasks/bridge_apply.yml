@@ -198,65 +198,38 @@
       delay: 2
       until: libvirt_bridge_ping.rc == 0
 
-    # Under the lock: refuse if the script already took this attempt, else mark it confirmed and disarm the timer.
+    # Under the lock: refuse once the script has started on this attempt, else mark it confirmed and disarm the
+    # timer.
     - name: Confirm the bridge and cancel the rollback timer
       ansible.builtin.shell:
         cmd: |
           set -eu
           exec 9>/run/libvirt-bridge-rollback.lock
           flock 9
-          if [ -e /run/libvirt-bridge-rollback.{{ libvirt_bridge_attempt }}.rolled-back ]; then
+          state=/run/libvirt-bridge-rollback.{{ libvirt_bridge_attempt | quote }}
+          if [ -e "$state.started" ] || [ -e "$state.done" ]; then
             echo "the rollback already started" >&2
             exit 3
           fi
-          touch /run/libvirt-bridge-rollback.{{ libvirt_bridge_attempt }}.confirmed
+          touch "$state.confirmed"
           systemctl stop libvirt-bridge-rollback.timer
       changed_when: true
   rescue:
-    # Reachable host whose timer has not fired: disarm the timer, or it would roll back a second time later,
-    # and run the script now in its own unit. The script waits a few seconds before it touches the network, so
-    # these commands return first; the task timeout covers an SSH session that hangs anyway. Timer already
-    # fired, or host unreachable: leave the rollback to the timer.
-    - name: Read the rollback timer
+    # Roll back now when the host is reachable. The timer stays armed: if this SSH command never gets through,
+    # the timer still recovers the host, and the attempt state keeps the two from rolling back twice. The script
+    # waits a few seconds before it touches the network, so this command returns first; the task timeout covers
+    # an SSH session that hangs anyway.
+    - name: Roll back now
       ansible.builtin.command:
         argv:
-          - systemctl
-          - show
-          - --property=LoadState
-          - --property=LastTriggerUSecMonotonic
-          - libvirt-bridge-rollback.timer
-      register: libvirt_bridge_timer
-      changed_when: false
+          - systemd-run
+          - --collect
+          - --unit=libvirt-bridge-rollback-now
+          - /usr/local/sbin/libvirt-bridge-rollback
+      changed_when: true
       ignore_unreachable: true
       failed_when: false
       timeout: 30
-
-    - name: Disarm the rollback timer and roll back now
-      when:
-        - libvirt_bridge_timer.rc | default(1) == 0
-        # A transient timer that fired is unloaded once its service ends: not-found means it already fired.
-        - libvirt_bridge_timer.stdout is search('(?m)^LoadState=loaded$')
-        - libvirt_bridge_timer.stdout is search('(?m)^LastTriggerUSecMonotonic=0$')
-      block:
-        - name: Disarm the rollback timer
-          ansible.builtin.command:
-            argv: [systemctl, stop, libvirt-bridge-rollback.timer]
-          changed_when: true
-          ignore_unreachable: true
-          failed_when: false
-          timeout: 30
-
-        - name: Roll back now
-          ansible.builtin.command:
-            argv:
-              - systemd-run
-              - --collect
-              - --unit=libvirt-bridge-rollback-now
-              - /usr/local/sbin/libvirt-bridge-rollback
-          changed_when: true
-          ignore_unreachable: true
-          failed_when: false
-          timeout: 30
 
     - name: Report the rollback
       ansible.builtin.fail:

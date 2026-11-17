@@ -1,0 +1,16 @@
+---
+- name: Build the document from this key order
+  ansible.builtin.include_role:
+    name: libvirt
+    tasks_from: bridge_config
+  vars:
+    libvirt_bridge_uplink_source: "{{ unit_source }}"
+    libvirt_bridge_interface: enp17s0
+    libvirt_bridge_name: br0
+    libvirt_bridge_mac: "{{ unit_mac }}"
+
+- name: Render the bridge file
+  vars:
+    unit_template: "{{ playbook_dir }}/../../roles/libvirt/templates/60-libvirt-bridge.yaml.j2"
+  ansible.builtin.set_fact:
+    unit_rendered: "{{ unit_rendered | default([]) + [lookup('ansible.builtin.template', unit_template)] }}"

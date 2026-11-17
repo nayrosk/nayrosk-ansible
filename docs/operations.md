@@ -324,7 +324,19 @@ any of that fails, the play stops with "The bridge setup failed ... and was roll
 on its previous config within the timeout. Check `journalctl -t libvirt-bridge` on the host, fix the cause
 (often a different DHCP lease), and run the playbook again.
 
-To remove the bridge, from the console or another path than the bridged link:
+To remove the bridge, from the console or another path than the bridged link. On a static host, first put
+the static settings back on the uplink entry: the migration removed them from it and they now live under `br0`
+in the bridge file. Copy each of `addresses`, `routes`, `nameservers`, `routing-policy`, `gateway4` and
+`gateway6` that the bridge has, under the uplink netplan id (`enp17s0` here), for example:
+
+```bash
+sudo netplan get bridges.br0
+sudo netplan set 'ethernets.enp17s0.addresses=[192.0.2.10/24]'
+sudo netplan set 'ethernets.enp17s0.routes=[{to: default, via: 192.0.2.1}]'
+sudo netplan set 'ethernets.enp17s0.nameservers.addresses=[192.0.2.1]'
+```
+
+Then, on any host:
 
 ```bash
 sudo rm /etc/netplan/60-libvirt-bridge.yaml

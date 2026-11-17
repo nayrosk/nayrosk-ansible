@@ -66,6 +66,34 @@
           addresses: [192.0.2.10/24]
           routes: [{to: default, via: 192.0.2.1}]
         expected_static_keys: []
+      - name: DHCP and static host on a later run, its static settings already moved to the bridge
+        docs:
+          - network: {ethernets: {enp17s0: {set-name: enp17s0, dhcp4: true}}}
+        current:
+          network:
+            ethernets: {enp17s0: {dhcp4: false, dhcp6: false}}
+            bridges:
+              br0:
+                interfaces: [enp17s0]
+                macaddress: "10:ff:e0:b0:fc:5c"
+                dhcp4: true
+                dhcp-identifier: mac
+                addresses: [192.0.2.10/24]
+                routes: [{to: 198.51.100.0/24, via: 192.0.2.254}]
+        expected_id: enp17s0
+        expected_source:
+          set-name: enp17s0
+          dhcp4: true
+          addresses: [192.0.2.10/24]
+          routes: [{to: 198.51.100.0/24, via: 192.0.2.254}]
+        expected_static_keys: []
+      - name: entry found by a match.name glob with a bracket expression
+        docs:
+          - network: {ethernets: {wired: {match: {name: "enp1[78]s0"}, dhcp4: true}}}
+        current: {}
+        expected_id: wired
+        expected_source: {match: {name: "enp1[78]s0"}, dhcp4: true}
+        expected_static_keys: []
       - name: two entries match the uplink
         docs:
           - network: {ethernets: {enp17s0: {dhcp4: true}, other: {match: {name: "enp*"}, dhcp4: true}}}

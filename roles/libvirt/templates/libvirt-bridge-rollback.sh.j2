@@ -1,18 +1,19 @@
 #!/bin/sh
 # Managed by Ansible (role libvirt). Restores the netplan directory the bridge change replaced. Armed as a
-# transient systemd timer before the bridge is applied, and cancelled once the controller confirms the change.
+# transient systemd timer before the bridge is applied; the play may also start it at once when a check fails.
 # Every step tolerates a missing device: netplan apply must run whatever happened before.
 set -u
-backup={{ libvirt_bridge_state_dir }}/previous
-attempt={{ libvirt_bridge_attempt }}
-uplink_mac={{ libvirt_bridge_mac }}
-# One owner per attempt, decided under the lock the controller also takes to confirm.
+backup={{ (libvirt_bridge_state_dir ~ '/previous') | quote }}
+state=/run/libvirt-bridge-rollback.{{ libvirt_bridge_attempt | quote }}
+uplink_mac={{ libvirt_bridge_mac | quote }}
+# One decision per attempt, under the lock the controller also takes to confirm. "started" blocks the
+# confirmation; only "done" ends the attempt, so a failed rollback is retried by the next invocation.
 exec 9>/run/libvirt-bridge-rollback.lock
 flock 9
-if [ -e "/run/libvirt-bridge-rollback.$attempt.confirmed" ] || [ -e "/run/libvirt-bridge-rollback.$attempt.rolled-back" ]; then
+if [ -e "$state.confirmed" ] || [ -e "$state.done" ]; then
   exit 0
 fi
-touch "/run/libvirt-bridge-rollback.$attempt.rolled-back"
+touch "$state.started"
 # Started at once by the play when a check fails: give the SSH command that started it time to return.
 sleep 3
 if [ -d "$backup" ]; then
@@ -27,5 +28,10 @@ for dev in /sys/class/net/*; do
     ip link delete "${dev##*/}" 2>/dev/null || true
   fi
 done
-netplan apply
-logger -t libvirt-bridge "bridge change rolled back to the previous netplan config"
+if netplan apply; then
+  touch "$state.done"
+  logger -t libvirt-bridge "bridge change rolled back to the previous netplan config"
+else
+  logger -t libvirt-bridge "rolling back the bridge change failed: netplan apply returned an error"
+  exit 1
+fi
