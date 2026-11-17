@@ -1,0 +1,148 @@
+---
+# Read-only first: the PCI devices with their IOMMU group and driver, the CPU vendor, the running command line.
+- name: List the PCI devices with their IOMMU group
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      for dev in /sys/kernel/iommu_groups/*/devices/*; do
+        [ -e "$dev" ] || continue
+        group=${dev#/sys/kernel/iommu_groups/}
+        group=${group%%/*}
+        driver=
+        [ -e "$dev/driver" ] && driver=$(basename "$(readlink "$dev/driver")")
+        printf '{"address": "%s", "id": "%s:%s", "group": "%s", "class": "%s", "driver": "%s"}\n' \
+          "$(basename "$dev")" "$(sed 's/^0x//' "$dev/vendor")" "$(sed 's/^0x//' "$dev/device")" "$group" \
+          "$(cat "$dev/class")" "$driver"
+      done
+  register: libvirt_passthrough_scan
+  changed_when: false
+
+- name: Read the CPU vendor
+  ansible.builtin.command:
+    argv: [awk, -F, ': ', '/^vendor_id/ {print $2; exit}', /proc/cpuinfo]
+  register: libvirt_passthrough_vendor
+  changed_when: false
+
+- name: Read the running kernel command line
+  ansible.builtin.slurp:
+    src: /proc/cmdline
+  register: libvirt_passthrough_cmdline
+
+- name: Decide the kernel arguments and check the IOMMU groups
+  ansible.builtin.include_tasks: passthrough_check.yml
+  vars:
+    libvirt_passthrough_cpu_vendor: "{{ libvirt_passthrough_vendor.stdout }}"
+    libvirt_passthrough_devices: "{{ libvirt_passthrough_scan.stdout_lines | map('from_json') | list }}"
+
+- name: Set the passthrough state
+  vars:
+    libvirt_passthrough_running_args: "{{ (libvirt_passthrough_cmdline.content | b64decode).split() }}"
+    libvirt_passthrough_devices_now: "{{ libvirt_passthrough_scan.stdout_lines | map('from_json') | list }}"
+  ansible.builtin.set_fact:
+    libvirt_passthrough_args_active: >-
+      {{ libvirt_passthrough_kernel_args_effective | difference(libvirt_passthrough_running_args) | length == 0 }}
+    libvirt_passthrough_has_groups: "{{ libvirt_passthrough_devices_now | length > 0 }}"
+    libvirt_passthrough_unbound: >-
+      {{ libvirt_passthrough_devices_now | selectattr('id', 'in', libvirt_passthrough_ids)
+         | rejectattr('driver', 'equalto', 'vfio-pci') | map(attribute='address') | list }}
+
+# The arguments are in the running command line and still no group: the firmware has the IOMMU turned off.
+- name: Check that the IOMMU is on
+  ansible.builtin.assert:
+    that: libvirt_passthrough_has_groups or not libvirt_passthrough_args_active
+    fail_msg: >-
+      The kernel runs with {{ libvirt_passthrough_kernel_args_effective | join(' ') }} but exposes no IOMMU group.
+      Enable the IOMMU (AMD-Vi / Intel VT-d) and SVM / VT-x in the firmware, then reboot.
+    quiet: true
+
+- name: Warn about devices that cannot be passed through alone
+  ansible.builtin.debug:
+    msg: "{{ item }}"
+  loop: "{{ libvirt_passthrough_warnings }}"
+
+- name: Add the passthrough kernel arguments to GRUB
+  ansible.builtin.template:
+    src: 60-libvirt-passthrough.cfg.j2
+    dest: /etc/default/grub.d/60-libvirt-passthrough.cfg
+    owner: root
+    group: root
+    mode: "0644"
+  register: libvirt_passthrough_grub
+  notify: Update GRUB
+
+- name: Load the VFIO modules at boot
+  ansible.builtin.template:
+    src: libvirt-vfio-modules.conf.j2
+    dest: /etc/modules-load.d/libvirt-vfio.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Load the VFIO modules now
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: [vfio, vfio_pci, vfio_iommu_type1]
+
+# Without ids, nothing is bound at boot: libvirt detaches a device from its driver when a VM that uses it with
+# managed="yes" starts, and gives it back when the VM stops.
+- name: Hand the listed devices to vfio-pci at boot
+  ansible.builtin.template:
+    src: libvirt-vfio.conf.j2
+    dest: /etc/modprobe.d/libvirt-vfio.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: libvirt_passthrough_ids | length > 0
+  register: libvirt_passthrough_binding
+  notify: Update the initramfs
+
+- name: Bind nothing at boot when no id is listed
+  ansible.builtin.file:
+    path: /etc/modprobe.d/libvirt-vfio.conf
+    state: absent
+  when: libvirt_passthrough_ids | length == 0
+  register: libvirt_passthrough_unbinding
+  notify: Update the initramfs
+
+# A boot setting changed in this run or in an earlier one since the last boot (a removed kernel argument or
+# boot-time binding included): the marker is newer than the boot.
+- name: Record that the boot settings changed
+  ansible.builtin.file:
+    path: "{{ libvirt_passthrough_marker }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+  when: >-
+    libvirt_passthrough_grub is changed
+    or libvirt_passthrough_binding is changed
+    or libvirt_passthrough_unbinding is changed
+
+- name: Read the boot settings marker
+  ansible.builtin.stat:
+    path: "{{ libvirt_passthrough_marker }}"
+  register: libvirt_passthrough_marker_stat
+
+- name: Read the boot time
+  ansible.builtin.command:
+    argv: [awk, '/^btime/ {print $2}', /proc/stat]
+  register: libvirt_passthrough_btime
+  changed_when: false
+
+- name: Report that a reboot is needed for passthrough
+  vars:
+    libvirt_passthrough_reasons: >-
+      {{ ([] if libvirt_passthrough_args_active
+          else ['kernel arguments ' ~ libvirt_passthrough_kernel_args_effective | join(' ') ~ ' not active'])
+         + ([] if libvirt_passthrough_unbound | length == 0
+            else ['devices ' ~ libvirt_passthrough_unbound | join(', ') ~ ' not on vfio-pci yet'])
+         + (['boot settings changed since the last boot']
+            if libvirt_passthrough_marker_stat.stat.exists
+               and libvirt_passthrough_marker_stat.stat.mtime | int > libvirt_passthrough_btime.stdout | int
+            else []) }}
+  ansible.builtin.debug:
+    msg: >-
+      Reboot the host to finish the passthrough setup ({{ libvirt_passthrough_reasons | join('; ') }}); this role
+      never reboots.
+  when: libvirt_passthrough_reasons | length > 0

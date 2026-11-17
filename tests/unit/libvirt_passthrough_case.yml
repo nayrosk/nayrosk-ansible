@@ -1,0 +1,30 @@
+---
+- name: Include the passthrough decisions
+  ansible.builtin.include_role:
+    name: libvirt
+    tasks_from: passthrough_check
+  vars:
+    libvirt_passthrough_cpu_vendor: "{{ unit_case.vendor }}"
+    libvirt_passthrough_kernel_args: "{{ unit_case.kernel_args }}"
+    libvirt_passthrough_vfio_ids: "{{ unit_case.ids }}"
+    libvirt_passthrough_devices: "{{ unit_case.devices }}"
+
+- name: Check the kernel arguments
+  ansible.builtin.assert:
+    that: libvirt_passthrough_kernel_args_effective == unit_case.expected_args
+    fail_msg: >-
+      {{ unit_case.name }}: expected {{ unit_case.expected_args }}, got {{ libvirt_passthrough_kernel_args_effective }}
+    success_msg: "{{ unit_case.name }}: {{ libvirt_passthrough_kernel_args_effective }}"
+
+- name: Check the warnings
+  ansible.builtin.assert:
+    that: libvirt_passthrough_warnings == unit_case.expected_warnings
+    fail_msg: >-
+      {{ unit_case.name }}: expected {{ unit_case.expected_warnings }}, got {{ libvirt_passthrough_warnings }}
+    success_msg: "{{ unit_case.name }}: {{ libvirt_passthrough_warnings }}"
+
+- name: Check the normalized ids
+  ansible.builtin.assert:
+    that: libvirt_passthrough_ids == unit_case.ids | map('lower') | list
+    fail_msg: "{{ unit_case.name }}: ids {{ libvirt_passthrough_ids }}"
+    success_msg: "{{ unit_case.name }}: {{ libvirt_passthrough_ids }}"

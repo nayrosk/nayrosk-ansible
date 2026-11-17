@@ -1,0 +1,47 @@
+---
+- name: Find the uplink entry
+  block:
+    - name: Include the bridge source finder
+      ansible.builtin.include_role:
+        name: libvirt
+        tasks_from: bridge_source
+      vars:
+        libvirt_bridge_netplan_docs: "{{ unit_case.docs }}"
+        libvirt_bridge_netplan_current: "{{ unit_case.current }}"
+        libvirt_bridge_uplink: enp17s0
+        libvirt_bridge_mac: "10:ff:e0:b0:fc:5c"
+        libvirt_bridge_driver: atlantic
+        libvirt_bridge_name: br0
+
+    - name: Record the result
+      ansible.builtin.set_fact:
+        unit_outcome: "{{ libvirt_bridge_netplan_id }}"
+        unit_message: ""
+  rescue:
+    - name: Record the failure
+      ansible.builtin.set_fact:
+        unit_outcome: fail
+        unit_message: "{{ ansible_failed_result.msg | default('') }}"
+
+- name: Check the entry id
+  ansible.builtin.assert:
+    that: unit_outcome == unit_case.expected_id
+    fail_msg: "{{ unit_case.name }}: expected {{ unit_case.expected_id }}, got {{ unit_outcome }} {{ unit_message }}"
+    success_msg: "{{ unit_case.name }}: {{ unit_outcome }}"
+
+- name: Check the source and the static keys
+  ansible.builtin.assert:
+    that:
+      - libvirt_bridge_uplink_source == unit_case.expected_source
+      - libvirt_bridge_static_keys | sort == unit_case.expected_static_keys
+    fail_msg: >-
+      {{ unit_case.name }}: source {{ libvirt_bridge_uplink_source }}, static keys {{ libvirt_bridge_static_keys }}
+    success_msg: "{{ unit_case.name }}: ok"
+  when: unit_case.expected_id != 'fail'
+
+- name: Check the failure message
+  ansible.builtin.assert:
+    that: unit_case.expected_message in unit_message
+    fail_msg: "{{ unit_case.name }}: unexpected message: {{ unit_message }}"
+    success_msg: "{{ unit_case.name }}: {{ unit_message }}"
+  when: unit_case.expected_id == 'fail'

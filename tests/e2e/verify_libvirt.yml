@@ -1,0 +1,226 @@
+---
+- name: Verify libvirt on the end-to-end host
+  hosts: libvirt
+  gather_facts: false
+  # The role defaults give the pinned virtio-win release and checksum, so a bump needs no edit here.
+  vars_files:
+    - ../../roles/libvirt/defaults/main.yml
+  vars:
+    verify_packages:
+      - qemu-system-x86
+      - qemu-utils
+      - libvirt-daemon-system
+      - libvirt-clients
+      - ovmf
+      - swtpm
+      - swtpm-tools
+      - virtinst
+      - libguestfs-tools
+      - cloud-image-utils
+      - netcat-openbsd
+      - python3-libvirt
+      - python3-lxml
+    verify_ca_path: "{{ playbook_dir }}/../../artifacts/{{ inventory_hostname }}/ca.crt"
+    verify_caddy_password: e2e-password
+    verify_caddy_credentials: "{{ podman_monitoring_caddy_basic_auth_user }}:{{ verify_caddy_password }}"
+    verify_metrics_url: "https://{{ hostname }}:8443/libvirt_metrics"
+    verify_caddy_curl:
+      - curl
+      - -s
+      - --cacert
+      - "{{ verify_ca_path }}"
+      - --resolve
+      - "{{ hostname }}:8443:127.0.0.1"
+  roles:
+    - role: bootstrap_connection
+      tags: [always, bootstrap_connection]
+  tasks:
+    - name: Read the state of the libvirt packages
+      ansible.builtin.command:
+        argv: [dpkg-query, -W, -f, "${Package} ${db:Status-Status}\n", "{{ item }}"]
+      loop: "{{ verify_packages }}"
+      register: verify_libvirt_packages
+      changed_when: false
+      failed_when: false
+
+    - name: Check that every libvirt package is installed
+      ansible.builtin.assert:
+        that: item.rc == 0 and item.stdout is search(' installed$')
+        fail_msg: "{{ item.item }} is not installed"
+        quiet: true
+      loop: "{{ verify_libvirt_packages.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read the groups of the operator
+      ansible.builtin.command:
+        argv: [id, -nG, operator]
+      register: verify_libvirt_groups
+      changed_when: false
+
+    - name: Check that the operator is in the libvirt and kvm groups
+      ansible.builtin.assert:
+        that:
+          - "'libvirt' in verify_libvirt_groups.stdout.split()"
+          - "'kvm' in verify_libvirt_groups.stdout.split()"
+        fail_msg: "operator groups: {{ verify_libvirt_groups.stdout }}"
+        quiet: true
+
+    # bootstrap_connection sets ansible_become with set_fact, which wins over the become keyword and task vars.
+    # become_user drops to the operator, so the check proves access without root.
+    - name: List the domains as the operator without sudo
+      ansible.builtin.command:
+        argv: [virsh, -c, "qemu:///system", list, --all]
+      changed_when: false
+      become: true
+      become_user: operator
+
+    - name: Read the account running the domain check
+      ansible.builtin.command:
+        argv: [id, -un]
+      register: verify_libvirt_whoami
+      changed_when: false
+      become: true
+      become_user: operator
+
+    - name: Check that the domain check ran as the operator
+      ansible.builtin.assert:
+        that: verify_libvirt_whoami.stdout == 'operator'
+        fail_msg: "The check ran as {{ verify_libvirt_whoami.stdout }}"
+        quiet: true
+
+    - name: Check the UEFI firmware and the software TPM
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /usr/share/OVMF/OVMF_CODE_4M.secboot.fd
+        - /usr/share/OVMF/OVMF_VARS_4M.ms.fd
+        - /usr/bin/swtpm
+      register: verify_libvirt_files
+
+    - name: Check that the UEFI firmware and the software TPM exist
+      ansible.builtin.assert:
+        that: item.stat.exists
+        fail_msg: "{{ item.item }} is missing"
+        quiet: true
+      loop: "{{ verify_libvirt_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read the NAT network state
+      ansible.builtin.command:
+        argv: [virsh, -c, "qemu:///system", net-info, default]
+      register: verify_libvirt_nat
+      changed_when: false
+
+    - name: Check that the NAT network is active and starts at boot
+      ansible.builtin.assert:
+        that:
+          - verify_libvirt_nat.stdout is search('(?m)^Active:\s+yes$')
+          - verify_libvirt_nat.stdout is search('(?m)^Autostart:\s+yes$')
+        fail_msg: "{{ verify_libvirt_nat.stdout }}"
+        quiet: true
+
+    # The e2e inventory enables the bridge: br0 carries the default route and host-bridge is defined.
+    - name: Read the LAN bridge network state
+      ansible.builtin.command:
+        argv: [virsh, -c, "qemu:///system", net-info, host-bridge]
+      register: verify_libvirt_host_bridge
+      changed_when: false
+
+    - name: Read the bridge members
+      ansible.builtin.command:
+        argv: [ip, -j, link, show, master, br0]
+      register: verify_libvirt_br0_members
+      changed_when: false
+
+    - name: Check the LAN bridge
+      ansible.builtin.assert:
+        that:
+          - verify_libvirt_host_bridge.stdout is search('(?m)^Active:\s+yes$')
+          - verify_libvirt_host_bridge.stdout is search('(?m)^Autostart:\s+yes$')
+          - verify_libvirt_host_bridge.stdout is search('(?m)^Bridge:\s+br0$')
+          - "'ens3' in (verify_libvirt_br0_members.stdout | from_json | map(attribute='ifname') | list)"
+        fail_msg: "{{ verify_libvirt_host_bridge.stdout }} {{ verify_libvirt_br0_members.stdout }}"
+        quiet: true
+
+    - name: List the UFW rules
+      ansible.builtin.command:
+        argv: [ufw, show, added]
+      register: verify_libvirt_ufw
+      changed_when: false
+      become: true
+
+    # The NAT uplink is the interface of the default route: ens3 on the e2e VM, br0 once a bridge is enabled.
+    - name: Read the interface of the default route
+      ansible.builtin.command:
+        argv: [ip, -j, route, show, default]
+      register: verify_libvirt_default_route
+      changed_when: false
+
+    - name: Check the UFW rules of the NAT network
+      ansible.builtin.assert:
+        that: verify_libvirt_ufw.stdout is search(item, multiline=true)
+        fail_msg: "Missing UFW rule matching {{ item }}: {{ verify_libvirt_ufw.stdout }}"
+        quiet: true
+      loop:
+        - '^ufw allow in on virbr0 to any port 67 proto udp\b'
+        - '^ufw allow in on virbr0 to any port 53 proto udp\b'
+        - '^ufw allow in on virbr0 to any port 53 proto tcp\b'
+        - "^ufw route allow in on virbr0 out on {{ (verify_libvirt_default_route.stdout | from_json | first).dev }}\\b"
+
+    - name: Read the virtio-win ISO checksum
+      ansible.builtin.stat:
+        path: >-
+          {{ libvirt_virtio_win_dir }}/virtio-win-{{ libvirt_virtio_win_version | regex_replace('-[0-9]+$', '') }}.iso
+        checksum_algorithm: sha256
+      register: verify_libvirt_virtio_win
+
+    - name: Check the virtio-win ISO
+      ansible.builtin.assert:
+        that:
+          - verify_libvirt_virtio_win.stat.exists
+          - verify_libvirt_virtio_win.stat.checksum == libvirt_virtio_win_sha256
+          - verify_libvirt_virtio_win.stat.mode == '0644'
+        fail_msg: The virtio-win ISO is missing or does not match the pinned checksum
+        quiet: true
+
+    - name: Read the state of the libvirt exporter
+      ansible.builtin.systemd_service:
+        name: libvirt-exporter.service
+      register: verify_libvirt_exporter_unit
+
+    - name: Check that the libvirt exporter runs
+      ansible.builtin.assert:
+        that: verify_libvirt_exporter_unit.status.ActiveState == 'active'
+        fail_msg: "libvirt-exporter.service is {{ verify_libvirt_exporter_unit.status.ActiveState }}"
+        quiet: true
+
+    - name: Request the libvirt metrics through Caddy without credentials
+      ansible.builtin.command:
+        argv: "{{ verify_caddy_curl + ['-o', '/dev/null', '-w', '%{http_code}', verify_metrics_url] }}"
+      delegate_to: localhost
+      become: false
+      register: verify_libvirt_metrics_noauth
+      changed_when: false
+
+    - name: Request the libvirt metrics through Caddy with credentials
+      ansible.builtin.command:
+        argv: "{{ verify_caddy_curl + ['-f', '-u', verify_caddy_credentials, verify_metrics_url] }}"
+      delegate_to: localhost
+      become: false
+      register: verify_libvirt_metrics
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: verify_libvirt_metrics.rc == 0
+
+    - name: Check the libvirt metrics and their basic auth
+      ansible.builtin.assert:
+        that:
+          - verify_libvirt_metrics_noauth.stdout == '401'
+          - verify_libvirt_metrics.stdout is search('(?m)^libvirt_up 1$')
+        fail_msg: >-
+          Without credentials: {{ verify_libvirt_metrics_noauth.stdout }}. With credentials, libvirt_up 1 is
+          missing from the metrics.
+        quiet: true

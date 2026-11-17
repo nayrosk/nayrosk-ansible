@@ -3,7 +3,8 @@
 # then drive it from the controller container over SSH.
 #
 #   tests/e2e/run.sh          run 1 (first_install), run 2 (must be idempotent), verify, then
-#                             install_obsidian.yml twice (the second run must be idempotent), verify, teardown
+#                             install_obsidian.yml twice (the second run must be idempotent), verify,
+#                             install_libvirt.yml twice (same), verify, teardown
 #   tests/e2e/run.sh clean    remove the VM container and its overlay disk
 #
 # Environment: CONTROLLER_IMAGE, VM_IMAGE (built by make), KEEP=1 keeps the VM running afterwards,
@@ -235,6 +236,21 @@ verify_obsidian() {
   playbook tests/e2e/verify_obsidian.yml 2>&1 | tee "$LOG_DIR/verify-obsidian.log"
 }
 
+libvirt_run_1() {
+  log "libvirt run 1"
+  playbook playbooks/install_libvirt.yml 2>&1 | tee "$LOG_DIR/libvirt-run1.log"
+}
+
+libvirt_run_2() {
+  log "libvirt run 2 (idempotence)"
+  playbook playbooks/install_libvirt.yml 2>&1 | tee "$LOG_DIR/libvirt-run2.log" | tests/e2e/check-idempotence.sh
+}
+
+verify_libvirt() {
+  log "verify libvirt"
+  playbook tests/e2e/verify_libvirt.yml 2>&1 | tee "$LOG_DIR/verify-libvirt.log"
+}
+
 main() {
   if [ "${1:-}" = clean ]; then
     clean
@@ -254,6 +270,9 @@ main() {
   obsidian_run_1
   obsidian_run_2
   verify_obsidian
+  libvirt_run_1
+  libvirt_run_2
+  verify_libvirt
 }
 
 main "$@"

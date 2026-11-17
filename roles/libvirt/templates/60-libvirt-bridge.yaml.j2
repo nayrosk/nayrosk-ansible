@@ -1,0 +1,5 @@
+---
+# Managed by Ansible (role libvirt). LAN bridge for the VMs. It overrides the uplink entry of the installer file,
+# which netplan reads first. Keys are sorted, so the text only changes when a value does. See "Virtual
+# machines" in docs/operations.md to undo the bridge.
+{{ libvirt_bridge_netplan | to_nice_yaml(indent=2, sort_keys=true) }}

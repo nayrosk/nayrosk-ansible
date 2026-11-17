@@ -1,0 +1,130 @@
+---
+argument_specs:
+  main:
+    short_description: Install QEMU/KVM and libvirt, managed by the operator account over SSH.
+    description:
+      - Checks for /dev/kvm before any change, installs the hypervisor, libvirt and the guest tooling, enables
+        the libvirt daemon and adds C(libvirt_operator_user) to the libvirt and kvm groups.
+      - Keeps the libvirt NAT network active and opens DHCP, DNS and routing for it in UFW, scoped to traffic
+        that enters on its bridge.
+      - Downloads the virtio-win driver ISO for Windows guests, checked against a pinned SHA256.
+      - With C(libvirt_bridge_enabled), bridges the uplink in a netplan override that keeps the uplink MAC and
+        layer 3 settings, applies it under a host-side rollback timer, and defines a libvirt network on the
+        bridge.
+      - With C(libvirt_passthrough_enabled), prepares PCI passthrough (kernel arguments, VFIO modules, optional
+        vfio-pci binding at boot), warns about IOMMU groups and reports when a reboot is needed. Never reboots.
+    options:
+      libvirt_operator_user:
+        type: str
+        default: "{{ operator_user_name | default('operator') }}"
+        description: Account given access to C(qemu:///system) through the libvirt and kvm groups.
+      libvirt_require_kvm:
+        type: bool
+        default: true
+        description: Fail before any change when C(/dev/kvm) is missing.
+      libvirt_packages:
+        type: list
+        elements: str
+        default:
+          - qemu-system-x86
+          - qemu-utils
+          - libvirt-daemon-system
+          - libvirt-clients
+          - dnsmasq-base
+          - ovmf
+          - swtpm
+          - swtpm-tools
+          - virtinst
+          - libguestfs-tools
+          - cloud-image-utils
+          - libosinfo-bin
+          - netcat-openbsd
+          - python3-libvirt
+          - python3-lxml
+          - pciutils
+        description: Host packages for the hypervisor, Windows guests (OVMF, swtpm) and Linux guests.
+      libvirt_nat_network_name:
+        type: str
+        default: default
+        description: libvirt NAT network kept active and started at boot.
+      libvirt_nat_bridge:
+        type: str
+        default: virbr0
+        description: Bridge of the NAT network. The UFW rules of the role only match traffic entering on it.
+      libvirt_nat_uplink:
+        type: str
+        default: "{{ libvirt_bridge_name if libvirt_bridge_enabled | bool else ansible_facts.default_ipv4.interface }}"
+        description: Interface NAT guests leave through, used in the UFW route rule.
+      libvirt_bridge_enabled:
+        type: bool
+        default: false
+        description: Bridge the uplink so VMs get their own LAN address. Rewrites the host network config.
+      libvirt_bridge_name:
+        type: str
+        default: br0
+        description: Name of the LAN bridge.
+      libvirt_bridge_interface:
+        type: str
+        default: ""
+        description: >-
+          Interface to bridge. Empty picks the bridge member when the bridge exists, else the interface of the
+          default route.
+      libvirt_bridge_network_name:
+        type: str
+        default: host-bridge
+        description: libvirt network that attaches VMs to the bridge.
+      libvirt_bridge_rollback_timeout:
+        type: int
+        default: 120
+        description: >-
+          Seconds before the host restores its previous netplan config when the controller has not confirmed
+          the bridge.
+      libvirt_bridge_state_dir:
+        type: str
+        default: /var/lib/libvirt-bridge
+        description: Directory where the rollback keeps the previous bridge file.
+      libvirt_virtio_win_enabled:
+        type: bool
+        default: true
+        description: Download the virtio-win driver ISO. Set to false on a host without Windows guests.
+      libvirt_virtio_win_version:
+        type: str
+        description: >-
+          virtio-win release, the directory name under C(archive-virtio/) on fedorapeople.org, for example
+          C(0.1.302-1).
+      libvirt_virtio_win_sha256:
+        type: str
+        description: SHA256 of the ISO of that release.
+      libvirt_virtio_win_dir:
+        type: str
+        default: /var/lib/libvirt/images
+        description: Directory the ISO is saved to, as C(virtio-win-<version without the build>.iso).
+      libvirt_passthrough_enabled:
+        type: bool
+        default: false
+        description: Prepare the host for PCI passthrough.
+      libvirt_passthrough_vfio_ids:
+        type: list
+        elements: str
+        default: []
+        description: >-
+          C(vendor:device) ids bound to vfio-pci at boot. Empty leaves every device to its driver; libvirt
+          detaches a device when a VM that uses it with C(managed="yes") starts.
+      libvirt_passthrough_kernel_args:
+        type: list
+        elements: str
+        default: []
+        description: >-
+          Kernel arguments added to GRUB. Empty picks by CPU vendor, C(iommu=pt) on AMD and
+          C(intel_iommu=on iommu=pt) on Intel.
+      libvirt_passthrough_softdep_drivers:
+        type: list
+        elements: str
+        default: [amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd, nvme]
+        description: Drivers that wait for vfio-pci at boot, so it claims the listed devices first.
+      libvirt_passthrough_marker:
+        type: str
+        default: /var/lib/libvirt-passthrough-boot-changed
+        description: >-
+          File touched when a boot setting of the role changes. Newer than the last boot means a reboot is still
+          needed.

@@ -1,0 +1,51 @@
+#!/bin/sh
+# Managed by Ansible (role libvirt). Restores the netplan directory the bridge change replaced. Armed as a
+# transient systemd timer before the bridge is applied; the play may also start it at once when a check fails.
+# Every step tolerates a missing device: netplan apply must run whatever happened before.
+set -u
+backup={{ (libvirt_bridge_state_dir ~ '/previous') | quote }}
+attempt_id={{ libvirt_bridge_attempt | quote }}
+state="/run/libvirt-bridge-rollback.$attempt_id"
+uplink_mac={{ libvirt_bridge_mac | quote }}
+# One decision per attempt, under the lock the controller also takes to confirm. "started" blocks the
+# confirmation; only "done" ends the attempt, so a failed rollback is retried by the next invocation.
+exec 9>/run/libvirt-bridge-rollback.lock
+flock 9
+if [ -e "$state.confirmed" ] || [ -e "$state.done" ]; then
+  exit 0
+fi
+touch "$state.started"
+# Started at once by the play when a check fails: give the SSH command that started it time to return.
+sleep 3
+# The netplan apply of this attempt may still run: let it finish before restoring, at most a minute.
+apply_unit="libvirt-bridge-apply-$attempt_id.service"
+waited=0
+while [ "$(systemctl show --property=SubState --value "$apply_unit" 2>/dev/null)" = running ] && [ "$waited" -lt 60 ]; do
+  sleep 1
+  waited=$((waited + 1))
+done
+systemctl stop "$apply_unit" 2>/dev/null || true
+if [ -d "$backup" ]; then
+  rm -f /etc/netplan/*.yaml
+  cp -a "$backup"/. /etc/netplan/
+fi
+# Every bridge the role made carries the uplink MAC. A leftover one keeps the uplink enslaved, and netplan then
+# finds two links for the MAC match of the installer entry and leaves the uplink unconfigured. Delete them all:
+# netplan apply recreates the one the restored config defines.
+for dev in /sys/class/net/*; do
+  if [ -d "$dev/bridge" ] && [ "$(cat "$dev/address" 2>/dev/null)" = "$uplink_mac" ]; then
+    ip link delete "${dev##*/}" 2>/dev/null || true
+  fi
+done
+# A failed netplan apply is retried here: when the controller is gone, nothing else would call this script again.
+tries=0
+until netplan apply; do
+  tries=$((tries + 1))
+  if [ "$tries" -ge 3 ]; then
+    logger -t libvirt-bridge "rolling back the bridge change failed: netplan apply returned an error 3 times"
+    exit 1
+  fi
+  sleep 10
+done
+touch "$state.done"
+logger -t libvirt-bridge "bridge change rolled back to the previous netplan config"

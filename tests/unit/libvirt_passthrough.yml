@@ -1,0 +1,97 @@
+---
+# Checks the libvirt passthrough decisions (kernel arguments, IOMMU group warnings), without a target:
+#   make unit
+- name: Check the libvirt passthrough decisions
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    # IOMMU groups of home-nayrosk-lab (2026-11-17), trimmed.
+    unit_lab_devices:
+      - {address: "0000:03:00.0", id: "1002:747e", group: "15"}
+      - {address: "0000:03:00.1", id: "1002:ab30", group: "16"}
+      - {address: "0000:0f:00.0", id: "17cb:1107", group: "24"}
+      - {address: "0000:11:00.0", id: "1d6a:14c0", group: "24"}
+      - {address: "0000:14:00.0", id: "1022:43fd", group: "24"}
+      - {address: "0000:7c:00.0", id: "1002:13c0", group: "32"}
+    unit_cases:
+      - name: AMD defaults
+        vendor: AuthenticAMD
+        kernel_args: []
+        ids: []
+        devices: "{{ unit_lab_devices }}"
+        expected_args: [iommu=pt]
+        expected_warnings: []
+      - name: Intel defaults
+        vendor: GenuineIntel
+        kernel_args: []
+        ids: []
+        devices: "{{ unit_lab_devices }}"
+        expected_args: [intel_iommu=on, iommu=pt]
+        expected_warnings: []
+      - name: explicit kernel arguments win
+        vendor: AuthenticAMD
+        kernel_args: [amd_iommu=on, iommu=pt, pcie_acs_override=downstream]
+        ids: []
+        devices: "{{ unit_lab_devices }}"
+        expected_args: [amd_iommu=on, iommu=pt, pcie_acs_override=downstream]
+        expected_warnings: []
+      - name: lab GPU and its audio, each alone in its group
+        vendor: AuthenticAMD
+        kernel_args: []
+        ids: ["1002:747e", "1002:ab30"]
+        devices: "{{ unit_lab_devices }}"
+        expected_args: [iommu=pt]
+        expected_warnings: []
+      - name: uppercase ids match the scan
+        vendor: AuthenticAMD
+        kernel_args: []
+        ids: ["1002:747E", "1002:AB30"]
+        devices: "{{ unit_lab_devices }}"
+        expected_args: [iommu=pt]
+        expected_warnings: []
+      - name: id sharing its group with unlisted devices
+        vendor: AuthenticAMD
+        kernel_args: []
+        ids: ["1d6a:14c0"]
+        devices: "{{ unit_lab_devices }}"
+        expected_args: [iommu=pt]
+        expected_warnings:
+          - >-
+            1d6a:14c0 (0000:11:00.0) shares IOMMU group 24 with 0000:0f:00.0, 0000:14:00.0, which are not in
+            libvirt_passthrough_vfio_ids: they must be passed to the same VM or the VM will not start.
+      - name: id not present on the host
+        vendor: AuthenticAMD
+        kernel_args: []
+        ids: ["10de:2684"]
+        devices: "{{ unit_lab_devices }}"
+        expected_args: [iommu=pt]
+        expected_warnings:
+          - 10de:2684 is in libvirt_passthrough_vfio_ids but no PCI device of the host has this id.
+      - name: no IOMMU group at all, before the first reboot
+        vendor: AuthenticAMD
+        kernel_args: []
+        ids: ["1002:747e"]
+        devices: []
+        expected_args: [iommu=pt]
+        expected_warnings:
+          - >-
+            The IOMMU exposes no group yet, so 1002:747e cannot be checked. Reboot with the passthrough kernel
+            arguments and run the playbook again.
+      - name: PCI bridge in the group is not flagged
+        vendor: GenuineIntel
+        kernel_args: []
+        ids: ["10de:2684", "10de:22ba"]
+        devices:
+          - {address: "0000:00:01.0", id: "8086:a70d", group: "2", class: "0x060400"}
+          - {address: "0000:01:00.0", id: "10de:2684", group: "2", class: "0x030000"}
+          - {address: "0000:01:00.1", id: "10de:22ba", group: "2", class: "0x040300"}
+        expected_args: [intel_iommu=on, iommu=pt]
+        expected_warnings: []
+  tasks:
+    - name: Run each case
+      ansible.builtin.include_tasks: libvirt_passthrough_case.yml
+      loop: "{{ unit_cases }}"
+      loop_control:
+        loop_var: unit_case
+        label: "{{ unit_case.name }}"

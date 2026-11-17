@@ -1,0 +1,30 @@
+---
+# The playbook does not gather facts. The network facts give the default route interface.
+- name: Gather the network facts
+  ansible.builtin.setup:
+    gather_subset: ['!all', network]
+
+# Nothing changes on the host before the preflight checks pass.
+- name: Check the host before any change
+  ansible.builtin.include_tasks: preflight.yml
+
+- name: Install the libvirt packages
+  ansible.builtin.include_tasks: packages.yml
+
+- name: Enable libvirt and give the operator access
+  ansible.builtin.include_tasks: service.yml
+
+- name: Open the NAT network in the firewall
+  ansible.builtin.include_tasks: nat.yml
+
+- name: Download the virtio-win driver ISO
+  ansible.builtin.include_tasks: virtio_win.yml
+  when: libvirt_virtio_win_enabled | bool
+
+- name: Bridge the uplink for the VMs
+  ansible.builtin.include_tasks: bridge.yml
+  when: libvirt_bridge_enabled | bool
+
+- name: Prepare the host for PCI passthrough
+  ansible.builtin.include_tasks: passthrough.yml
+  when: libvirt_passthrough_enabled | bool

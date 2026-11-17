@@ -1,0 +1,64 @@
+---
+# Account given access to qemu:///system through the libvirt and kvm groups. Follows the operator_user role.
+libvirt_operator_user: "{{ operator_user_name | default('operator') }}"
+# Fail before any change when /dev/kvm is missing (virtualization disabled in the firmware, or no KVM).
+libvirt_require_kvm: true
+# Host packages. Names checked against Ubuntu 26.04 (libvirt 12.0, QEMU 10.2, OVMF 2025.11, swtpm 0.10).
+libvirt_packages:
+  # Hypervisor, daemon and clients. dnsmasq-base serves DHCP and DNS on the NAT network.
+  - qemu-system-x86
+  - qemu-utils
+  - libvirt-daemon-system
+  - libvirt-clients
+  - dnsmasq-base
+  # Windows guests: UEFI firmware with Secure Boot variants and a software TPM 2.0.
+  - ovmf
+  - swtpm
+  - swtpm-tools
+  # Linux guests and disk images.
+  - virtinst
+  - libguestfs-tools
+  - cloud-image-utils
+  - libosinfo-bin
+  # virt-manager reaches the graphical console through the SSH connection with nc on the host.
+  - netcat-openbsd
+  # Python bindings used by the community.libvirt modules of this role.
+  - python3-libvirt
+  - python3-lxml
+  # lspci, to find PCI ids and IOMMU groups for passthrough.
+  - pciutils
+# libvirt NAT network, kept as packaged (192.168.122.0/24 on virbr0). UFW gets DHCP, DNS and route rules for it.
+libvirt_nat_network_name: default
+libvirt_nat_bridge: virbr0
+# Interface NAT guests leave through: the LAN bridge when enabled, otherwise the interface of the default route.
+libvirt_nat_uplink: >-
+  {{ libvirt_bridge_name if libvirt_bridge_enabled | bool else ansible_facts.default_ipv4.interface }}
+# LAN bridge on the uplink, so VMs get their own LAN address. Opt-in: it rewrites the host network config.
+libvirt_bridge_enabled: false
+libvirt_bridge_name: br0
+# Interface to bridge. Empty: the bridge member when the bridge exists, else the interface of the default route.
+libvirt_bridge_interface: ""
+# libvirt network that attaches VMs to the bridge.
+libvirt_bridge_network_name: host-bridge
+# Seconds before the host restores its previous netplan config if the controller has not confirmed the bridge.
+libvirt_bridge_rollback_timeout: 120
+# Where the rollback keeps the previous bridge file.
+libvirt_bridge_state_dir: /var/lib/libvirt-bridge
+# virtio-win driver ISO for Windows guests (storage, network, balloon, guest agent). Renovate cannot track it:
+# bump the version and the checksum by hand from
+# https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/ (upstream publishes no ISO
+# checksum; compute it from the downloaded file).
+libvirt_virtio_win_enabled: true
+libvirt_virtio_win_version: "0.1.302-1"
+libvirt_virtio_win_sha256: 303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d
+libvirt_virtio_win_dir: /var/lib/libvirt/images
+# PCI passthrough: kernel arguments, VFIO modules, optional vfio-pci binding at boot. Never reboots.
+libvirt_passthrough_enabled: false
+# vendor:device ids bound to vfio-pci at boot. Empty: libvirt detaches devices when a VM using them starts.
+libvirt_passthrough_vfio_ids: []
+# Kernel arguments. Empty picks by CPU vendor: iommu=pt on AMD, intel_iommu=on iommu=pt on Intel.
+libvirt_passthrough_kernel_args: []
+# Drivers that must wait for vfio-pci at boot, so it claims the listed devices first.
+libvirt_passthrough_softdep_drivers: [amdgpu, radeon, nvidia, nouveau, snd_hda_intel, xhci_hcd, nvme]
+# Touched when a boot setting of the role changes. Newer than the boot means a reboot is still needed.
+libvirt_passthrough_marker: /var/lib/libvirt-passthrough-boot-changed

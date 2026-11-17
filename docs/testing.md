@@ -44,7 +44,10 @@ flowchart LR
     VF --> O1["install_obsidian.yml<br/>run 1"]
     O1 --> O2["install_obsidian.yml<br/>run 2, idempotence"]
     O2 --> VO[verify_obsidian.yml]
-    VO --> T[Teardown]
+    VO --> L1["install_libvirt.yml<br/>run 1"]
+    L1 --> L2["install_libvirt.yml<br/>run 2, idempotence"]
+    L2 --> VL[verify_libvirt.yml]
+    VL --> T[Teardown]
 ```
 
 - Run 1 connects as the `ubuntu` user with its password and `sudo`, as on a stock install, and asserts
@@ -56,8 +59,13 @@ flowchart LR
 - `install_obsidian.yml` then runs twice on the same VM, which is in the `obsidian` group of the e2e inventory.
   The second run goes through `check-idempotence.sh` too. The image is about 3.6 GB, so these steps add a few
   minutes.
+- `install_libvirt.yml` then runs twice too, the VM being in the `libvirt` group. The VM runs with `-cpu host`,
+  so nested KVM gives it `/dev/kvm`. The e2e inventory enables the bridge: run 1 bridges the VM NIC under the
+  rollback timer (the QEMU user network gives the bridge the same lease, so SSH keeps working), run 2 must not
+  touch it. Passthrough stays off: the VM has no device to pass through. The rollback itself was exercised by
+  hand on a kept VM (`make e2e KEEP=1`, then a run that forces the post-apply check to fail).
 - Logs go to `artifacts/e2e/` (`run1.log`, `run2.log`, `verify.log`, `obsidian-run1.log`, `obsidian-run2.log`,
-  `verify-obsidian.log`, `vm-console.log`).
+  `verify-obsidian.log`, `libvirt-run1.log`, `libvirt-run2.log`, `verify-libvirt.log`, `vm-console.log`).
 
 ## What verify checks
 
@@ -86,6 +94,16 @@ flowchart LR
 - The graph view opens: the VM has no browser, so the test opens it with the Obsidian command line client and
   finds its canvas in the application. How it looks in a browser is checked by eye on a real host.
 - The web interface and the API listen on `127.0.0.1` only, and UFW opens neither port.
+
+`tests/e2e/verify_libvirt.yml` asserts on the libvirt state:
+
+- The host packages are installed, OVMF (Secure Boot variants) and swtpm are present.
+- The operator is in the `libvirt` and `kvm` groups and lists the domains of `qemu:///system` without root.
+- The `default` NAT network is active and starts at boot, and UFW holds its DHCP, DNS and route rules.
+- `br0` holds the VM NIC, and the `host-bridge` network is active and starts at boot.
+- The virtio-win ISO matches the pinned SHA256.
+- The `libvirt-exporter` unit is active, `/libvirt_metrics` answers 401 without credentials and serves
+  `libvirt_up 1` with them.
 
 ## Zombie check
 
@@ -144,6 +162,9 @@ design. The maintainer runs the test by hand on a real GPU host that already ran
   failure names `vault_obsidian_api_key` without showing the key.
 - `obsidian_merge_json.yml`: the JSON merge of the `obsidian` role (foreign keys and list items kept, no
   rewrite when nothing differs).
+- `libvirt_bridge_config.yml`: the bridge netplan document built from the uplink config (DHCP, static, MTU and
+  IPv6 settings, an uplink with no address, the same document on a second run).
+- `libvirt_passthrough.yml`: the passthrough kernel arguments per CPU vendor and the IOMMU group warnings.
 
 ## Lint
 

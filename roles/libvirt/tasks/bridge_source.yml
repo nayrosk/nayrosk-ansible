@@ -1,0 +1,84 @@
+---
+# Finds the netplan entry of the uplink. Pure logic, also run by tests/unit/libvirt_bridge_source.yml.
+# Inputs: libvirt_bridge_netplan_docs (parsed netplan files in lexical order, without the one this role writes),
+# libvirt_bridge_netplan_current (the parsed file this role wrote, or {}), libvirt_bridge_uplink,
+# libvirt_bridge_mac, libvirt_bridge_driver (the uplink driver, or ''), libvirt_bridge_name.
+# Outputs: libvirt_bridge_netplan_id, libvirt_bridge_uplink_source, libvirt_bridge_static_keys.
+#
+# netplan merges the files in order: mappings merge, sequences are concatenated. As in netplan, an entry with a
+# match block is the uplink when every property it sets matches (name as an exact name or a glob, macaddress in
+# any case, driver as one name, a list or globs); an entry without one is the uplink when its id is the
+# interface name.
+- name: Find the netplan entry of the uplink
+  vars:
+    libvirt_bridge_all_ethernets: >-
+      {{ libvirt_bridge_netplan_docs | map(attribute='network', default={})
+         | map(attribute='ethernets', default={}) | list }}
+    libvirt_bridge_merged: >-
+      {{ libvirt_bridge_all_ethernets | ansible.builtin.combine(recursive=true, list_merge='append')
+         if libvirt_bridge_all_ethernets | length > 0 else {} }}
+    libvirt_bridge_matching_ids: >-
+      {%- macro glob_re(pattern) -%}
+      ^{{ pattern | string | regex_escape | replace('\*', '.*') | replace('\?', '.') | replace('\[', '[')
+          | replace('\]', ']') | replace('[!', '[^') }}$
+      {%- endmacro -%}
+      {%- set ids = [] -%}
+      {%- for id, entry in libvirt_bridge_merged.items() -%}
+      {%-   set match = entry.match | default({}) -%}
+      {%-   if match | length == 0 -%}
+      {%-     set selected = id == libvirt_bridge_uplink -%}
+      {%-   else -%}
+      {%-     set driver_value = match.driver | default([]) -%}
+      {%-     set drivers = [driver_value] if driver_value is string else driver_value -%}
+      {%-     set driver_ok = namespace(value=match.driver is not defined) -%}
+      {%-     for pattern in drivers -%}
+      {%-       if libvirt_bridge_driver is match(glob_re(pattern)) -%}
+      {%-         set driver_ok.value = true -%}
+      {%-       endif -%}
+      {%-     endfor -%}
+      {%-     set selected = (match.name is not defined or libvirt_bridge_uplink is match(glob_re(match.name)))
+                and (match.macaddress is not defined or match.macaddress | lower == libvirt_bridge_mac | lower)
+                and driver_ok.value -%}
+      {%-   endif -%}
+      {%-   if selected -%}
+      {%-     set _ = ids.append(id) -%}
+      {%-   endif -%}
+      {%- endfor -%}
+      {{ ids }}
+  ansible.builtin.set_fact:
+    libvirt_bridge_source_merged: "{{ libvirt_bridge_merged }}"
+    libvirt_bridge_source_ids: "{{ libvirt_bridge_matching_ids }}"
+  # The netplan files may hold secrets (802.1X auth passwords).
+  no_log: true
+
+- name: Check that exactly one netplan entry configures the uplink
+  ansible.builtin.assert:
+    that: libvirt_bridge_source_ids | length == 1
+    fail_msg: >-
+      {{ ('No entry in /etc/netplan configures ' ~ libvirt_bridge_uplink ~ '. The role only bridges an uplink'
+          ~ ' that netplan manages; leave libvirt_bridge_enabled false on this host.')
+         if libvirt_bridge_source_ids | length == 0
+         else (libvirt_bridge_uplink ~ ' matches several netplan entries (' ~ libvirt_bridge_source_ids | join(', ')
+               ~ '). Merge them, or set libvirt_bridge_interface to the interface of one entry.') }}
+    quiet: true
+
+# Sequences and mappings cannot be removed by an override file: they must leave the entry that defines them.
+# On later runs they are gone from that entry and live on the bridge in the file this role wrote: take back
+# every static key the entry no longer has, whether DHCP stays on or not.
+- name: Build the uplink source
+  vars:
+    libvirt_bridge_static_key_names: [addresses, routes, routing-policy, nameservers, gateway4, gateway6]
+    libvirt_bridge_entry: "{{ libvirt_bridge_source_merged[libvirt_bridge_source_ids | first] }}"
+    libvirt_bridge_migrated: >-
+      {{ libvirt_bridge_netplan_current.network.bridges[libvirt_bridge_name]
+         | default({}) | dict2items
+         | selectattr('key', 'in', libvirt_bridge_static_key_names)
+         | rejectattr('key', 'in', libvirt_bridge_entry.keys() | list)
+         | items2dict }}
+  ansible.builtin.set_fact:
+    libvirt_bridge_netplan_id: "{{ libvirt_bridge_source_ids | first }}"
+    libvirt_bridge_uplink_source: "{{ libvirt_bridge_entry | combine(libvirt_bridge_migrated) }}"
+    libvirt_bridge_static_keys: >-
+      {{ libvirt_bridge_entry | dict2items | selectattr('key', 'in', libvirt_bridge_static_key_names)
+         | map(attribute='key') | list }}
+  no_log: true

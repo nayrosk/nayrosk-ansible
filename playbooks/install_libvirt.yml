@@ -1,0 +1,12 @@
+---
+# Installs QEMU/KVM and libvirt on the hosts of the libvirt group. Run playbooks/install_base.yml on them first.
+- name: Install QEMU/KVM and libvirt on hypervisor hosts
+  hosts: libvirt
+  gather_facts: false
+  roles:
+    - role: bootstrap_connection
+      tags: [always, bootstrap_connection]
+    - role: libvirt
+      tags: [libvirt]
+    - role: libvirt_exporter
+      tags: [libvirt_exporter]

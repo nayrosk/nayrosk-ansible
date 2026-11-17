@@ -1,0 +1,139 @@
+---
+# Checks the bridge netplan document the libvirt role builds from the uplink config, without a target:
+#   make unit
+- name: Check the libvirt bridge netplan document
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    unit_mac: 10:ff:e0:b0:fc:5c
+    unit_uplink_override:
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      link-local: []
+    unit_cases:
+      - name: lab DHCP
+        source:
+          dhcp4: true
+          dhcp6: true
+          match: {macaddress: 10:ff:e0:b0:fc:5c}
+          set-name: enp17s0
+        expected:
+          network:
+            version: 2
+            ethernets:
+              enp17s0: "{{ unit_uplink_override }}"
+            bridges:
+              br0:
+                interfaces: [enp17s0]
+                macaddress: 10:ff:e0:b0:fc:5c
+                parameters: {stp: false, forward-delay: 0}
+                dhcp4: true
+                dhcp6: true
+                dhcp-identifier: mac
+      - name: static
+        source:
+          addresses: [192.0.2.10/24, "2001:db8::10/64"]
+          routes: [{to: default, via: 192.0.2.1}]
+          nameservers: {addresses: [192.0.2.1], search: [example.org]}
+        expected:
+          network:
+            version: 2
+            ethernets:
+              enp17s0: "{{ unit_uplink_override }}"
+            bridges:
+              br0:
+                interfaces: [enp17s0]
+                macaddress: 10:ff:e0:b0:fc:5c
+                parameters: {stp: false, forward-delay: 0}
+                addresses: [192.0.2.10/24, "2001:db8::10/64"]
+                routes: [{to: default, via: 192.0.2.1}]
+                nameservers: {addresses: [192.0.2.1], search: [example.org]}
+      - name: DHCPv4 only with an MTU and IPv6 settings
+        source:
+          dhcp4: true
+          mtu: 9000
+          accept-ra: true
+          ipv6-privacy: true
+          wakeonlan: true
+        expected:
+          network:
+            version: 2
+            ethernets:
+              enp17s0: "{{ unit_uplink_override | combine({'mtu': 9000}) }}"
+            bridges:
+              br0:
+                interfaces: [enp17s0]
+                macaddress: 10:ff:e0:b0:fc:5c
+                parameters: {stp: false, forward-delay: 0}
+                dhcp4: true
+                dhcp-identifier: mac
+                mtu: 9000
+                accept-ra: true
+                ipv6-privacy: true
+      - name: gateway, routing policy and DHCP overrides
+        source:
+          addresses: [192.0.2.10/24]
+          gateway4: 192.0.2.1
+          routing-policy: [{from: 192.0.2.0/24, table: 100}]
+          dhcp4: true
+          dhcp4-overrides: {route-metric: 50, use-dns: false}
+          ipv6-address-generation: stable-privacy
+        expected:
+          network:
+            version: 2
+            ethernets:
+              enp17s0: "{{ unit_uplink_override }}"
+            bridges:
+              br0:
+                interfaces: [enp17s0]
+                macaddress: 10:ff:e0:b0:fc:5c
+                parameters: {stp: false, forward-delay: 0}
+                addresses: [192.0.2.10/24]
+                gateway4: 192.0.2.1
+                routing-policy: [{from: 192.0.2.0/24, table: 100}]
+                dhcp4: true
+                dhcp4-overrides: {route-metric: 50, use-dns: false}
+                ipv6-address-generation: stable-privacy
+                dhcp-identifier: mac
+      - name: no layer 3 settings
+        source:
+          match: {macaddress: 10:ff:e0:b0:fc:5c}
+          set-name: enp17s0
+        expected: fail
+      - name: DHCP explicitly off and no address
+        source: {dhcp4: false, dhcp6: false}
+        expected: fail
+  tasks:
+    - name: Run each case
+      ansible.builtin.include_tasks: libvirt_bridge_config_case.yml
+      loop: "{{ unit_cases }}"
+      loop_control:
+        loop_var: unit_case
+        label: "{{ unit_case.name }}"
+
+    # Later runs compare the file byte for byte: its text must not depend on the key order of the source.
+    - name: Render the bridge file from two key orders of the same source
+      ansible.builtin.include_tasks: libvirt_bridge_render_case.yml
+      loop:
+        - {mtu: 9000, addresses: [192.0.2.10/24], routes: [{to: default, via: 192.0.2.1}]}
+        - {routes: [{to: default, via: 192.0.2.1}], addresses: [192.0.2.10/24], mtu: 9000}
+      loop_control:
+        loop_var: unit_source
+        label: "{{ unit_source.keys() | list }}"
+
+    - name: Check that both orders give the same file
+      ansible.builtin.assert:
+        that: unit_rendered[0] == unit_rendered[1]
+        fail_msg: "{{ unit_rendered[0] }} != {{ unit_rendered[1] }}"
+        success_msg: same file for both key orders
+
+    # Run 2 on a bridged host reads the same installer config (the 60 file is excluded by the reader), so the
+    # document must not depend on anything but its inputs.
+    - name: Build the lab document twice
+      ansible.builtin.include_tasks: libvirt_bridge_config_case.yml
+      loop: "{{ [unit_cases[0], unit_cases[0]] }}"
+      loop_control:
+        loop_var: unit_case
+        label: second run

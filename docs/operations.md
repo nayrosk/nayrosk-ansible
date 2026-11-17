@@ -272,6 +272,154 @@ sudo reboot
 The exporter image is tracked by Renovate. Its pull request notes ask you to diff the upstream
 `example/config.json` against the field allow-list in `roles/gpu_metrics_exporter/vars/main.yml`.
 
+## Virtual machines
+
+`playbooks/install_libvirt.yml` targets the `libvirt` group of the inventory. Run `install_base.yml` first: the
+libvirt exporter needs the Caddy routes directory it creates. Add the host to `libvirt` and run:
+
+```bash
+make run PLAYBOOK=playbooks/install_libvirt.yml INVENTORY=inventories/prod LIMIT=server1
+```
+
+### Connect
+
+libvirt opens no network port. virsh and virt-manager reach it over the operator SSH login, which the role adds
+to the `libvirt` and `kvm` groups:
+
+```bash
+virsh -c qemu+ssh://operator@server1/system list --all
+virt-manager -c qemu+ssh://operator@server1/system
+```
+
+The virt-manager console (SPICE or VNC) goes through the same SSH connection, with `nc` on the host.
+
+### Networks
+
+- `default`: the libvirt NAT network, 192.168.122.0/24 on `virbr0`. Guests get a lease and reach the outside;
+  nothing on the LAN can reach them. The role adds UFW rules for it, scoped to traffic entering on `virbr0`.
+- `host-bridge`, only with `libvirt_bridge_enabled: true`: guests attached to it sit on the LAN with their own
+  address from the LAN DHCP server, and the host and its guests see each other. Pick it as the network source
+  in virt-manager, or `--network network=host-bridge` with virt-install.
+
+Bridged guests are not filtered by the host firewall: UFW only protects the host. Run a firewall in each guest.
+
+### The LAN bridge
+
+Set `libvirt_bridge_enabled: true` for the host. The role adds `/etc/netplan/60-libvirt-bridge.yaml`, which
+moves the address settings of the uplink (DHCP or static, read from the existing netplan files) to `br0` and
+gives `br0` the uplink MAC. An override file cannot remove addresses, routes or name servers that another file
+defines, so on a static host the role also removes them from the uplink entry with `netplan set`, which
+rewrites the file that holds them. The host keeps its IPv4 lease and its SLAAC IPv6 address; a DHCPv6 address may
+change. Add a DHCP reservation for the host MAC on the router so the IPv4 address never moves.
+
+All the bridge checks run before the role changes anything: the uplink must be configured in netplan with
+DHCP or a static address, and the host needs an IPv4 default route.
+
+The change is applied like `netplan try`. The role first checks the merged result in a scratch copy of
+`/etc/netplan`, then backs up the directory. Before `netplan apply`, the host arms a timer
+(`libvirt_bridge_rollback_timeout`, 120 seconds, at least 60) that restores that backup. The
+controller reconnects, waits for `netplan apply` to finish, checks that `br0` holds the host address and that
+the gateway answers (a ping, or a resolved ARP entry when the router drops ICMP), then cancels the timer. If
+any of that fails, the play stops with "The bridge setup failed ... and was rolled back", and the host is back
+on its previous config within the timeout. Check `journalctl -t libvirt-bridge` on the host, fix the cause
+(often a different DHCP lease), and run the playbook again.
+
+To remove the bridge, from the console or another path than the bridged link. On a static host, first put
+the static settings back on the uplink entry: the migration removed them from it and they now live under `br0`
+in the bridge file. Copy each of `addresses`, `routes`, `nameservers`, `routing-policy`, `gateway4` and
+`gateway6` that the bridge has, under the uplink netplan id (`enp17s0` here), for example:
+
+`--origin-hint` writes them to a new file, `90-uplink-static.yaml`: without it, `netplan set` may write them to
+the bridge file, which the next step deletes.
+
+```bash
+sudo netplan get bridges.br0
+sudo netplan set --origin-hint 90-uplink-static 'ethernets.enp17s0.addresses=[192.0.2.10/24]'
+sudo netplan set --origin-hint 90-uplink-static 'ethernets.enp17s0.routes=[{to: default, via: 192.0.2.1}]'
+sudo netplan set --origin-hint 90-uplink-static 'ethernets.enp17s0.nameservers.addresses=[192.0.2.1]'
+```
+
+Then, on any host:
+
+```bash
+sudo rm /etc/netplan/60-libvirt-bridge.yaml
+sudo ip link delete br0
+sudo netplan apply
+virsh -c qemu:///system net-destroy host-bridge
+virsh -c qemu:///system net-undefine host-bridge
+```
+
+Then set `libvirt_bridge_enabled: false`, so the next run does not add it back.
+
+On a bridged host, `netplan apply` prints `Cannot find unique matching interface` for the uplink: the bridge
+carries the uplink MAC, which the installer entry matches on. The message is harmless; the command succeeds
+and the network stays up.
+
+### Windows guests
+
+The host has OVMF (UEFI with Secure Boot: pick `OVMF_CODE_4M.ms.fd` with `OVMF_VARS_4M.ms.fd`) and swtpm (add
+a TPM 2.0 device, emulated). The virtio-win driver ISO is at
+`/var/lib/libvirt/images/virtio-win-<version>.iso`: attach it as a second CD-ROM to load the storage driver
+during setup, then run its guest tools installer inside Windows.
+
+Bump virtio-win by hand: fedorapeople.org has no Renovate datasource and publishes no ISO checksum. Pick the
+release under `https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/`, download its
+ISO, and set `libvirt_virtio_win_version` and `libvirt_virtio_win_sha256` (`sha256sum` of the file).
+
+### PCI passthrough
+
+Set `libvirt_passthrough_enabled: true`. The role adds the IOMMU kernel arguments to GRUB (`iommu=pt` on AMD,
+`intel_iommu=on iommu=pt` on Intel), loads the VFIO modules, and reports when a reboot is needed; it never
+reboots. Reboot by hand after the first run, then run the playbook again: it checks that the IOMMU exposes
+groups. The reboot notice stays until the host boots after the last change to these boot settings, a removed
+kernel argument or boot-time binding included.
+
+Find the ids and the IOMMU group of each device:
+
+```bash
+lspci -nn
+for d in /sys/kernel/iommu_groups/*/devices/*; do g=${d#*/iommu_groups/}; echo "group ${g%%/*}: $(lspci -nns ${d##*/})"; done
+```
+
+A device goes to a VM together with every other device of its group. Two ways to hand it over:
+
+- Dynamic (default, `libvirt_passthrough_vfio_ids: []`): the device stays with its host driver. Add it to the
+  VM in virt-manager (Add Hardware, PCI Host Device); libvirt detaches it when the VM starts (`managed="yes"`)
+  and gives it back when the VM stops. The VM fails to start while a host process holds the device.
+- At boot (`libvirt_passthrough_vfio_ids: ["1002:747e", "1002:ab30"]`): `vfio-pci` claims the listed ids
+  before their driver loads. The host never uses those devices. The role warns when a listed device shares its
+  group with unlisted ones (PCI bridges excepted), and before the first reboot, when the IOMMU exposes no
+  group yet.
+
+A GPU that also serves the host (ROCm, the GPU exporter of `install_rocm.yml`) is best handed over
+dynamically. Before starting a VM that uses it, stop what holds it on the host:
+
+```bash
+sudo systemctl stop device-metrics-exporter.service
+# stop any ROCm job, then start the VM; after the VM stops:
+sudo systemctl start device-metrics-exporter.service
+```
+
+### Metrics
+
+Prometheus scrapes the libvirt exporter through Caddy, like the GPU exporter:
+
+```yaml
+scrape_configs:
+  - job_name: libvirt
+    scheme: https
+    metrics_path: /libvirt_metrics
+    basic_auth:
+      username: operator
+      password_file: /etc/prometheus/libvirt.password
+    tls_config:
+      ca_file: /etc/prometheus/server1-ca.crt
+    static_configs:
+      - targets: ["server1.example.com"]
+```
+
+The exporter image is tracked by Renovate.
+
 ## Obsidian
 
 `playbooks/install_obsidian.yml` targets the `obsidian` group of the inventory. Run `install_base.yml` first:

@@ -1,0 +1,6 @@
+---
+- name: Restart libvirt-exporter
+  ansible.builtin.systemd_service:
+    name: libvirt-exporter.service
+    state: restarted
+    daemon_reload: true

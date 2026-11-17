@@ -8,3 +8,5 @@ collections:
     version: 2.2.2
   - name: containers.podman
     version: 1.21.2
+  - name: community.libvirt
+    version: 2.4.0

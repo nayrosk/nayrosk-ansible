@@ -1,0 +1,4 @@
+# Managed by Ansible (role libvirt). When br_netfilter loads, frames crossing a bridge go through iptables, and
+# the UFW FORWARD DROP policy would cut the VMs on {{ libvirt_bridge_name }} off the LAN. Turn that off as soon as
+# the module loads, whichever tool loads it.
+install br_netfilter /sbin/modprobe --ignore-install br_netfilter $CMDLINE_OPTS && /sbin/sysctl -q -w net.bridge.bridge-nf-call-iptables=0 net.bridge.bridge-nf-call-ip6tables=0 net.bridge.bridge-nf-call-arptables=0

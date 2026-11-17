@@ -1,0 +1,108 @@
+---
+# Read-only. Fills the inputs of bridge_config.yml and bridge_apply.yml from the host.
+# The uplink: libvirt_bridge_interface when set, else the physical member of the bridge when it already exists
+# (later runs: the default route is on the bridge), else the interface of the default route (first run).
+# Guest taps (vnet*) are bridge members too; only a member backed by a device is the uplink.
+- name: List the physical members of the bridge
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      for member in /sys/class/net/{{ libvirt_bridge_name }}/brif/*; do
+        [ -e "$member" ] || continue
+        name=${member##*/}
+        if [ -e "/sys/class/net/$name/device" ]; then echo "$name"; fi
+      done
+  register: libvirt_bridge_members
+  changed_when: false
+
+- name: Check that the host has an IPv4 default route
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.default_ipv4.interface is defined
+      - ansible_facts.default_ipv4.address is defined
+      - ansible_facts.default_ipv4.gateway is defined
+    fail_msg: >-
+      The host has no IPv4 default route, so the role cannot tell which interface to bridge or check the result.
+      Set libvirt_bridge_enabled to false, or fix the network first.
+    quiet: true
+
+- name: Resolve the uplink interface
+  ansible.builtin.set_fact:
+    libvirt_bridge_uplink: >-
+      {{ libvirt_bridge_interface
+         if libvirt_bridge_interface | length > 0
+         else (libvirt_bridge_members.stdout_lines | first
+               if libvirt_bridge_members.stdout_lines | length == 1
+               else ansible_facts.default_ipv4.interface) }}
+
+- name: Check that the uplink is a physical interface, not the bridge itself
+  ansible.builtin.assert:
+    that:
+      - libvirt_bridge_uplink != libvirt_bridge_name
+      - libvirt_bridge_members.stdout_lines | length <= 1
+    fail_msg: >-
+      Cannot tell which interface to bridge ({{ libvirt_bridge_name }} has the physical members
+      {{ libvirt_bridge_members.stdout_lines | join(', ') }}). Set libvirt_bridge_interface.
+    quiet: true
+
+- name: Check that the uplink exists
+  ansible.builtin.stat:
+    path: "/sys/class/net/{{ libvirt_bridge_uplink }}/address"
+  register: libvirt_bridge_uplink_stat
+
+- name: Assert that the uplink exists
+  ansible.builtin.assert:
+    that: libvirt_bridge_uplink_stat.stat.exists
+    fail_msg: "The uplink {{ libvirt_bridge_uplink }} does not exist. Set libvirt_bridge_interface."
+    quiet: true
+
+- name: Read the uplink MAC address
+  ansible.builtin.slurp:
+    src: "/sys/class/net/{{ libvirt_bridge_uplink }}/address"
+  register: libvirt_bridge_mac_raw
+
+# The 60 file is the one this role writes: leaving it out gives the same source on every run.
+- name: List the netplan files
+  ansible.builtin.find:
+    paths: /etc/netplan
+    patterns: ["*.yaml"]
+    excludes: [60-libvirt-bridge.yaml]
+  register: libvirt_bridge_netplan_files
+
+- name: Read the netplan files
+  ansible.builtin.slurp:
+    src: "{{ item }}"
+  loop: "{{ libvirt_bridge_netplan_files.files | map(attribute='path') | sort }}"
+  register: libvirt_bridge_netplan_raw
+  no_log: true
+
+- name: Read the bridge netplan file of an earlier run
+  ansible.builtin.slurp:
+    src: /etc/netplan/60-libvirt-bridge.yaml
+  register: libvirt_bridge_current_raw
+  failed_when: false
+  no_log: true
+
+- name: Read the uplink driver
+  ansible.builtin.stat:
+    path: "/sys/class/net/{{ libvirt_bridge_uplink }}/device/driver"
+  register: libvirt_bridge_driver_link
+
+- name: Record the uplink facts
+  ansible.builtin.set_fact:
+    libvirt_bridge_mac: "{{ libvirt_bridge_mac_raw.content | b64decode | trim }}"
+    libvirt_bridge_driver: >-
+      {{ libvirt_bridge_driver_link.stat.lnk_source | basename
+         if libvirt_bridge_driver_link.stat.lnk_source is defined else '' }}
+    libvirt_bridge_expected_ipv4: "{{ ansible_facts.default_ipv4.address }}"
+    libvirt_bridge_gateway: "{{ ansible_facts.default_ipv4.gateway }}"
+
+- name: Find the netplan entry of the uplink
+  ansible.builtin.include_tasks: bridge_source.yml
+  vars:
+    libvirt_bridge_netplan_docs: >-
+      {{ libvirt_bridge_netplan_raw.results | map(attribute='content') | map('b64decode') | map('from_yaml')
+         | list }}
+    libvirt_bridge_netplan_current: >-
+      {{ (libvirt_bridge_current_raw.content | b64decode | from_yaml)
+         if libvirt_bridge_current_raw.content is defined else {} }}

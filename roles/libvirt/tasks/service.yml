@@ -1,0 +1,21 @@
+---
+# Ubuntu 26.04 ships the monolithic daemon: libvirtd.service, activated by libvirtd.socket.
+- name: Enable and start the libvirt daemon
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: [libvirtd.socket, libvirtd.service]
+
+# The libvirt group opens the read-write socket /run/libvirt/libvirt-sock (root:libvirt 0660), the kvm
+# group opens /dev/kvm.
+- name: Add the operator to the libvirt and kvm groups
+  ansible.builtin.user:
+    name: "{{ libvirt_operator_user }}"
+    groups: [libvirt, kvm]
+    append: true
+
+# A reused SSH connection keeps the old group list. Reconnect so later tasks and plays see the new groups.
+# meta reset_connection ignores when, so it runs every time; a reconnect is cheap.
+- name: Reconnect so the operator session gets its new groups
+  ansible.builtin.meta: reset_connection

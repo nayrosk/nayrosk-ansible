@@ -1,0 +1,35 @@
+---
+- name: Build the bridge document
+  block:
+    - name: Include the bridge document builder
+      ansible.builtin.include_role:
+        name: libvirt
+        tasks_from: bridge_config
+      vars:
+        libvirt_bridge_uplink_source: "{{ unit_case.source }}"
+        libvirt_bridge_interface: enp17s0
+        libvirt_bridge_name: br0
+        libvirt_bridge_mac: "{{ unit_mac }}"
+
+    - name: Record the document
+      ansible.builtin.set_fact:
+        unit_outcome: "{{ libvirt_bridge_netplan }}"
+        unit_message: ""
+  rescue:
+    - name: Record the failure
+      ansible.builtin.set_fact:
+        unit_outcome: fail
+        unit_message: "{{ ansible_failed_result.msg | default('') }}"
+
+- name: Check the outcome
+  ansible.builtin.assert:
+    that: unit_outcome == unit_case.expected
+    fail_msg: "{{ unit_case.name }}: expected {{ unit_case.expected }}, got {{ unit_outcome }}"
+    success_msg: "{{ unit_case.name }}: ok"
+
+- name: Check that the failure explains what is missing
+  ansible.builtin.assert:
+    that: "'no DHCP or static address' in unit_message and 'enp17s0' in unit_message"
+    fail_msg: "{{ unit_case.name }}: unexpected message: {{ unit_message }}"
+    success_msg: "{{ unit_case.name }}: {{ unit_message }}"
+  when: unit_case.expected == 'fail'

@@ -1,0 +1,22 @@
+---
+# Same mode as the libvirt images directory: guests reach their files, nobody lists them.
+- name: Create the virtio-win ISO directory
+  ansible.builtin.file:
+    path: "{{ libvirt_virtio_win_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0711"
+
+# The stable-virtio path moves with each release; the archive path of a release does not.
+- name: Download the virtio-win driver ISO
+  ansible.builtin.get_url:
+    url: >-
+      https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-{{
+      libvirt_virtio_win_version }}/virtio-win-{{ libvirt_virtio_win_version | regex_replace('-[0-9]+$', '') }}.iso
+    dest: "{{ libvirt_virtio_win_dir }}/virtio-win-{{ libvirt_virtio_win_version | regex_replace('-[0-9]+$', '') }}.iso"
+    checksum: "sha256:{{ libvirt_virtio_win_sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+    timeout: 120
