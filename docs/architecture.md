@@ -12,11 +12,14 @@ host.
 | `playbooks/install_base.yml` | all | the 17 roles below |
 | `playbooks/install_rocm.yml` | `gpu` group | `bootstrap_connection`, `rocm`, `gpu_metrics_exporter` |
 | `playbooks/install_obsidian.yml` | `obsidian` group | `bootstrap_connection`, `obsidian` |
+| `playbooks/install_libvirt.yml` | `libvirt` group | `bootstrap_connection`, `libvirt`, `libvirt_exporter` |
 
-The two optional playbooks run after `install_base.yml`: they reuse the operator account and add their route
+The optional playbooks run after `install_base.yml`: they reuse the operator account and add their route
 to its rootless Caddy. `rocm` installs the ROCm stack with `amdgpu-install` and never reboots.
 `gpu_metrics_exporter` serves the AMD Device Metrics Exporter at `https://<host>/gpu_metrics`. `obsidian` runs
-the Obsidian application at `https://<host>/obsidian/` and its Local REST API on the host loopback.
+the Obsidian application at `https://<host>/obsidian/` and its Local REST API on the host loopback. `libvirt`
+turns the host into a KVM hypervisor managed by the operator over SSH, with an optional LAN bridge and PCI
+passthrough. `libvirt_exporter` serves the libvirt metrics at `https://<host>/libvirt_metrics`.
 
 ## Playbook flow
 
@@ -104,6 +107,13 @@ flowchart LR
 - The `monitoring` network exists for future rootless services. Caddy is not on it yet. See
   [operations](operations.md#decisions-and-known-limits).
 - fail2ban reads the Caddy JSON access log and bans clients that fail basic auth, and bans SSH brute force.
+- `playbooks/install_libvirt.yml` adds the virtual machine networks. The libvirt NAT network `default`
+  (`virbr0`, 192.168.122.0/24) gets UFW rules that only match traffic entering on `virbr0`: DHCP and DNS to
+  libvirt's dnsmasq, and routing out through the uplink. With `libvirt_bridge_enabled`, the uplink joins the
+  bridge `br0`, which takes the host address and MAC; guests on the `host-bridge` network are LAN hosts. Their
+  frames cross the bridge without going through iptables (`bridge-nf-call-*` set to 0 whenever
+  `br_netfilter` loads), so UFW does not filter them. The rootful `libvirt-exporter` reads the read-only libvirt
+  socket and listens on `127.0.0.1:9177`; Caddy serves it at `/libvirt_metrics` through a `routes.d` snippet.
 
 ## Connection model
 
