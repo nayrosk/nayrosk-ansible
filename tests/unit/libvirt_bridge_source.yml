@@ -114,6 +114,26 @@
         expected_id: aq
         expected_source: {match: {driver: atlantic}, dhcp4: true}
         expected_static_keys: []
+      - name: a match on a driver list
+        docs:
+          - network:
+              ethernets:
+                aq: {match: {driver: [atlantic, r8169]}, dhcp4: true}
+                other: {match: {driver: [igb, e1000e]}, dhcp4: true}
+        current: {}
+        expected_id: aq
+        expected_source: {match: {driver: [atlantic, r8169]}, dhcp4: true}
+        expected_static_keys: []
+      - name: a match on a driver glob
+        docs:
+          - network:
+              ethernets:
+                aq: {match: {driver: "atl*"}, dhcp4: true}
+                other: {match: {driver: "igb*"}, dhcp4: true}
+        current: {}
+        expected_id: aq
+        expected_source: {match: {driver: "atl*"}, dhcp4: true}
+        expected_static_keys: []
       - name: an id that names the uplink does not count when the entry has a match
         docs:
           - network:

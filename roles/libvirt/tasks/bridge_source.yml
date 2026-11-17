@@ -7,7 +7,8 @@
 #
 # netplan merges the files in order: mappings merge, sequences are concatenated. As in netplan, an entry with a
 # match block is the uplink when every property it sets matches (name as an exact name or a glob, macaddress in
-# any case, driver); an entry without one is the uplink when its id is the interface name.
+# any case, driver as one name, a list or globs); an entry without one is the uplink when its id is the
+# interface name.
 - name: Find the netplan entry of the uplink
   vars:
     libvirt_bridge_all_ethernets: >-
@@ -17,17 +18,27 @@
       {{ libvirt_bridge_all_ethernets | ansible.builtin.combine(recursive=true, list_merge='append')
          if libvirt_bridge_all_ethernets | length > 0 else {} }}
     libvirt_bridge_matching_ids: >-
+      {%- macro glob_re(pattern) -%}
+      ^{{ pattern | string | regex_escape | replace('\*', '.*') | replace('\?', '.') | replace('\[', '[')
+          | replace('\]', ']') | replace('[!', '[^') }}$
+      {%- endmacro -%}
       {%- set ids = [] -%}
       {%- for id, entry in libvirt_bridge_merged.items() -%}
       {%-   set match = entry.match | default({}) -%}
       {%-   if match | length == 0 -%}
       {%-     set selected = id == libvirt_bridge_uplink -%}
       {%-   else -%}
-      {%-     set name_re = '^' ~ (match.name | default('') | regex_escape | replace('\\*', '.*')
-                | replace('\\?', '.') | replace('\\[', '[') | replace('\\]', ']') | replace('[!', '[^')) ~ '$' -%}
-      {%-     set selected = (match.name is not defined or libvirt_bridge_uplink is match(name_re))
+      {%-     set driver_value = match.driver | default([]) -%}
+      {%-     set drivers = [driver_value] if driver_value is string else driver_value -%}
+      {%-     set driver_ok = namespace(value=match.driver is not defined) -%}
+      {%-     for pattern in drivers -%}
+      {%-       if libvirt_bridge_driver is match(glob_re(pattern)) -%}
+      {%-         set driver_ok.value = true -%}
+      {%-       endif -%}
+      {%-     endfor -%}
+      {%-     set selected = (match.name is not defined or libvirt_bridge_uplink is match(glob_re(match.name)))
                 and (match.macaddress is not defined or match.macaddress | lower == libvirt_bridge_mac | lower)
-                and (match.driver is not defined or match.driver == libvirt_bridge_driver) -%}
+                and driver_ok.value -%}
       {%-   endif -%}
       {%-   if selected -%}
       {%-     set _ = ids.append(id) -%}
