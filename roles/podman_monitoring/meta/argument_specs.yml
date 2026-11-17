@@ -32,6 +32,15 @@ argument_specs:
         description:
           - Bcrypt hash of the basic auth password, as printed by C(caddy hash-password).
           - Defaults to the vault variable C(vault_caddy_basic_auth_hash), which must then be set.
+      podman_monitoring_caddy_basic_auth_skip_paths:
+        type: list
+        elements: str
+        default: []
+        description:
+          - Path matchers that the Caddy basic auth skips, for example C(/opencode/*). Each one starts with
+            C(/) and holds no whitespace.
+          - Only for routes whose backend authenticates every request itself. Caddy still logs the 401 answers
+            of the backend, so the fail2ban C(caddy-auth) jail still counts them.
       podman_monitoring_caddy_extra_site_addresses:
         type: list
         elements: str

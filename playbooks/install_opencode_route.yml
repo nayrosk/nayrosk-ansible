@@ -1,0 +1,11 @@
+---
+# Publishes the opencode server of the operator behind Caddy on the hosts of the opencode group. Run
+# playbooks/install_base.yml on them first, with the route path in podman_monitoring_caddy_basic_auth_skip_paths.
+- name: Publish the opencode server behind Caddy
+  hosts: opencode
+  gather_facts: false
+  roles:
+    - role: bootstrap_connection
+      tags: [always, bootstrap_connection]
+    - role: opencode_route
+      tags: [opencode_route]

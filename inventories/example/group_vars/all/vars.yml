@@ -33,6 +33,10 @@ podman_monitoring_caddy_basic_auth_user: operator
 # podman_monitoring_node_exporter_version: "1.12.1"
 # Extra names or addresses served by Caddy, for example a DNS name pointing at the machine.
 podman_monitoring_caddy_extra_site_addresses: []
+# Paths the Caddy basic auth skips, for routes whose backend checks every request itself. The opencode route
+# (playbooks/install_opencode_route.yml) needs its path here:
+#   podman_monitoring_caddy_basic_auth_skip_paths: ["/opencode/*"]
+podman_monitoring_caddy_basic_auth_skip_paths: []
 
 # --- DNS ------------------------------------------------------------------------------------
 # Resolvers queried over TLS, and the TLS server name they present.

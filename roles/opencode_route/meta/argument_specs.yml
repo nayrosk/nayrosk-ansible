@@ -1,0 +1,26 @@
+---
+argument_specs:
+  main:
+    short_description: Publish the opencode server of the operator behind Caddy.
+    description:
+      - Adds the Caddy route C(<opencode_route_path>/*) through the C(route) entry point of
+        C(podman_monitoring). Caddy strips the prefix and proxies to opencode on the host loopback.
+      - opencode authenticates every API request itself, so the inventory must list the route in
+        C(podman_monitoring_caddy_basic_auth_skip_paths) and C(playbooks/install_base.yml) must have run with it.
+      - Does not install or configure opencode.
+    options:
+      opencode_route_path:
+        type: str
+        default: /opencode
+        description: Path prefix of the route. Must match C(^/[a-z0-9_-]+$).
+      opencode_route_port:
+        type: int
+        default: 4096
+        description: Loopback port opencode listens on (C(opencode serve --hostname 127.0.0.1 --port <port>)).
+      opencode_route_caddy_user_home:
+        type: str
+        default: "{{ operator_user_home | default('/home/' ~ (operator_user_name | default('operator'))) }}"
+        description:
+          - Home directory of the operator account that runs Caddy. It is passed to the C(podman_monitoring)
+            route entry point as C(podman_monitoring_user_home).
+          - When the inventory overrides C(podman_monitoring_user_home), set this variable to the same value.

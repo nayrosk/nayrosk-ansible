@@ -1,0 +1,62 @@
+---
+- name: Check the route settings
+  ansible.builtin.assert:
+    that:
+      - opencode_route_path is match('^/[a-z0-9_-]+$')
+      - opencode_route_port | int >= 1
+      - opencode_route_port | int <= 65535
+    fail_msg: opencode_route_path must match ^/[a-z0-9_-]+$ and opencode_route_port must be a TCP port.
+    quiet: true
+
+- name: Check the inventory skips the Caddy basic auth for the route
+  ansible.builtin.assert:
+    that: (opencode_route_path ~ '/*') in (podman_monitoring_caddy_basic_auth_skip_paths | default([]))
+    fail_msg: >-
+      Add {{ opencode_route_path }}/* to podman_monitoring_caddy_basic_auth_skip_paths and run
+      playbooks/install_base.yml: opencode checks its own password, and a request carries one Authorization header.
+    quiet: true
+
+- name: Check the operator Caddy routes directory
+  ansible.builtin.stat:
+    path: "{{ opencode_route_caddy_user_home }}/.caddy/routes.d"
+  register: opencode_route_routes_dir
+
+- name: Assert the prerequisites of install_base.yml
+  ansible.builtin.assert:
+    that: opencode_route_routes_dir.stat.isdir | default(false)
+    fail_msg: Run playbooks/install_base.yml first.
+    quiet: true
+
+# grep -q prints nothing: the Caddyfile holds the basic auth hash.
+- name: Check the installed Caddyfile skips the basic auth for the route
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -qE
+      - "^[[:space:]]*@basic_auth not path (.* )?{{ (opencode_route_path ~ '/*') | regex_escape }}( |$)"
+      - "{{ opencode_route_caddy_user_home }}/.caddy/config/Caddyfile"
+  register: opencode_route_caddyfile
+  changed_when: false
+  failed_when: opencode_route_caddyfile.rc not in [0, 1]
+
+- name: Assert the installed Caddyfile skips the basic auth for the route
+  ansible.builtin.assert:
+    that: opencode_route_caddyfile.rc == 0
+    fail_msg: >-
+      The installed Caddyfile still applies the Caddy basic auth to {{ opencode_route_path }}/*. Run
+      playbooks/install_base.yml with the path in podman_monitoring_caddy_basic_auth_skip_paths.
+    quiet: true
+
+# handle_path strips the prefix: opencode serves its API under /api at the root. Server-sent events and the
+# terminal WebSockets pass through reverse_proxy as is.
+- name: Install the Caddy route for opencode
+  ansible.builtin.include_role:
+    name: podman_monitoring
+    tasks_from: route
+  vars:
+    podman_monitoring_route_name: opencode
+    podman_monitoring_user_home: "{{ opencode_route_caddy_user_home }}"
+    podman_monitoring_route_content: |
+      handle_path {{ opencode_route_path }}/* {
+      	reverse_proxy host.containers.internal:{{ opencode_route_port }}
+      }

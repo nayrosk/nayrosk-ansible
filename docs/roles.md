@@ -131,6 +131,7 @@ Run node_exporter as a rootful quadlet and Caddy as a rootless quadlet in front 
 | `podman_monitoring_node_exporter_listen` | str | `127.0.0.1:9100` | no | Address and port node_exporter listens on. Must stay a loopback address. Caddy proxies to `host.containers.internal`, which pasta maps to the host loopback only. |
 | `podman_monitoring_caddy_basic_auth_user` | str | `operator` | no | Basic auth user protecting every Caddy route. |
 | `podman_monitoring_caddy_basic_auth_hash` | str | secret | no | Bcrypt hash of the basic auth password, as printed by `caddy hash-password`. Defaults to the vault variable `vault_caddy_basic_auth_hash`, which must then be set. |
+| `podman_monitoring_caddy_basic_auth_skip_paths` | list of str | `[]` | no | Path matchers that the Caddy basic auth skips, for example `/opencode/*`. Each one starts with `/` and holds no whitespace. Only for routes whose backend authenticates every request itself. Caddy still logs the 401 answers of the backend, so the fail2ban `caddy-auth` jail still counts them. |
 | `podman_monitoring_caddy_extra_site_addresses` | list of str | `[]` | no | Site addresses served by Caddy in addition to the hostname, the local IP and the public IP. |
 | `podman_monitoring_host_loopback_ip` | str | `169.254.1.3` | no | Link-local address that the pasta instance of the Caddy container maps to the host loopback. `host.containers.internal` resolves to it inside Caddy. It must differ from podman's own `169.254.1.2`. |
 | `podman_monitoring_user` | str | `{{ operator_user_name \| default('operator') }}` | no | Rootless account running Caddy. Defaults to the operator_user role account. Falls back to `operator` when the operator_user role did not run in the play. |
@@ -244,6 +245,16 @@ Run a headless Obsidian in a rootless Podman quadlet behind Caddy, with the Loca
 | `obsidian_user_uid` | int | `{{ operator_user_uid \| default(10000) }}` | no | Numeric id of `obsidian_user`, used to build `XDG_RUNTIME_DIR`. |
 | `obsidian_user_home` | str | `{{ operator_user_home \| default('/home/' ~ obsidian_user) }}` | no | Home directory of `obsidian_user`. |
 | `obsidian_caddy_user_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy. Follows the `operator_user` role variables, not `obsidian_user`. It is passed to the `podman_monitoring` route entry point as `podman_monitoring_user_home`. When the inventory overrides `podman_monitoring_user_home`, set this variable to the same value. It cannot follow that variable itself, because the route entry point receives it under that name. |
+
+## opencode_route
+
+Publish the opencode server of the operator behind Caddy, authenticated by opencode itself.
+
+| Variable | Type | Default | Required | Description |
+| --- | --- | --- | --- | --- |
+| `opencode_route_path` | str | `/opencode` | no | Path prefix of the route. Must match `^/[a-z0-9_-]+$`. |
+| `opencode_route_port` | int | `4096` | no | Loopback port opencode listens on (`opencode serve --hostname 127.0.0.1 --port <port>`). |
+| `opencode_route_caddy_user_home` | str | `{{ operator_user_home \| default('/home/' ~ (operator_user...` (truncated, see `defaults/main.yml`) | no | Home directory of the operator account that runs Caddy. It is passed to the `podman_monitoring` route entry point as `podman_monitoring_user_home`. When the inventory overrides `podman_monitoring_user_home`, set this variable to the same value. |
 
 ## rocm
 
