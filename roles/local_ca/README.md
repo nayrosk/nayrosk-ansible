@@ -9,8 +9,8 @@ store and fetches it to the controller.
   `server.crt` and the CSRs (mode 0644).
 - The CA is an EC P-384 key with a self-signed certificate valid for 10 years. It is created only when
   absent, or when `local_ca_force_regenerate` is true.
-- The server certificate is valid for 1 year. Its subject alternative names are the hostname, the
-  local IP and the public IP. The local IP is `ansible_default_ipv4.address`, or
+- The server certificate is valid for 1 year and carries the `serverAuth` extended key usage, which
+  Apple platforms require. Its subject alternative names are the hostname, the local IP and the public IP. The local IP is `ansible_default_ipv4.address`, or
   `ansible_default_ipv6.address` on a host without IPv4. The public IP is chosen in this order:
   1. `local_ca_public_ip_override` when set (nothing is probed).
   2. The answer of `local_ca_public_ip_probe_url` (`https://ipv4.icanhazip.com`), asked from the target,
@@ -19,8 +19,8 @@ store and fetches it to the controller.
      failed probe then keeps the certificate as it is instead of issuing it again.
   4. `ansible_host` when it is an IP address.
   5. None: the certificate only holds the hostname and the local IP.
-- The certificate is issued again when the names change, when the CA changes or when less than 30 days
-  remain. When the public IP really changes, the next run picks it up from the probe; set
+- The certificate is issued again when the names or the extended key usage change, when the CA changes
+  or when less than 30 days remain. When the public IP really changes, the next run picks it up from the probe; set
   `local_ca_public_ip_override` when the probe cannot reach the internet.
 - The CA certificate is copied to `/usr/local/share/ca-certificates/local-ca.crt` and
   `update-ca-certificates` runs when it changes.

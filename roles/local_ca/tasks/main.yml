@@ -132,6 +132,8 @@
     privatekey_path: "{{ local_ca_directory }}/server.key"
     common_name: "{{ hostname }}"
     subject_alt_name: "{{ local_ca_san }}"
+    # Apple platforms reject a TLS server certificate without the serverAuth extended key usage.
+    extended_key_usage: [serverAuth]
     mode: "0644"
 
 - name: Issue the server certificate

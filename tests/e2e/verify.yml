@@ -62,6 +62,16 @@
           - "'IP Address:' ~ ansible_facts.default_ipv4.address in verify_san.stdout"
         quiet: true
 
+    - name: Read the server certificate extended key usage
+      ansible.builtin.command: openssl x509 -noout -ext extendedKeyUsage -in /etc/ssl/local-ca/server.crt
+      register: verify_eku
+      changed_when: false
+
+    - name: Check the extended key usage allows TLS server authentication
+      ansible.builtin.assert:
+        that: "'TLS Web Server Authentication' in verify_eku.stdout"
+        quiet: true
+
     - name: Stat the installed CA certificate
       ansible.builtin.stat:
         path: /usr/local/share/ca-certificates/local-ca.crt
