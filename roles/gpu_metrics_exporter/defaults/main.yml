@@ -1,6 +1,6 @@
 ---
 # Image tag of docker.io/rocm/device-metrics-exporter, without the leading v.
-gpu_metrics_exporter_version: "1.5.3"
+gpu_metrics_exporter_version: "1.5.4"
 # Loopback port the exporter is published on (the container always listens on 5000).
 gpu_metrics_exporter_listen_port: 5000
 # GPUConfig fields excluded from the export: the ECC and XGMI series, which read zero on Radeon.
